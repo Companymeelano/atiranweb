@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.android'
         minSdk 24
         targetSdk 35
-        versionCode 15
-        versionName '3.10.0-direct-sql-theme-scroll-icons'
+        versionCode 16
+        versionName '3.11.0-direct-sql-dashboard-reports-polish'
     }
 
     compileOptions {
