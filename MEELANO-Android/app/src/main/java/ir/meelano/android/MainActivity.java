@@ -818,7 +818,7 @@ public class MainActivity extends Activity {
                     JSONObject j = new JSONObject(body);
                     content.removeAllViews();
                     addHero("داشبورد هوشمند Meelano", "نمای هوشمند فروش، خرید، چک‌ها، مشتریان و کالاها با داده‌های زنده Meelano");
-                    addKpis(j.optJSONArray("kpis"));
+                    addDashboardKpiTable(j.optJSONArray("kpis"));
                     renderDashboardToday(j.optJSONObject("today"));
                     JSONObject a = j.optJSONObject("analytics");
                     if (a != null) {
@@ -868,20 +868,19 @@ public class MainActivity extends Activity {
 
     private void renderDashboardToday(JSONObject today) {
         if (today == null) return;
-        addDashboardBlock("فروش روز", "خلاصه فروش آخرین روز ثبت‌شده", ir.meelano.android.R.drawable.icon_sales, today.optJSONObject("sales"), GOLD, true);
-        addDashboardBlock("خرید روز", "خلاصه خرید آخرین روز ثبت‌شده", ir.meelano.android.R.drawable.icon_products, today.optJSONObject("purchases"), INFO, false);
-        addDashboardBlock("چک‌های دریافتی", "آخرین وضعیت چک‌های دریافتی", ir.meelano.android.R.drawable.icon_checks, today.optJSONObject("getChecks"), SUCCESS, false);
-        addDashboardBlock("چک‌های پرداختی", "آخرین وضعیت چک‌های پرداختی", ir.meelano.android.R.drawable.icon_checks, today.optJSONObject("putChecks"), WARNING, false);
-        addCompactListSection("مشتریان بدهکار با بالاترین بدهی", "نمایش سریع حساب‌های نیازمند پیگیری", ir.meelano.android.R.drawable.icon_customers, today.optJSONArray("topDebtors"), "party", "amount", DANGER);
-        addCompactListSection("فاکتورهای تسویه‌نشده و سررسید گذشته", "فاکتورهای فروش که از تاریخ تسویه آن‌ها گذشته است", ir.meelano.android.R.drawable.icon_sales, today.optJSONArray("overdueInvoices"), "party", "amount", WARNING);
-        addCompactListSection("مشتریان خرید نکرده", "مشتریانی که در بازه اخیر خریدی نداشته‌اند", ir.meelano.android.R.drawable.icon_visitors, today.optJSONArray("inactiveCustomers"), "party", "days", INFO);
-        addCompactListSection("کالاهای فروخته‌شده روز", "تفکیک کالا، گروه، مقدار و مبلغ", ir.meelano.android.R.drawable.icon_products, today.optJSONArray("todayItems"), "item", "amount", GOLD);
+        addDailyFinanceDashboardBlock("sales", "فروش روز", "انتخاب تاریخ، مشاهده منحنی و ورود به فاکتورها/دریافتی‌ها", ir.meelano.android.R.drawable.icon_sales, today.optJSONObject("sales"), GOLD);
+        addDailyFinanceDashboardBlock("purchase", "خرید روز", "انتخاب تاریخ، مشاهده منحنی و ورود به اسناد/پرداختی‌ها", ir.meelano.android.R.drawable.icon_products, today.optJSONObject("purchases"), INFO);
+        addCheckDashboardSection("چک‌های دریافتی", "تفکیک صندوق، بانک، خرج‌شده، استرداد و سایر وضعیت‌ها", true, today.optJSONObject("getChecks"), SUCCESS);
+        addCheckDashboardSection("چک‌های پرداختی", "تفکیک پاس‌شده، در راه و سایر وضعیت‌های پرداخت", false, today.optJSONObject("putChecks"), WARNING);
+        addDashboardInsightTable(today);
+        addDashboardBankTable(today.optJSONArray("banks"));
     }
 
-    private void addDashboardBlock(String title, String sub, int iconRes, JSONObject data, int accent, boolean large) {
+    private void addDailyFinanceDashboardBlock(String type, String title, String sub, int iconRes, JSONObject data, int accent) {
         if (data == null) return;
+        String date = data.optString("date", "");
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(accent, 38), SURFACE}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
+        c.setBackground(gradient(new int[]{alpha(accent, 42), SURFACE}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
@@ -893,71 +892,395 @@ public class MainActivity extends Activity {
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(10), 0, dp(10), 0);
         copy.addView(text(title, 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        copy.addView(text(sub + " • " + data.optString("date", "—"), 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(sub + " • " + (date == null || date.isEmpty() ? "—" : date), 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         c.addView(head, new LinearLayout.LayoutParams(-1, -2));
 
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
         JSONArray metrics = data.optJSONArray("metrics");
         if (metrics != null) {
-            for (int i = 0; i < Math.min(metrics.length(), 4); i++) {
+            LinearLayout row = null;
+            for (int i = 0; i < Math.min(metrics.length(), 6); i++) {
+                if (i % 3 == 0) { row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); c.addView(row, new LinearLayout.LayoutParams(-1, -2)); }
                 JSONObject m = metrics.optJSONObject(i);
                 LinearLayout mm = metric(m.optString("label"), m.optString("value"));
                 LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(0, -2, 1f);
-                mlp.setMargins(dp(3), dp(10), dp(3), 0);
-                row.addView(mm, mlp);
+                mlp.setMargins(dp(3), dp(8), dp(3), 0);
+                if (row != null) row.addView(mm, mlp);
             }
         }
-        c.addView(row, new LinearLayout.LayoutParams(-1, -2));
         JSONArray chartData = data.optJSONArray("chart");
         if (chartData != null && chartData.length() > 0) {
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, dp(large ? 160 : 130));
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, dp(172));
             cp.setMargins(0, dp(12), 0, 0);
-            c.addView(new BarChartView(this, chartData, accent), cp);
+            c.addView(new LineChartView(this, chartData, accent), cp);
         }
+
+        EditText dateInput = input(date == null || date.isEmpty() ? "مثلا 1403/01/01" : date, date == null ? "" : date, false);
+        LinearLayout.LayoutParams dip = new LinearLayout.LayoutParams(-1, dp(46));
+        dip.setMargins(0, dp(12), 0, dp(8));
+        c.addView(dateInput, dip);
+
+        LinearLayout nav = new LinearLayout(this);
+        nav.setOrientation(LinearLayout.HORIZONTAL);
+        Button prev = secondaryButton("روز قبل");
+        Button show = primaryButton("نمایش تاریخ");
+        Button next = secondaryButton("روز بعد");
+        prev.setTextSize(10.5f); show.setTextSize(10.5f); next.setTextSize(10.5f);
+        prev.setOnClickListener(v -> showDashboardDailyView(type, dateInput.getText().toString().trim(), -1));
+        show.setOnClickListener(v -> showDashboardDailyView(type, dateInput.getText().toString().trim(), 0));
+        next.setOnClickListener(v -> showDashboardDailyView(type, dateInput.getText().toString().trim(), 1));
+        LinearLayout.LayoutParams bp1 = new LinearLayout.LayoutParams(0, dp(42), 1f); bp1.setMargins(dp(3), 0, dp(3), 0);
+        LinearLayout.LayoutParams bp2 = new LinearLayout.LayoutParams(0, dp(42), 1f); bp2.setMargins(dp(3), 0, dp(3), 0);
+        LinearLayout.LayoutParams bp3 = new LinearLayout.LayoutParams(0, dp(42), 1f); bp3.setMargins(dp(3), 0, dp(3), 0);
+        nav.addView(prev, bp1); nav.addView(show, bp2); nav.addView(next, bp3);
+        c.addView(nav, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button docs = secondaryButton(type.equals("sales") ? "فاکتورها" : "اسناد خرید");
+        Button cash = secondaryButton(type.equals("sales") ? "دریافتی‌ها" : "پرداختی‌ها");
+        Button items = secondaryButton("اقلام روز");
+        docs.setTextSize(10.5f); cash.setTextSize(10.5f); items.setTextSize(10.5f);
+        docs.setOnClickListener(v -> showDashboardDailyList(type, dateInput.getText().toString().trim(), "documents"));
+        cash.setOnClickListener(v -> showDashboardDailyList(type, dateInput.getText().toString().trim(), "payments"));
+        items.setOnClickListener(v -> showDashboardDailyList(type, dateInput.getText().toString().trim(), "items"));
+        LinearLayout.LayoutParams ap1 = new LinearLayout.LayoutParams(0, dp(40), 1f); ap1.setMargins(dp(3), dp(8), dp(3), 0);
+        LinearLayout.LayoutParams ap2 = new LinearLayout.LayoutParams(0, dp(40), 1f); ap2.setMargins(dp(3), dp(8), dp(3), 0);
+        LinearLayout.LayoutParams ap3 = new LinearLayout.LayoutParams(0, dp(40), 1f); ap3.setMargins(dp(3), dp(8), dp(3), 0);
+        actions.addView(docs, ap1); actions.addView(cash, ap2); actions.addView(items, ap3);
+        c.addView(actions, new LinearLayout.LayoutParams(-1, -2));
+
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, 0, 0, dp(12));
         content.addView(c, lp);
     }
 
-    private void addCompactListSection(String title, String sub, int iconRes, JSONArray rows, String labelKey, String valueKey, int accent) {
-        if (rows == null || rows.length() == 0) return;
+    private void addCheckDashboardSection(String title, String sub, boolean incoming, JSONObject data, int accent) {
+        if (data == null) return;
         LinearLayout c = card();
-        c.setBackground(roundedStroke(SURFACE, 22, alpha(accent, 56)));
+        c.setBackground(roundedStroke(SURFACE, 22, alpha(accent, 70)));
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
         ImageView icon = new ImageView(this);
-        icon.setImageResource(iconRes);
+        icon.setImageResource(ir.meelano.android.R.drawable.icon_checks);
         icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        head.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        head.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(10), 0, dp(10), 0);
         copy.addView(text(title, 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        copy.addView(text(sub, 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(sub + " • " + data.optString("date", "—"), 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         c.addView(head, new LinearLayout.LayoutParams(-1, -2));
-        for (int i = 0; i < Math.min(rows.length(), 5); i++) {
-            JSONObject r = rows.optJSONObject(i);
-            LinearLayout line = new LinearLayout(this);
-            line.setOrientation(LinearLayout.HORIZONTAL);
-            line.setGravity(Gravity.CENTER_VERTICAL);
-            line.setPadding(dp(9), dp(8), dp(9), dp(8));
-            line.setBackground(roundedStroke(SURFACE_2, 14, BORDER));
-            TextView name = text(r.optString(labelKey, r.optString("party", r.optString("item", "—"))), 11.5f, TEXT, Typeface.BOLD);
-            TextView val = text(valueKey.equals("days") ? r.optString("hint", "") : money(r.opt(valueKey)), 10.5f, accent, Typeface.BOLD);
-            line.addView(name, new LinearLayout.LayoutParams(0, -2, 1f));
-            line.addView(val, new LinearLayout.LayoutParams(-2, -2));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-            lp.setMargins(0, dp(8), 0, 0);
-            c.addView(line, lp);
+        JSONArray metrics = data.optJSONArray("metrics");
+        if (metrics != null) {
+            LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+            for (int i = 0; i < Math.min(3, metrics.length()); i++) {
+                JSONObject m = metrics.optJSONObject(i);
+                LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, -2, 1f); mp.setMargins(dp(3), dp(8), dp(3), 0);
+                row.addView(metric(m.optString("label"), m.optString("value")), mp);
+            }
+            c.addView(row, new LinearLayout.LayoutParams(-1, -2));
         }
-        LinearLayout.LayoutParams outer = new LinearLayout.LayoutParams(-1, -2);
-        outer.setMargins(0, 0, 0, dp(12));
-        content.addView(c, outer);
+        JSONArray rows = data.optJSONArray("breakdown");
+        if (rows == null || rows.length() == 0) rows = data.optJSONArray("chart");
+        if (rows != null) {
+            for (int i = 0; i < Math.min(rows.length(), 7); i++) {
+                JSONObject r = rows.optJSONObject(i);
+                LinearLayout line = compactActionRow(r.optString("label", "وضعیت"), money(r.opt("amount")) + " • " + formatNumber(r.opt("count")) + " فقره", accent);
+                String status = r.optString("status", "");
+                String label = r.optString("label", "وضعیت");
+                line.setOnClickListener(v -> showCheckList(incoming, status, label));
+                c.addView(line, compactRowLp());
+            }
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12));
+        content.addView(c, lp);
+    }
+
+    private void addDashboardInsightTable(JSONObject today) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(GOLD, 30), SURFACE}, GradientDrawable.Orientation.TOP_BOTTOM, 24));
+        c.addView(text("جدول هوشمند پیگیری", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("مشتریان، کالاها و هشدارهای مهم در یک جدول فشرده و قابل کلیک", 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        addInsightRows(c, "بدهکاران", today.optJSONArray("topDebtors"), "party", "amount", DANGER, "customer");
+        addInsightRows(c, "تسویه گذشته", today.optJSONArray("overdueInvoices"), "party", "amount", WARNING, "customer");
+        addInsightRows(c, "بدون خرید", today.optJSONArray("inactiveCustomers"), "party", "hint", INFO, "customer");
+        addInsightRows(c, "کالاهای فروخته‌شده", today.optJSONArray("todayItems"), "item", "amount", GOLD, "product");
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12));
+        content.addView(c, lp);
+    }
+
+    private void addInsightRows(LinearLayout parent, String section, JSONArray rows, String labelKey, String valueKey, int accent, String target) {
+        if (rows == null || rows.length() == 0) return;
+        TextView h = text(section, 12, accent, Typeface.BOLD);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2); hp.setMargins(0, dp(10), 0, 0);
+        parent.addView(h, hp);
+        for (int i = 0; i < Math.min(rows.length(), 3); i++) {
+            JSONObject r = rows.optJSONObject(i);
+            String label = r.optString(labelKey, r.optString("party", r.optString("item", "—")));
+            String value = valueKey.equals("hint") ? r.optString("hint", "") : money(r.opt(valueKey));
+            String meta = r.optString("visitor", "");
+            if (!r.optString("dueDate", "").isEmpty()) meta = (meta.isEmpty() ? "" : meta + " • ") + "سررسید " + r.optString("dueDate");
+            if (!r.optString("hint", "").isEmpty() && !valueKey.equals("hint")) meta = (meta.isEmpty() ? "" : meta + " • ") + r.optString("hint");
+            LinearLayout line = compactActionRow(section + " • " + label, value + (meta.isEmpty() ? "" : "\n" + meta), accent);
+            line.setOnClickListener(v -> {
+                if ("customer".equals(target)) openCustomerFromDashboard(r);
+                else openProductFromDashboard(r);
+            });
+            parent.addView(line, compactRowLp());
+        }
+    }
+
+    private void addDashboardBankTable(JSONArray banks) {
+        if (banks == null || banks.length() == 0) return;
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(INFO, 42), alpha(GOLD, 24), SURFACE}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
+        c.addView(text("بانک‌ها و موجودی نقدی", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("نمای فشرده سه‌بعدی از مانده بانک‌ها، ورودی و خروجی چک‌ها", 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        for (int i = 0; i < Math.min(6, banks.length()); i++) {
+            JSONObject b = banks.optJSONObject(i);
+            LinearLayout row = compactActionRow(b.optString("label", "بانک"), "مانده " + money(b.opt("balance")) + " • ورودی " + money(b.opt("inflow")) + " • خروجی " + money(b.opt("outflow")), INFO);
+            c.addView(row, compactRowLp());
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12));
+        content.addView(c, lp);
+    }
+
+    private LinearLayout compactActionRow(String title, String value, int accent) {
+        LinearLayout line = new LinearLayout(this);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setPadding(dp(9), dp(8), dp(9), dp(8));
+        line.setClickable(true);
+        line.setBackground(roundedStroke(alpha(accent, 24), 14, alpha(accent, 82)));
+        TextView name = text(title, 11.2f, TEXT, Typeface.BOLD);
+        TextView val = text(value, 10.2f, accent, Typeface.BOLD);
+        val.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        val.setMaxLines(2);
+        line.addView(name, new LinearLayout.LayoutParams(0, -2, 1f));
+        line.addView(val, new LinearLayout.LayoutParams(-2, -2));
+        return line;
+    }
+
+    private LinearLayout.LayoutParams compactRowLp() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, dp(7), 0, 0);
+        return lp;
+    }
+
+    private void openCustomerFromDashboard(JSONObject r) {
+        JSONObject c = new JSONObject();
+        try {
+            c.put("کد", r.optString("code", r.optString("customerCode", "")));
+            c.put("نام", r.optString("party", r.optString("label", "مشتری")));
+            c.put("مانده", r.optDouble("amount", 0));
+            c.put("_back", "dashboard");
+        } catch (Exception ignored) { }
+        showCustomerDetail(c, "all");
+    }
+
+    private void openProductFromDashboard(JSONObject r) {
+        JSONObject p = new JSONObject();
+        try {
+            p.put("کد", r.optString("code", r.optString("productCode", "")));
+            p.put("نام", r.optString("item", r.optString("label", "کالا")));
+            p.put("مبلغ_فروش", r.optDouble("amount", 0));
+            p.put("گروه", r.optString("hint", ""));
+        } catch (Exception ignored) { }
+        showProductDialog(p);
+    }
+
+    private void showDashboardDailyView(String type, String date, int step) {
+        content.removeAllViews();
+        addHero(type.equals("sales") ? "جزئیات فروش روز" : "جزئیات خرید روز", "انتخاب تاریخ و مشاهده منحنی همان روز");
+        Button back = secondaryButton("بازگشت به داشبورد");
+        back.setOnClickListener(v -> showApp("dashboard"));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(12)); content.addView(back, bp);
+        addLoading(content, "در حال دریافت اطلاعات روز…");
+        runDb(() -> queryDashboardDailyDetail(type, date, step), new DbCallback() {
+            @Override public void ok(String body) {
+                try { renderDashboardDailyDetail(new JSONObject(body)); }
+                catch (Exception e) { showPageError("جزئیات روز", e, () -> showDashboardDailyView(type, date, step)); }
+            }
+            @Override public void fail(Exception e) { showPageError("جزئیات روز", e, () -> showDashboardDailyView(type, date, step)); }
+        });
+    }
+
+    private void renderDashboardDailyDetail(JSONObject r) {
+        content.removeAllViews();
+        String type = r.optString("type", "sales");
+        int accent = type.equals("sales") ? GOLD : INFO;
+        addHero(type.equals("sales") ? "جزئیات فروش روز" : "جزئیات خرید روز", "تاریخ انتخابی: " + r.optString("date", "—"));
+        Button back = secondaryButton("بازگشت به داشبورد");
+        back.setOnClickListener(v -> showApp("dashboard"));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(12)); content.addView(back, bp);
+        JSONObject block = new JSONObject();
+        try { block.put("date", r.optString("date")); block.put("metrics", r.optJSONArray("metrics")); block.put("chart", r.optJSONArray("chart")); } catch (Exception ignored) { }
+        addDailyFinanceDashboardBlock(type, type.equals("sales") ? "فروش روز" : "خرید روز", "نمای جزئیات تاریخ انتخابی و دسترسی سریع به لیست‌ها", type.equals("sales") ? ir.meelano.android.R.drawable.icon_sales : ir.meelano.android.R.drawable.icon_products, block, accent);
+    }
+
+    private void showDashboardDailyList(String type, String date, String kind) {
+        content.removeAllViews();
+        addHero(type.equals("sales") ? "لیست‌های فروش روز" : "لیست‌های خرید روز", "در حال آماده‌سازی لیست کامل با جزئیات");
+        addLoading(content, "در حال دریافت لیست…");
+        runDb(() -> queryDashboardDailyDetail(type, date, 0), new DbCallback() {
+            @Override public void ok(String body) {
+                try { renderDashboardDailyList(new JSONObject(body), kind); }
+                catch (Exception e) { showPageError("لیست روز", e, () -> showDashboardDailyList(type, date, kind)); }
+            }
+            @Override public void fail(Exception e) { showPageError("لیست روز", e, () -> showDashboardDailyList(type, date, kind)); }
+        });
+    }
+
+    private void renderDashboardDailyList(JSONObject r, String kind) {
+        content.removeAllViews();
+        String type = r.optString("type", "sales");
+        String date = r.optString("date", "");
+        String title = "payments".equals(kind) ? (type.equals("sales") ? "دریافتی‌های روز" : "پرداختی‌های روز") : ("items".equals(kind) ? "اقلام روز" : (type.equals("sales") ? "فاکتورهای فروش روز" : "اسناد خرید روز"));
+        addHero(title, "تاریخ: " + date);
+        Button back = secondaryButton("بازگشت به جزئیات روز");
+        back.setOnClickListener(v -> showDashboardDailyView(type, date, 0));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(12)); content.addView(back, bp);
+        if ("payments".equals(kind)) addPaymentRows(title, r.optJSONArray("payments"));
+        else if ("items".equals(kind)) addDailyRows(title, r.optJSONArray("items"), false);
+        else addDailyRows(title, r.optJSONArray("documents"), true);
+    }
+
+    private String queryDashboardDailyDetail(String type, String requestedDate, int step) throws Exception {
+        boolean sales = "sales".equals(type);
+        String table = sales ? "sailfact" : "buyfact";
+        String dateCol;
+        String actualDate;
+        try (Connection c = openConnection()) {
+            Set<String> cols = columns(c, table);
+            dateCol = sales ? resolve(cols, "date") : resolve(cols, "DATE", "date");
+            actualDate = requestedDate == null || requestedDate.trim().isEmpty() ? latestDate(c, table, dateCol) : requestedDate.trim();
+            if (step != 0) actualDate = adjacentDate(c, table, dateCol, actualDate, step);
+        }
+        JSONObject r = new JSONObject(queryDailyReport(type, actualDate));
+        try (Connection c = openConnection()) {
+            r.put("chart", queryDailyTrend(c, type, r.optString("date", actualDate)));
+            r.put("payments", queryDailyPayments(c, type, r.optString("date", actualDate)));
+        }
+        return r.toString();
+    }
+
+    private String adjacentDate(Connection c, String table, String dateCol, String date, int step) {
+        if (dateCol == null || date == null || date.trim().isEmpty()) return date;
+        String op = step < 0 ? "<" : ">";
+        String ord = step < 0 ? "DESC" : "ASC";
+        try (PreparedStatement ps = c.prepareStatement("SELECT TOP (1) [" + dateCol + "] FROM dbo.[" + table + "] WHERE [" + dateCol + "] " + op + " ? GROUP BY [" + dateCol + "] ORDER BY [" + dateCol + "] " + ord)) {
+            ps.setString(1, date);
+            try (ResultSet r = ps.executeQuery()) { if (r.next() && r.getString(1) != null) return r.getString(1); }
+        } catch (Exception ignored) { }
+        return date;
+    }
+
+    private JSONArray queryDailyTrend(Connection c, String type, String date) throws Exception {
+        boolean sales = "sales".equals(type);
+        String table = sales ? "sailfact" : "buyfact";
+        Set<String> cols = columns(c, table);
+        String dateCol = sales ? resolve(cols, "date") : resolve(cols, "DATE", "date");
+        String amountCol = resolve(cols, "all");
+        if (dateCol == null || amountCol == null || date == null || date.isEmpty()) return new JSONArray();
+        String where = "WHERE [" + dateCol + "]<=?" + activeAnd(cols, "");
+        List<Object> params = new ArrayList<>(); params.add(date);
+        if (sales && session != null && session.visitorId != null && hasCol(cols, "vis_rdf")) { where += " AND TRY_CONVERT(int,[vis_rdf])=?"; params.add(session.visitorId); }
+        String sql = "SELECT TOP (7) [" + dateCol + "], ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + amountCol + "])),0) FROM dbo.[" + table + "] " + where + " GROUP BY [" + dateCol + "] ORDER BY [" + dateCol + "] DESC";
+        return reverse(readPoints(c, sql, params));
+    }
+
+    private JSONArray queryDailyPayments(Connection c, String type, String date) throws Exception {
+        boolean sales = "sales".equals(type);
+        String table = sales ? "sailfact" : "buyfact";
+        Set<String> h = columns(c, table); Set<String> cust = columns(c, "CUSTOMERS");
+        String dateCol = sales ? resolve(h, "date") : resolve(h, "DATE", "date");
+        String numberCol = sales ? resolve(h, "shfacfo") : resolve(h, "shfackh");
+        String amountCol = sales ? resolve(h, "MabDaryaftFactor", "Daryaft", "received") : resolve(h, "MablaghPardakht", "Pardakht", "paid");
+        if (dateCol == null || numberCol == null || amountCol == null || date == null || date.isEmpty()) return new JSONArray();
+        String headerParty = hasCol(h, "moname") ? "TRY_CONVERT(nvarchar(250),h.moname)" : "N'بدون نام'";
+        boolean canJoinCustomer = hasCol(cust, "SHMO") && hasCol(h, "shmo") && hasCol(cust, "MONAME");
+        String partyExpr = canJoinCustomer ? "COALESCE(TRY_CONVERT(nvarchar(250),c.MONAME)," + headerParty + ",N'بدون نام')" : "COALESCE(" + headerParty + ",N'بدون نام')";
+        String sql = "SELECT TOP (150) TRY_CONVERT(nvarchar(80),h.[" + numberCol + "]), " + partyExpr + ", TRY_CONVERT(decimal(19,2),h.[" + amountCol + "]), TRY_CONVERT(nvarchar(500)," + (hasCol(h, "description") ? "h.description" : (hasCol(h, "Explain") ? "h.[Explain]" : "NULL")) + ") FROM dbo.[" + table + "] h " + (canJoinCustomer ? "LEFT JOIN dbo.CUSTOMERS c ON c.SHMO=h.shmo " : "") + " WHERE h.[" + dateCol + "]=? AND ISNULL(TRY_CONVERT(decimal(19,2),h.[" + amountCol + "]),0)>0" + activeAnd(h, "h") + " ORDER BY h.[" + numberCol + "]";
+        JSONArray arr = new JSONArray();
+        try (PreparedStatement ps = c.prepareStatement(sql)) { ps.setString(1, date); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("number", stringOr(r.getString(1), "—")); o.put("party", stringOr(r.getString(2), "بدون نام")); o.put("amount", r.getDouble(3)); o.put("description", stringOr(r.getString(4), "")); arr.put(o); } } }
+        return arr;
+    }
+
+    private void addPaymentRows(String title, JSONArray rows) {
+        LinearLayout c = card();
+        c.addView(text(title, 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        if (rows == null || rows.length() == 0) { TextView empty = text("دریافت/پرداختی برای این تاریخ ثبت نشده است.", 12, MUTED, Typeface.NORMAL); empty.setGravity(Gravity.CENTER); c.addView(empty, new LinearLayout.LayoutParams(-1, dp(70))); }
+        else {
+            for (int i = 0; i < Math.min(150, rows.length()); i++) {
+                JSONObject row = rows.optJSONObject(i);
+                LinearLayout item = new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL); item.setPadding(dp(10), dp(10), dp(10), dp(10)); item.setBackground(roundedStroke(SURFACE_2, 15, BORDER));
+                item.addView(text("سند: " + row.optString("number", "—") + "   |   " + row.optString("party", "بدون نام"), 12.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+                item.addView(text("مبلغ: " + money(row.opt("amount")), 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+                if (!row.optString("description", "").isEmpty()) item.addView(text("توضیحات: " + row.optString("description"), 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+                LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(-1, -2); ilp.setMargins(0, dp(8), 0, 0); c.addView(item, ilp);
+            }
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void showCheckList(boolean incoming, String statusValue, String label) {
+        content.removeAllViews();
+        addHero(incoming ? "جزئیات چک‌های دریافتی" : "جزئیات چک‌های پرداختی", label == null ? "" : label);
+        Button back = secondaryButton("بازگشت به داشبورد"); back.setOnClickListener(v -> showApp("dashboard"));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(12)); content.addView(back, bp);
+        addLoading(content, "در حال دریافت چک‌ها…");
+        runDb(() -> queryCheckList(incoming, statusValue), new DbCallback() {
+            @Override public void ok(String body) { try { renderCheckList(incoming, label, new JSONArray(body)); } catch (Exception e) { showPageError("چک‌ها", e, () -> showCheckList(incoming, statusValue, label)); } }
+            @Override public void fail(Exception e) { showPageError("چک‌ها", e, () -> showCheckList(incoming, statusValue, label)); }
+        });
+    }
+
+    private void renderCheckList(boolean incoming, String label, JSONArray rows) {
+        content.removeAllViews();
+        addHero(incoming ? "جزئیات چک‌های دریافتی" : "جزئیات چک‌های پرداختی", label == null ? "" : label);
+        Button back = secondaryButton("بازگشت به داشبورد"); back.setOnClickListener(v -> showApp("dashboard"));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(12)); content.addView(back, bp);
+        if (rows == null || rows.length() == 0) { addEmptyTo(content, "چکی برای این وضعیت پیدا نشد."); return; }
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject r = rows.optJSONObject(i);
+            LinearLayout item = card(); item.setBackground(roundedStroke(SURFACE, 18, alpha(incoming ? SUCCESS : WARNING, 70)));
+            item.addView(text("شماره چک: " + r.optString("number", "—") + "   |   " + r.optString("date", "—"), 13, incoming ? SUCCESS : WARNING, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+            item.addView(text("طرف حساب: " + r.optString("party", "—") + "   |   بانک: " + r.optString("bank", "—"), 11.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+            item.addView(text("مبلغ: " + money(r.opt("amount")) + "   |   وضعیت: " + r.optString("statusLabel", "—"), 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+            if (!r.optString("description", "").isEmpty()) item.addView(text("توضیحات: " + r.optString("description"), 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(10)); content.addView(item, lp);
+        }
+    }
+
+    private String queryCheckList(boolean incoming, String statusValue) throws Exception {
+        JSONArray arr = new JSONArray();
+        try (Connection c = openConnection()) {
+            String table = incoming ? "getchk" : "putchk";
+            Set<String> cols = columns(c, table); Set<String> typeCols = columns(c, "CheckTypes"); Set<String> bankCols = columns(c, "BANK"); Set<String> cust = columns(c, "CUSTOMERS");
+            String amount = incoming ? resolve(cols, "getchkmab", "mablagh", "amount") : resolve(cols, "putchkmab", "mablagh", "amount");
+            String status = incoming ? resolve(cols, "chk_satus", "status") : resolve(cols, "putchk_status", "status");
+            if (amount == null) return arr.toString();
+            String date = incoming ? resolve(cols, "getchkdate", "chkdate", "date", "sarresid", "t_date") : resolve(cols, "putchkdate", "chkdate", "date", "sarresid", "t_date");
+            String number = incoming ? resolve(cols, "getchknum", "chknum", "number", "serial") : resolve(cols, "putchknum", "chknum", "number", "serial");
+            String bankRef = incoming ? resolve(cols, "our_bankrdf", "bankrdf", "BankRDF") : resolve(cols, "bankrdf", "our_bankrdf", "BankRDF");
+            String shmo = resolve(cols, "shmo", "SHMO");
+            String desc = resolve(cols, "description", "Explain", "tozihat");
+            String raw = status == null ? "CAST(NULL AS nvarchar(50))" : "TRY_CONVERT(nvarchar(50),x.[" + status + "])";
+            String statusExpr = status == null ? "N'نامشخص'" : (hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? "COALESCE(TRY_CONVERT(nvarchar(120),t.Desciption),N'وضعیت '+" + raw + ")" : "N'وضعیت '+" + raw);
+            String join = status != null && hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? " LEFT JOIN dbo.CheckTypes t ON TRY_CONVERT(nvarchar(50),t.ID)=" + raw : "";
+            String bankExpr = "N'—'";
+            if (bankRef != null && hasCol(bankCols, "RDF") && hasCol(bankCols, "BANKNAME")) { join += " LEFT JOIN dbo.BANK b ON TRY_CONVERT(nvarchar(100),b.RDF)=TRY_CONVERT(nvarchar(100),x.[" + bankRef + "])"; bankExpr = "COALESCE(TRY_CONVERT(nvarchar(200),b.BANKNAME),N'—')"; }
+            String partyExpr = "N'—'";
+            if (shmo != null && hasCol(cust, "SHMO") && hasCol(cust, "MONAME")) { join += " LEFT JOIN dbo.CUSTOMERS c ON TRY_CONVERT(nvarchar(100),c.SHMO)=TRY_CONVERT(nvarchar(100),x.[" + shmo + "])"; partyExpr = "COALESCE(TRY_CONVERT(nvarchar(250),c.MONAME),TRY_CONVERT(nvarchar(100),x.[" + shmo + "]),N'—')"; }
+            String where = ""; List<Object> params = new ArrayList<>();
+            if (status != null && statusValue != null && !statusValue.trim().isEmpty()) { where = " WHERE " + raw + "=?"; params.add(statusValue.trim()); }
+            String sql = "SELECT TOP (200) " + (date == null ? "CAST(NULL AS nvarchar(30))" : "TRY_CONVERT(nvarchar(30),x.[" + date + "])") + ", " + (number == null ? "CAST(NULL AS nvarchar(80))" : "TRY_CONVERT(nvarchar(80),x.[" + number + "])") + ", TRY_CONVERT(decimal(19,2),x.[" + amount + "]), " + raw + ", " + statusExpr + ", " + bankExpr + ", " + partyExpr + ", " + (desc == null ? "CAST(NULL AS nvarchar(500))" : "TRY_CONVERT(nvarchar(500),x.[" + desc + "])") + " FROM dbo.[" + table + "] x" + join + where + " ORDER BY 1 DESC";
+            try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("date", stringOr(r.getString(1), "—")); o.put("number", stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("status", stringOr(r.getString(4), "")); o.put("statusLabel", friendlyCheckStatus(incoming, r.getString(4), r.getString(5))); o.put("bank", stringOr(r.getString(6), "—")); o.put("party", stringOr(r.getString(7), "—")); o.put("description", stringOr(r.getString(8), "")); arr.put(o); } } }
+        }
+        return arr.toString();
     }
 
     private JSONObject queryTodayDashboard(Connection c) throws Exception {
@@ -972,6 +1295,7 @@ public class MainActivity extends Activity {
         out.put("overdueInvoices", queryOverdueInvoices(c));
         out.put("inactiveCustomers", queryInactiveCustomers(c));
         out.put("todayItems", queryTodaySoldItems(c, salesDate));
+        out.put("banks", loadBanks(c));
         return out;
     }
 
@@ -1024,7 +1348,7 @@ public class MainActivity extends Activity {
         String dateCol = incoming ? resolve(cols, "getchkdate", "chkdate", "date", "sarresid", "t_date") : resolve(cols, "putchkdate", "chkdate", "date", "sarresid", "t_date");
         String date = latestDate(c, table, dateCol);
         out.put("date", date == null || date.isEmpty() ? "—" : date);
-        JSONArray metrics = new JSONArray(); JSONArray chart = new JSONArray(); double total = 0; long count = 0;
+        JSONArray metrics = new JSONArray(); JSONArray chart = new JSONArray(); JSONArray breakdown = new JSONArray(); double total = 0; long count = 0;
         String where = dateCol == null || date == null || date.isEmpty() ? "" : " WHERE [" + dateCol + "]=?";
         if (amount != null) {
             try (PreparedStatement ps = c.prepareStatement("SELECT COUNT_BIG(1), ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + amount + "])),0) FROM dbo.[" + table + "]" + where)) {
@@ -1032,34 +1356,85 @@ public class MainActivity extends Activity {
                 try (ResultSet r = ps.executeQuery()) { if (r.next()) { count = r.getLong(1); total = r.getDouble(2); } }
             }
         }
-        if (statusCol != null && amount != null) {
-            Set<String> typeCols = columns(c, "CheckTypes");
-            String label = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? "COALESCE(TRY_CONVERT(nvarchar(120),t.Desciption),N'وضعیت '+CONVERT(nvarchar(20),x.[" + statusCol + "]))" : "N'وضعیت '+CONVERT(nvarchar(20),x.[" + statusCol + "])";
-            String join = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? " LEFT JOIN dbo.CheckTypes t ON t.ID=x.[" + statusCol + "]" : "";
-            String sql = "SELECT TOP (6) " + label + ", ISNULL(SUM(TRY_CONVERT(decimal(19,2),x.[" + amount + "])),0) FROM dbo.[" + table + "] x" + join + " GROUP BY " + label + " ORDER BY 2 DESC";
-            chart = readPoints(c, sql, new ArrayList<>());
+        if (amount != null) {
+            if (statusCol != null) {
+                Set<String> typeCols = columns(c, "CheckTypes");
+                String raw = "TRY_CONVERT(nvarchar(50),x.[" + statusCol + "])";
+                String label = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? "COALESCE(TRY_CONVERT(nvarchar(120),t.Desciption),N'وضعیت '+" + raw + ")" : "N'وضعیت '+" + raw;
+                String join = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? " LEFT JOIN dbo.CheckTypes t ON TRY_CONVERT(nvarchar(50),t.ID)=" + raw : "";
+                String sql = "SELECT TOP (8) " + raw + ", " + label + ", COUNT_BIG(1), ISNULL(SUM(TRY_CONVERT(decimal(19,2),x.[" + amount + "])),0) FROM dbo.[" + table + "] x" + join + " GROUP BY " + raw + ", " + label + " ORDER BY 4 DESC";
+                try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
+                    while (r.next()) {
+                        String status = stringOr(r.getString(1), "");
+                        String nice = friendlyCheckStatus(incoming, status, r.getString(2));
+                        JSONObject o = new JSONObject();
+                        o.put("status", status);
+                        o.put("label", nice);
+                        o.put("count", r.getLong(3));
+                        o.put("amount", r.getDouble(4));
+                        o.put("value", r.getDouble(4));
+                        breakdown.put(o); chart.put(o);
+                    }
+                }
+            } else {
+                JSONObject o = new JSONObject(); o.put("status", ""); o.put("label", incoming ? "همه چک‌های دریافتی" : "همه چک‌های پرداختی"); o.put("count", count); o.put("amount", total); o.put("value", total); breakdown.put(o); chart.put(o);
+            }
         }
         addMetric(metrics, "تعداد چک", formatNumber(count));
         addMetric(metrics, "جمع مبلغ", money(total));
         addMetric(metrics, incoming ? "نوع" : "نوع", incoming ? "دریافتی" : "پرداختی");
-        out.put("metrics", metrics); out.put("chart", chart); return out;
+        out.put("metrics", metrics); out.put("chart", chart); out.put("breakdown", breakdown); return out;
+    }
+
+    private String friendlyCheckStatus(boolean incoming, String status, String label) {
+        String l = label == null ? "" : label.toLowerCase(Locale.US);
+        String s = status == null ? "" : status.trim();
+        if (incoming) {
+            if (l.contains("صندوق") || l.contains("sandogh") || s.equals("0")) return "موجود در صندوق";
+            if (l.contains("بانک") || l.contains("bank")) return "نزد بانک";
+            if (l.contains("خرج") || l.contains("انتقال") || s.equals("3")) return "خرج‌شده";
+            if (l.contains("استرد") || l.contains("برگشت") || l.contains("return") || s.equals("2")) return "استرداد / برگشتی";
+            if (l.contains("وصول") || l.contains("پاس") || s.equals("1")) return "وصول / پاس‌شده";
+            return stringOr(label, translateStatus(s));
+        } else {
+            if (l.contains("پاس") || l.contains("وصول") || s.equals("1")) return "پاس‌شده";
+            if (l.contains("راه") || l.contains("جاری") || l.contains("ثبت") || s.equals("0")) return "در راه / جاری";
+            if (l.contains("برگشت") || l.contains("رد") || s.equals("2")) return "برگشتی / رد شده";
+            if (l.contains("خرج") || l.contains("انتقال") || s.equals("3")) return "انتقال‌یافته";
+            return stringOr(label, translateStatus(s));
+        }
     }
 
     private JSONArray queryTopDebtors(Connection c) throws Exception {
         Set<String> cols = columns(c, "CUSTOMERS");
         String shmo = resolve(cols, "SHMO", "shmo"); String name = resolve(cols, "MONAME", "Name", "CusName"); String balance = resolve(cols, "man", "Balance", "Mandeh");
-        if (balance == null || (name == null && shmo == null)) return new JSONArray();
-        String label = name == null ? "TRY_CONVERT(nvarchar(120),[" + shmo + "])" : "TRY_CONVERT(nvarchar(250),[" + name + "])";
-        return readDashboardRows(c, "SELECT TOP (8) " + label + ", TRY_CONVERT(decimal(19,2),[" + balance + "]) FROM dbo.CUSTOMERS WHERE TRY_CONVERT(decimal(19,2),[" + balance + "])>0 ORDER BY 2 DESC", "party", "amount", "بدهکار");
+        if (balance == null || shmo == null) return new JSONArray();
+        String label = name == null ? "TRY_CONVERT(nvarchar(120),c.[" + shmo + "])" : "TRY_CONVERT(nvarchar(250),c.[" + name + "])";
+        String sql = "SELECT TOP (8) TRY_CONVERT(nvarchar(100),c.[" + shmo + "]), " + label + ", TRY_CONVERT(decimal(19,2),c.[" + balance + "]) FROM dbo.CUSTOMERS c WHERE TRY_CONVERT(decimal(19,2),c.[" + balance + "])>0 ORDER BY 3 DESC";
+        JSONArray arr = new JSONArray();
+        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
+            while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("party", stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("hint", "مانده بدهی"); o.put("value", r.getDouble(3)); arr.put(o); }
+        }
+        return arr;
     }
 
     private JSONArray queryOverdueInvoices(Connection c) throws Exception {
-        Set<String> sail = columns(c, "sailfact"); Set<String> cust = columns(c, "CUSTOMERS");
+        Set<String> sail = columns(c, "sailfact"); Set<String> cust = columns(c, "CUSTOMERS"); Set<String> vis = columns(c, "visitors");
         if (!hasCol(sail, "t_date") || !hasCol(sail, "tasvieh") || !hasCol(sail, "all") || !hasFunction(c, "dif_date_alan")) return new JSONArray();
-        String nameExpr = hasCol(cust, "MONAME") && hasCol(sail, "shmo") ? "COALESCE(TRY_CONVERT(nvarchar(250),c.MONAME),N'بدون نام')" : "N'بدون نام'";
-        String join = hasCol(cust, "SHMO") && hasCol(sail, "shmo") ? " LEFT JOIN dbo.CUSTOMERS c ON c.SHMO=s.shmo" : "";
-        String sql = "SELECT TOP (8) " + nameExpr + ", TRY_CONVERT(decimal(19,2),s.[all]), N'تاخیر ' + CONVERT(nvarchar(20),-dbo.dif_date_alan(s.t_date)) + N' روز' FROM dbo.sailfact s" + join + " WHERE s.tasvieh='f' AND NULLIF(s.t_date,'') IS NOT NULL AND dbo.dif_date_alan(s.t_date)<0" + activeAnd(sail, "s") + " ORDER BY -dbo.dif_date_alan(s.t_date) DESC";
-        return readDashboardRows(c, sql, "party", "amount", "overdue");
+        String shmo = resolve(sail, "shmo"); String custCode = resolve(cust, "SHMO", "shmo"); String custName = resolve(cust, "MONAME", "Name", "CusName");
+        String visitorId = resolve(sail, "vis_rdf", "VisitorID", "visitor"); String visKey = resolve(vis, "rdf", "RDF", "id", "ID"); String visName = resolve(vis, "name", "Name", "vis_name", "VisitorName", "moname");
+        String nameExpr = custName != null && shmo != null && custCode != null ? "COALESCE(TRY_CONVERT(nvarchar(250),c.[" + custName + "]),N'بدون نام')" : "N'بدون نام'";
+        String codeExpr = shmo == null ? "CAST(NULL AS nvarchar(100))" : "TRY_CONVERT(nvarchar(100),s.[" + shmo + "])";
+        String join = custName != null && shmo != null && custCode != null ? " LEFT JOIN dbo.CUSTOMERS c ON TRY_CONVERT(nvarchar(100),c.[" + custCode + "])=TRY_CONVERT(nvarchar(100),s.[" + shmo + "])" : "";
+        String visitorExpr = visitorId != null && visKey != null && visName != null ? "COALESCE(TRY_CONVERT(nvarchar(150),v.[" + visName + "]),N'بدون ویزیتور')" : "N'بدون ویزیتور'";
+        if (visitorId != null && visKey != null && visName != null) join += " LEFT JOIN dbo.visitors v ON TRY_CONVERT(nvarchar(100),v.[" + visKey + "])=TRY_CONVERT(nvarchar(100),s.[" + visitorId + "])";
+        String number = hasCol(sail, "shfacfo") ? "TRY_CONVERT(nvarchar(80),s.shfacfo)" : "CAST(NULL AS nvarchar(80))";
+        String sql = "SELECT TOP (8) " + codeExpr + ", " + nameExpr + ", TRY_CONVERT(decimal(19,2),s.[all]), s.t_date, -dbo.dif_date_alan(s.t_date), " + visitorExpr + ", " + number + " FROM dbo.sailfact s" + join + " WHERE s.tasvieh='f' AND NULLIF(s.t_date,'') IS NOT NULL AND dbo.dif_date_alan(s.t_date)<0" + activeAnd(sail, "s") + " ORDER BY -dbo.dif_date_alan(s.t_date) DESC";
+        JSONArray arr = new JSONArray();
+        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
+            while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("party", stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("dueDate", stringOr(r.getString(4), "")); o.put("days", r.getLong(5)); o.put("visitor", stringOr(r.getString(6), "بدون ویزیتور")); o.put("invoice", stringOr(r.getString(7), "")); o.put("hint", "تاخیر " + formatNumber(r.getLong(5)) + " روز"); o.put("value", r.getDouble(3)); arr.put(o); }
+        }
+        return arr;
     }
 
     private JSONArray queryInactiveCustomers(Connection c) throws Exception {
@@ -1068,23 +1443,28 @@ public class MainActivity extends Activity {
         String shmo = resolve(cols, "SHMO", "shmo"); String name = resolve(cols, "MONAME", "Name", "CusName"); String sailShmo = resolve(sail, "shmo", "SHMO");
         if (shmo == null || sailShmo == null) return new JSONArray();
         String label = name == null ? "TRY_CONVERT(nvarchar(120),c.[" + shmo + "])" : "TRY_CONVERT(nvarchar(250),c.[" + name + "])";
-        String sql = "SELECT TOP (8) " + label + ", CAST(0 AS decimal(19,2)), N'بدون خرید در فاکتورهای اخیر' FROM dbo.CUSTOMERS c WHERE NOT EXISTS (SELECT 1 FROM dbo.sailfact s WHERE TRY_CONVERT(nvarchar(100),s.[" + sailShmo + "])=TRY_CONVERT(nvarchar(100),c.[" + shmo + "])) ORDER BY " + label;
-        return readDashboardRows(c, sql, "party", "amount", "inactive");
+        String sql = "SELECT TOP (8) TRY_CONVERT(nvarchar(100),c.[" + shmo + "]), " + label + ", CAST(0 AS decimal(19,2)), N'بدون خرید ثبت‌شده' FROM dbo.CUSTOMERS c WHERE NOT EXISTS (SELECT 1 FROM dbo.sailfact s WHERE TRY_CONVERT(nvarchar(100),s.[" + sailShmo + "])=TRY_CONVERT(nvarchar(100),c.[" + shmo + "])) ORDER BY " + label;
+        JSONArray arr = new JSONArray();
+        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
+            while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("party", stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("hint", stringOr(r.getString(4), "بدون خرید")); o.put("value", r.getDouble(3)); arr.put(o); }
+        }
+        return arr;
     }
 
     private JSONArray queryTodaySoldItems(Connection c, String date) throws Exception {
         Set<String> sail = columns(c, "sailfact"); Set<String> detail = columns(c, "subsailfact"); Set<String> inv = columns(c, "inventory"); Set<String> grp = columns(c, "kagroup");
         if (date == null || date.isEmpty() || !hasCol(sail, "date") || !hasCol(sail, "shfacfo") || !hasCol(detail, "shfacfo") || !hasCol(detail, "SHKA")) return new JSONArray();
         String lineAmount = resolve(detail, "LINESUM", "all", "amount"); if (lineAmount == null) return new JSONArray();
-        String invName = resolve(inv, "naka", "Name", "KalaName");
+        String invName = resolve(inv, "naka", "Name", "KalaName"); String invKey = resolve(inv, "shka", "SHKA");
         String groupId = resolve(inv, "group_rdf", "GroupID", "VarietyID", "variety_rdf"); String groupKey = resolve(grp, "group_rdf", "ID", "GroupID", "rdf"); String groupName = resolve(grp, "group_name", "name", "Name", "GroupName");
         String itemName = invName == null ? "N'کالا'" : "TRY_CONVERT(nvarchar(250),i.[" + invName + "])";
+        String productCode = invKey == null ? "TRY_CONVERT(nvarchar(100),d.SHKA)" : "TRY_CONVERT(nvarchar(100),i.[" + invKey + "])";
         String groupExpr = groupId != null && groupKey != null && groupName != null ? "COALESCE(TRY_CONVERT(nvarchar(150),g.[" + groupName + "]),N'بدون گروه')" : "N'بدون گروه'";
         String qty = hasCol(detail, "TEDVAH") || hasCol(detail, "TEDJOZ") ? "ISNULL(SUM(" + (hasCol(detail, "TEDVAH") ? "ISNULL(TRY_CONVERT(decimal(19,3),d.TEDVAH),0)" : "0") + "+" + (hasCol(detail, "TEDJOZ") ? "ISNULL(TRY_CONVERT(decimal(19,3),d.TEDJOZ),0)" : "0") + "),0)" : "CAST(0 AS decimal(19,3))";
         String joinGroup = groupId != null && groupKey != null && groupName != null ? " LEFT JOIN dbo.kagroup g ON TRY_CONVERT(nvarchar(100),g.[" + groupKey + "])=TRY_CONVERT(nvarchar(100),i.[" + groupId + "])" : "";
-        String sql = "SELECT TOP (8) " + itemName + ", ISNULL(SUM(TRY_CONVERT(decimal(19,2),d.[" + lineAmount + "])),0), " + groupExpr + " + N' • مقدار ' + CONVERT(nvarchar(40)," + qty + ") FROM dbo.sailfact s JOIN dbo.subsailfact d ON d.shfacfo=s.shfacfo LEFT JOIN dbo.inventory i ON i.shka=d.SHKA" + joinGroup + " WHERE s.[date]=?" + activeAnd(sail, "s") + activeAnd(detail, "d") + " GROUP BY " + itemName + "," + groupExpr + " ORDER BY 2 DESC";
+        String sql = "SELECT TOP (8) " + productCode + ", " + itemName + ", ISNULL(SUM(TRY_CONVERT(decimal(19,2),d.[" + lineAmount + "])),0), " + groupExpr + ", " + qty + " FROM dbo.sailfact s JOIN dbo.subsailfact d ON d.shfacfo=s.shfacfo LEFT JOIN dbo.inventory i ON i.shka=d.SHKA" + joinGroup + " WHERE s.[date]=?" + activeAnd(sail, "s") + activeAnd(detail, "d") + " GROUP BY " + productCode + "," + itemName + "," + groupExpr + " ORDER BY 3 DESC";
         JSONArray arr = new JSONArray();
-        try (PreparedStatement ps = c.prepareStatement(sql)) { ps.setString(1, date); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("item", stringOr(r.getString(1), "کالا")); o.put("amount", r.getDouble(2)); o.put("hint", stringOr(r.getString(3), "")); o.put("value", r.getDouble(2)); arr.put(o); } } }
+        try (PreparedStatement ps = c.prepareStatement(sql)) { ps.setString(1, date); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("item", stringOr(r.getString(2), "کالا")); o.put("amount", r.getDouble(3)); o.put("group", stringOr(r.getString(4), "")); o.put("qty", r.getDouble(5)); o.put("hint", stringOr(r.getString(4), "") + " • مقدار " + formatNumber(r.getDouble(5))); o.put("value", r.getDouble(3)); arr.put(o); } } }
         return arr;
     }
 
@@ -1114,6 +1494,37 @@ public class MainActivity extends Activity {
         if (index == 2) return ir.meelano.android.R.drawable.icon_sales;
         if (index == 4) return ir.meelano.android.R.drawable.icon_checks;
         return ir.meelano.android.R.drawable.icon_dashboard;
+    }
+
+    private void addDashboardKpiTable(JSONArray kpis) {
+        if (kpis == null || kpis.length() == 0) return;
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(GOLD, 34), SURFACE}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.addView(text("آمار کلیدی Meelano", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("مشتریان، کالاها، فاکتورها و چک‌ها در یک جدول فشرده", 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = null;
+        for (int i = 0; i < kpis.length(); i++) {
+            if (i % 2 == 0) { row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); c.addView(row, new LinearLayout.LayoutParams(-1, -2)); }
+            JSONObject item = kpis.optJSONObject(i);
+            int accent = i % 4 == 0 ? GOLD : (i % 4 == 1 ? INFO : (i % 4 == 2 ? SUCCESS : WARNING));
+            LinearLayout cell = new LinearLayout(this);
+            cell.setOrientation(LinearLayout.HORIZONTAL);
+            cell.setGravity(Gravity.CENTER_VERTICAL);
+            cell.setPadding(dp(8), dp(8), dp(8), dp(8));
+            cell.setBackground(roundedStroke(alpha(accent, 20), 15, alpha(accent, 64)));
+            ImageView icon = new ImageView(this);
+            icon.setImageResource(kpiIconResource(item == null ? "" : item.optString("title"), i));
+            icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+            cell.addView(icon, new LinearLayout.LayoutParams(dp(34), dp(34)));
+            LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(8), 0, dp(8), 0);
+            copy.addView(text(item == null ? "شاخص" : item.optString("title", "شاخص"), 10.5f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+            copy.addView(text(formatNumber(item == null ? 0 : item.opt("value")), 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+            cell.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1f); cp.setMargins(dp(3), dp(8), dp(3), 0);
+            if (row != null) row.addView(cell, cp);
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12));
+        content.addView(c, lp);
     }
 
     private void addKpis(JSONArray kpis) {
@@ -1316,8 +1727,9 @@ public class MainActivity extends Activity {
         String name = customer.optString("نام", "Customer 360");
         content.removeAllViews();
         addHero("گردش حساب مشتری", name + " • کد " + code);
-        Button back = secondaryButton("بازگشت به مشتریان");
-        back.setOnClickListener(v -> showApp("customers"));
+        String backTarget = customer.optString("_back", "customers");
+        Button back = secondaryButton("dashboard".equals(backTarget) ? "بازگشت به داشبورد" : "بازگشت به مشتریان");
+        back.setOnClickListener(v -> showApp(backTarget));
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(10));
         content.addView(back, bp);
         addCustomerLedgerFilters(customer, filter);
@@ -1347,7 +1759,8 @@ public class MainActivity extends Activity {
     private void renderCustomerLedger(JSONObject customer, JSONArray rows, String filter) {
         content.removeAllViews();
         addHero("گردش حساب مشتری", customer.optString("نام", "Customer 360") + " • مانده " + money(customer.opt("مانده")));
-        Button back = secondaryButton("بازگشت به مشتریان"); back.setOnClickListener(v -> showApp("customers"));
+        String backTarget = customer.optString("_back", "customers");
+        Button back = secondaryButton("dashboard".equals(backTarget) ? "بازگشت به داشبورد" : "بازگشت به مشتریان"); back.setOnClickListener(v -> showApp(backTarget));
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(10)); content.addView(back, bp);
         addCustomerLedgerFilters(customer, filter);
         if (rows == null || rows.length() == 0) { addEmptyTo(content, "گردشی برای این فیلتر پیدا نشد."); return; }
@@ -2539,6 +2952,17 @@ public class MainActivity extends Activity {
         DbException(String message) { super(message); }
     }
 
+    private String shortChartLabel(String label) {
+        if (label == null) return "";
+        String l = label.trim();
+        if (l.length() > 10 && l.contains("/")) {
+            String[] p = l.split("/");
+            if (p.length >= 3) return p[p.length - 2] + "/" + p[p.length - 1];
+        }
+        if (l.length() > 9) return l.substring(Math.max(0, l.length() - 9));
+        return l;
+    }
+
     private class LineChartView extends View {
         private final JSONArray data;
         private final int color;
@@ -2555,7 +2979,7 @@ public class MainActivity extends Activity {
             super.onDraw(canvas);
             int w = getWidth();
             int h = getHeight();
-            int left = dp(20), right = dp(16), top = dp(18), bottom = dp(34);
+            int left = dp(22), right = dp(18), top = dp(18), bottom = dp(48);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(dp(1));
             paint.setColor(alpha(TEXT, 35));
@@ -2598,11 +3022,16 @@ public class MainActivity extends Activity {
                 float y = (float) (h - bottom - (v / max) * (h - top - bottom));
                 canvas.drawCircle(x, y, dp(4), paint);
             }
-            paint.setColor(MUTED);
-            paint.setTextSize(dp(10));
+            paint.setColor(alpha(MUTED, 230));
+            paint.setTextSize(dp(n > 5 ? 8.2f : 9.2f));
             paint.setTextAlign(Paint.Align.CENTER);
-            canvas.drawText(data.optJSONObject(0).optString("label", ""), left + dp(22), h - dp(12), paint);
-            canvas.drawText(data.optJSONObject(n - 1).optString("label", ""), w - right - dp(28), h - dp(12), paint);
+            int labelStep = Math.max(1, (int) Math.ceil(n / 4.0));
+            for (int i = 0; i < n; i++) {
+                if (i != 0 && i != n - 1 && i % labelStep != 0) continue;
+                float x = left + (w - left - right) * (n == 1 ? 0.5f : i / (float) (n - 1));
+                String label = shortChartLabel(data.optJSONObject(i).optString("label", ""));
+                canvas.drawText(label, x, h - dp(15), paint);
+            }
         }
     }
 
