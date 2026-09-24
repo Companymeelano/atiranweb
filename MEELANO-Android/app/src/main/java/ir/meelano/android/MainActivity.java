@@ -1,10 +1,16 @@
 package ir.meelano.android;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -16,6 +22,8 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.PowerManager;
+import android.provider.Settings;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
 import android.text.InputType;
@@ -76,7 +84,14 @@ public class MainActivity extends Activity {
     private static final String KEY_AI_CHATGPT = "assistant_ai_chatgpt";
     private static final String KEY_AI_GEMINI = "assistant_ai_gemini";
     private static final String KEY_AI_GROK = "assistant_ai_grok";
+    private static final String KEY_COMPACT_UI = "meelano_compact_ui";
+    private static final String KEY_REDUCED_MOTION = "meelano_reduced_motion";
+    private static final String KEY_CACHE_DASHBOARD = "cache_dashboard_json";
+    private static final String KEY_CACHE_REPORTS = "cache_reports_json";
+    private static final String KEY_LAST_ALERT_DAY = "last_dashboard_alert_day";
+    private static final String NOTIFY_CHANNEL = "meelano_management_alerts";
     private static final int REQ_ASSISTANT_VOICE = 9401;
+    private static final int REQ_BARCODE_SCAN = 9402;
 
     private static final int[] S_HOST = {122, 126, 103, 120, 125, 122, 103, 120, 125, 126, 103, 120, 112};
     private static final int[] S_USER = {8, 45, 36, 32, 39, 8, 39};
@@ -133,6 +148,8 @@ public class MainActivity extends Activity {
         applyTheme(prefs.getString(KEY_THEME, "onyx_gold"));
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         initSpeechEngine();
+        initNotificationChannel();
+        requestNotificationPermissionIfNeeded();
         buildFrame();
         showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید.");
     }
@@ -145,6 +162,44 @@ public class MainActivity extends Activity {
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private boolean compactUi() {
+        if (prefs != null && prefs.getBoolean(KEY_COMPACT_UI, false)) return true;
+        try {
+            float widthDp = getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density;
+            return widthDp > 0 && widthDp < 370;
+        } catch (Exception ignored) { return false; }
+    }
+
+    private boolean motionAllowed() {
+        if (prefs != null && prefs.getBoolean(KEY_REDUCED_MOTION, false)) return false;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (pm != null && pm.isPowerSaveMode()) return false;
+            }
+        } catch (Exception ignored) { }
+        return true;
+    }
+
+    private void initNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                NotificationChannel ch = new NotificationChannel(NOTIFY_CHANNEL, "هشدارهای مدیریتی Meelano", NotificationManager.IMPORTANCE_DEFAULT);
+                ch.setDescription("یادآوری چک‌ها، مطالبات و هشدارهای مهم داشبورد");
+                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) nm.createNotificationChannel(ch);
+            } catch (Exception ignored) { }
+        }
+    }
+
+    private void requestNotificationPermissionIfNeeded() {
+        try {
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 9134);
+            }
+        } catch (Exception ignored) { }
     }
 
     private void applyTheme(String themeId) {
@@ -347,7 +402,8 @@ public class MainActivity extends Activity {
             super.onDraw(canvas);
             int w = getWidth(), h = getHeight();
             if (w <= 0 || h <= 0) return;
-            float t = (System.currentTimeMillis() - startMs) / 1000f;
+            boolean moving = motionAllowed();
+            float t = moving ? (System.currentTimeMillis() - startMs) / 1000f : 0f;
             float s = Math.min(w, h);
             float cx = w / 2f, cy = h / 2f;
             float pulse = (float) Math.sin(t * 2.4f);
@@ -396,7 +452,9 @@ public class MainActivity extends Activity {
             canvas.drawCircle(cx + (float)Math.cos(dotAngle) * s * 0.34f, cy + (float)Math.sin(dotAngle) * s * 0.34f, Math.max(2f, s * 0.04f), p);
             p.setColor(alpha(GOLD_2, 210));
             canvas.drawCircle(cx + (float)Math.cos(dotAngle + 2.2f) * s * 0.32f, cy + (float)Math.sin(dotAngle + 2.2f) * s * 0.32f, Math.max(2f, s * 0.028f), p);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) postInvalidateOnAnimation(); else postInvalidateDelayed(16);
+            if (moving) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) postInvalidateOnAnimation(); else postInvalidateDelayed(40);
+            }
         }
     }
 
@@ -650,8 +708,9 @@ public class MainActivity extends Activity {
     private LinearLayout card() {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
-        c.setPadding(dp(15), dp(15), dp(15), dp(15));
-        c.setBackground(roundedStroke(SURFACE, 22, BORDER));
+        int pad = compactUi() ? dp(11) : dp(15);
+        c.setPadding(pad, pad, pad, pad);
+        c.setBackground(roundedStroke(SURFACE, compactUi() ? 18 : 22, BORDER));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) c.setElevation(dp(6));
         return c;
     }
@@ -1017,6 +1076,7 @@ public class MainActivity extends Activity {
         addLoadingChip(row, "چک", "✓", WARNING, 240);
         addLoadingChip(row, "مشتری", "👥", SUCCESS, 360);
         c.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        addSkeletonBars(c);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, 0, 0, dp(12));
         parent.addView(c, lp);
@@ -1034,8 +1094,24 @@ public class MainActivity extends Activity {
         animatePulse(chip, delay);
     }
 
+    private void addSkeletonBars(LinearLayout parent) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(8), dp(4), dp(8), 0);
+        int[] widths = {92, 72, 86};
+        for (int i = 0; i < widths.length; i++) {
+            View bar = new View(this);
+            bar.setBackground(gradient(new int[]{alpha(GOLD, 18), alpha(INFO, 12), alpha(SURFACE_2, 190)}, GradientDrawable.Orientation.LEFT_RIGHT, 999));
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(10));
+            bp.setMargins(dp((100 - widths[i]) / 2), dp(7), dp((100 - widths[i]) / 2), 0);
+            box.addView(bar, bp);
+            animatePulse(bar, i * 100);
+        }
+        parent.addView(box, new LinearLayout.LayoutParams(-1, -2));
+    }
+
     private void animatePulse(View v, long delay) {
-        if (v == null) return;
+        if (v == null || !motionAllowed()) return;
         v.setScaleX(0.96f);
         v.setScaleY(0.96f);
         v.setAlpha(0.88f);
@@ -1045,7 +1121,7 @@ public class MainActivity extends Activity {
     }
 
     private void animateFloat(View v, long delay) {
-        if (v == null) return;
+        if (v == null || !motionAllowed()) return;
         v.setTranslationY(dp(2));
         v.animate().setStartDelay(delay).translationY(-dp(3)).rotationBy(6f).setDuration(950).withEndAction(() -> {
             if (v.getParent() != null) v.animate().setStartDelay(0).translationY(dp(2)).rotationBy(-6f).setDuration(950).withEndAction(() -> animateFloat(v, 0)).start();
@@ -1192,13 +1268,17 @@ public class MainActivity extends Activity {
         runDb(this::queryDashboard, new DbCallback() {
             @Override public void ok(String body) {
                 try {
+                    if (prefs != null) prefs.edit().putString(KEY_CACHE_DASHBOARD, body).apply();
                     JSONObject j = new JSONObject(body);
                     content.removeAllViews();
                     addDashboardKpiTable(j.optJSONArray("kpis"));
+                    addDashboardSmartAlerts(j.optJSONObject("today"), false);
                     renderDashboardToday(j.optJSONObject("today"));
                 } catch (Exception e) { showPageError("داشبورد", e, () -> showApp("dashboard")); }
             }
-            @Override public void fail(Exception e) { showPageError("داشبورد", e, () -> showApp("dashboard")); }
+            @Override public void fail(Exception e) {
+                if (!renderCachedDashboard(e)) showPageError("داشبورد", e, () -> showApp("dashboard"));
+            }
         });
     }
 
@@ -1227,6 +1307,150 @@ public class MainActivity extends Activity {
             out.put("today", queryTodayDashboard(c));
             return out.toString();
         }
+    }
+
+    private boolean renderCachedDashboard(Exception error) {
+        try {
+            String cached = prefs == null ? "" : prefs.getString(KEY_CACHE_DASHBOARD, "");
+            if (cached == null || cached.trim().isEmpty()) return false;
+            JSONObject j = new JSONObject(cached);
+            content.removeAllViews();
+            addCacheBanner("داشبورد آفلاین", "اتصال برقرار نشد؛ آخرین داده ذخیره‌شده نمایش داده می‌شود. خطا: " + shortError(error));
+            addDashboardKpiTable(j.optJSONArray("kpis"));
+            addDashboardSmartAlerts(j.optJSONObject("today"), true);
+            renderDashboardToday(j.optJSONObject("today"));
+            return true;
+        } catch (Exception ignored) { return false; }
+    }
+
+    private boolean renderCachedReports(Exception error) {
+        try {
+            String cached = prefs == null ? "" : prefs.getString(KEY_CACHE_REPORTS, "");
+            if (cached == null || cached.trim().isEmpty()) return false;
+            renderAnalytics(new JSONObject(cached));
+            addCacheBanner("گزارشات آفلاین", "اتصال برقرار نشد؛ آخرین اتاق فرمان ذخیره‌شده نمایش داده می‌شود. خطا: " + shortError(error));
+            return true;
+        } catch (Exception ignored) { return false; }
+    }
+
+    private void addCacheBanner(String title, String body) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(WARNING, 28), alpha(SURFACE, 246)}, GradientDrawable.Orientation.RIGHT_LEFT, 20));
+        c.addView(text(title, 14.5f, WARNING, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView b = text(body, 10.8f, TEXT, Typeface.NORMAL);
+        b.setLineSpacing(dp(2), 1.05f);
+        c.addView(b, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(10));
+        content.addView(c, lp);
+    }
+
+    private void addDashboardSmartAlerts(JSONObject today, boolean cached) {
+        JSONArray alerts = buildDashboardAlerts(today);
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(DANGER, alerts.length() > 0 ? 28 : 10), alpha(GOLD, 18), alpha(SURFACE, 248)}, GradientDrawable.Orientation.TL_BR, 24));
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(report3dIcon(alerts.length() > 0 ? "!" : "✓", alerts.length() > 0 ? WARNING : SUCCESS), new LinearLayout.LayoutParams(dp(46), dp(46)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(10), 0, dp(8), 0);
+        copy.addView(text("هشدار امروز میلو", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(cached ? "بر اساس آخرین داده ذخیره‌شده" : "اولویت‌های فوری برای اقدام مدیر", 10.6f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        c.addView(head, new LinearLayout.LayoutParams(-1, -2));
+        if (alerts.length() == 0) {
+            TextView ok = text("فعلاً هشدار بحرانی دیده نمی‌شود؛ فقط مراقب باش، دیتابیس همیشه سورپرایز دارد!", 11.2f, MUTED, Typeface.NORMAL);
+            ok.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(-1, -2); op.setMargins(0, dp(10), 0, 0); c.addView(ok, op);
+        } else {
+            for (int i = 0; i < Math.min(5, alerts.length()); i++) {
+                JSONObject a = alerts.optJSONObject(i);
+                addAlertLine(c, a == null ? "هشدار" : a.optString("title", "هشدار"), a == null ? "" : a.optString("body", ""), a == null ? WARNING : a.optInt("accent", WARNING));
+            }
+            notifyDashboardAlerts(alerts);
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12));
+        content.addView(c, lp);
+    }
+
+    private JSONArray buildDashboardAlerts(JSONObject today) {
+        JSONArray out = new JSONArray();
+        try {
+            if (today == null) return out;
+            JSONObject sales = today.optJSONObject("sales");
+            JSONObject purchases = today.optJSONObject("purchases");
+            double salesTotal = metricMoneyValue(sales == null ? null : sales.optJSONArray("metrics"), "جمع فروش");
+            double buyTotal = metricMoneyValue(purchases == null ? null : purchases.optJSONArray("metrics"), "جمع خرید");
+            if (buyTotal > 0 && salesTotal > 0 && buyTotal > salesTotal * 1.15) addAlert(out, "فشار نقدینگی", "خرید روز از فروش جلو زده؛ موجودی و پرداخت‌ها را کنترل کن.", WARNING);
+            JSONArray overdue = today.optJSONArray("overdueInvoices");
+            if (overdue != null && overdue.length() > 0) {
+                JSONObject o = overdue.optJSONObject(0);
+                addAlert(out, "فاکتور معوق", labelOf(o, "party", "مشتری نامشخص") + " • " + moneyValue(o, "amount") + " • " + o.optString("hint", "پیگیری فوری"), DANGER);
+            }
+            JSONArray debtors = today.optJSONArray("topDebtors");
+            if (debtors != null && debtors.length() > 0) {
+                JSONObject d = debtors.optJSONObject(0);
+                addAlert(out, "بدهکار اولویت‌دار", labelOf(d, "party", "نامشخص") + " با مانده " + moneyValue(d, "amount"), DANGER);
+            }
+            JSONObject put = today.optJSONObject("putChecks");
+            if (put != null) {
+                JSONArray rows = put.optJSONArray("breakdown");
+                JSONObject largest = strongestPoint(rows);
+                if (largest != null && valueOf(largest) > 0) addAlert(out, "چک پرداختی", labelOf(largest, "label", "دسته چک") + " • " + reportValue(largest, 4), WARNING);
+            }
+            JSONArray inactive = today.optJSONArray("inactiveCustomers");
+            if (inactive != null && inactive.length() >= 5) addAlert(out, "بازفعال‌سازی مشتری", "حداقل ۵ مشتری بدون خرید پیدا شد؛ کمپین تماس کوتاه پیشنهاد می‌شود.", INFO);
+        } catch (Exception ignored) { }
+        return out;
+    }
+
+    private void addAlert(JSONArray arr, String title, String body, int accent) throws Exception {
+        JSONObject o = new JSONObject(); o.put("title", title); o.put("body", body); o.put("accent", accent); arr.put(o);
+    }
+
+    private void addAlertLine(LinearLayout parent, String title, String body, int accent) {
+        LinearLayout line = new LinearLayout(this);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setPadding(dp(9), dp(8), dp(9), dp(8));
+        line.setBackground(roundedStroke(alpha(accent, 16), 15, alpha(accent, 62)));
+        TextView b = text("●", 18, accent, Typeface.BOLD);
+        b.setGravity(Gravity.CENTER);
+        line.addView(b, new LinearLayout.LayoutParams(dp(26), -1));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.addView(text(title, 11.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView sub = text(body, 10.2f, MUTED, Typeface.NORMAL);
+        sub.setLineSpacing(dp(2), 1.05f);
+        copy.addView(sub, new LinearLayout.LayoutParams(-1, -2));
+        line.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(8), 0, 0); parent.addView(line, lp);
+    }
+
+    private double metricMoneyValue(JSONArray metrics, String contains) {
+        if (metrics == null) return 0;
+        for (int i = 0; i < metrics.length(); i++) {
+            JSONObject m = metrics.optJSONObject(i);
+            if (m != null && m.optString("label", "").contains(contains)) return numericFromText(m.optString("value", "0"));
+        }
+        return 0;
+    }
+
+    private double numericFromText(String value) {
+        if (value == null) return 0;
+        String normalized = value.replace("ریال", "").replace(",", "").replace("٬", "").trim();
+        normalized = normalized.replace('۰','0').replace('۱','1').replace('۲','2').replace('۳','3').replace('۴','4').replace('۵','5').replace('۶','6').replace('۷','7').replace('۸','8').replace('۹','9');
+        try { return Double.parseDouble(normalized); } catch (Exception ignored) { return 0; }
+    }
+
+    private void notifyDashboardAlerts(JSONArray alerts) {
+        if (alerts == null || alerts.length() == 0 || prefs == null) return;
+        long day = System.currentTimeMillis() / 86400000L;
+        if (prefs.getLong(KEY_LAST_ALERT_DAY, -1) == day) return;
+        JSONObject first = alerts.optJSONObject(0);
+        showLocalNotification("هشدار Meelano", first == null ? "چند هشدار مدیریتی نیازمند بررسی است." : first.optString("title", "هشدار") + ": " + first.optString("body", ""));
+        prefs.edit().putLong(KEY_LAST_ALERT_DAY, day).apply();
     }
 
     private void renderDashboardToday(JSONObject today) {
@@ -2918,11 +3142,14 @@ public class MainActivity extends Activity {
         runDb(this::queryAnalytics, new DbCallback() {
             @Override public void ok(String body) {
                 try {
+                    if (prefs != null) prefs.edit().putString(KEY_CACHE_REPORTS, body).apply();
                     JSONObject a = new JSONObject(body);
                     renderAnalytics(a);
                 } catch (Exception e) { showPageError("گزارش‌ها", e, () -> showApp("reports")); }
             }
-            @Override public void fail(Exception e) { showPageError("گزارش‌ها", e, () -> showApp("reports")); }
+            @Override public void fail(Exception e) {
+                if (!renderCachedReports(e)) showPageError("گزارش‌ها", e, () -> showApp("reports"));
+            }
         });
     }
 
@@ -3094,6 +3321,7 @@ public class MainActivity extends Activity {
         } else {
             for (int i = 0; i < Math.min(limit, rows.length()); i++) addReportDataRow(c, rows.optJSONObject(i), i + 1, accent, valueMode, key);
         }
+        addReportDecision(c, key, rows, accent);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
 
@@ -3121,6 +3349,33 @@ public class MainActivity extends Activity {
         value.setMaxLines(2);
         item.addView(value, new LinearLayout.LayoutParams(dp(valueMode == 4 ? 104 : 92), -2));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(8), 0, 0); parent.addView(item, lp);
+    }
+
+    private void addReportDecision(LinearLayout parent, String key, JSONArray rows, int accent) {
+        TextView d = text("تصمیم پیشنهادی: " + reportDecision(key, rows), 10.7f, alpha(TEXT, 225), Typeface.BOLD);
+        d.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        d.setLineSpacing(dp(2), 1.05f);
+        d.setPadding(dp(10), dp(8), dp(10), dp(8));
+        d.setBackground(roundedStroke(alpha(accent, 18), 15, alpha(accent, 70)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(10), 0, 0);
+        parent.addView(d, lp);
+    }
+
+    private String reportDecision(String key, JSONArray rows) {
+        String k = key == null ? "" : key;
+        JSONObject top = strongestPoint(rows);
+        if ("weeklySales".equals(k)) return "اگر آخرین بازه افت دارد، فروشنده/کانال همان بازه را بررسی کن و یک پیشنهاد کوتاه فعال کن.";
+        if ("monthlyProfit".equals(k)) return "ماه کم‌سود را با تخفیف‌ها و بهای تمام‌شده تطبیق بده؛ سود را فدای فروش ظاهری نکن.";
+        if ("netMargin".equals(k)) return "حاشیه زیر انتظار یعنی قیمت‌گذاری یا تخفیف نیاز به اصلاح فوری دارد.";
+        if ("checkStatuses".equals(k)) return "دسته‌های پرمبلغ را امروز با تاریخ سررسید و بانک مرتبط تطبیق بده.";
+        if ("debtAging".equals(k)) return "قدیمی‌ترین/پرریسک‌ترین باکت بدهی را به برنامه تماس امروز اضافه کن.";
+        if ("overdueInvoices".equals(k)) return "اولویت با فاکتور معوق " + labelOf(top, "party", "مشتری مهم") + " است؛ فروش جدید را به تسویه گره بزن.";
+        if ("topDebtors".equals(k)) return "برای " + labelOf(top, "party", "بدهکار اول") + " سقف اعتبار موقت تعیین کن.";
+        if ("inactiveCustomers".equals(k)) return "برای مشتریان خاموش پیام/تماس بازفعال‌سازی با پیشنهاد محدود ارسال کن.";
+        if ("topCustomers".equals(k)) return "برای مشتری اول برنامه وفاداری بده، ولی وابستگی فروش را هم کنترل کن.";
+        if ("categoryShare".equals(k)) return "گروه پرفروش را برای موجودی، تبلیغ و افزایش قیمت پله‌ای بررسی کن.";
+        if ("customerGrowth".equals(k)) return "اگر رشد مشتری فعال کم شده، کمپین ویزیت/تماس را روی مشتریان خاموش اجرا کن.";
+        return "این گزارش را به یک اقدام کوتاه امروز تبدیل کن؛ فقط مشاهده عدد کافی نیست.";
     }
 
     private String reportValue(JSONObject row, int mode) {
@@ -3798,7 +4053,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, dp(120));
         pp.setMargins(0, 0, 0, dp(10));
         box.addView(portrait, pp);
-        TextView title = text("میلو چطور صدایت کند؟", 18, TEXT, Typeface.BOLD);
+        TextView title = text("پسته میلو چطور صدایت کند؟", 18, TEXT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         box.addView(title, new LinearLayout.LayoutParams(-1, -2));
         TextView hint = text("نام کوچک را بنویس تا گزارش‌ها شخصی‌تر شوند.", 11.2f, MUTED, Typeface.NORMAL);
@@ -3838,156 +4093,141 @@ public class MainActivity extends Activity {
 
     private FrameLayout miloPortrait(int heightPx) {
         FrameLayout frame = new FrameLayout(this);
-        frame.setPadding(dp(4), dp(4), dp(4), dp(4));
-        frame.setBackground(gradient(new int[]{alpha(GOLD, 34), alpha(INFO, 22), alpha(SURFACE_2, 232)}, GradientDrawable.Orientation.TL_BR, 24));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) frame.setElevation(dp(10));
-        LivingMiloView live = new LivingMiloView(this);
-        live.setContentDescription("میلو، موجود زنده و متحرک دستیار هوشمند Meelano");
+        frame.setPadding(0, 0, 0, 0);
+        frame.setBackgroundColor(Color.TRANSPARENT);
+        LivingPistachioMiloView live = new LivingPistachioMiloView(this);
+        live.setContentDescription("میلو، پسته زنده و لوکس دستیار هوشمند Meelano");
         live.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-        frame.addView(live, new FrameLayout.LayoutParams(-1, heightPx <= 0 ? dp(230) : heightPx, Gravity.CENTER));
-        View glass = new View(this);
-        glass.setBackground(roundedStroke(alpha(Color.WHITE, 10), 22, alpha(GOLD_2, 50)));
-        frame.addView(glass, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+        frame.addView(live, new FrameLayout.LayoutParams(-1, heightPx <= 0 ? dp(150) : heightPx, Gravity.CENTER));
         return frame;
     }
 
-    private class LivingMiloView extends View {
+    private class LivingPistachioMiloView extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         private long startMs;
-        LivingMiloView(Context context) {
-            super(context);
-            setWillNotDraw(false);
-        }
-        @Override protected void onAttachedToWindow() {
-            super.onAttachedToWindow();
-            startMs = System.currentTimeMillis();
-            invalidate();
-        }
+        LivingPistachioMiloView(Context context) { super(context); setWillNotDraw(false); }
+        @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); startMs = System.currentTimeMillis(); invalidate(); }
         @Override protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
             int w = getWidth(), h = getHeight();
             if (w <= 0 || h <= 0) return;
-            float t = (System.currentTimeMillis() - startMs) / 1000f;
+            boolean moving = motionAllowed();
+            float t = moving ? (System.currentTimeMillis() - startMs) / 1000f : 0f;
+            float sc = Math.min(w / 330f, h / 260f) * 0.86f;
             float cx = w / 2f;
-            float ground = h * 0.82f;
-            float sc = Math.min(w / 360f, h / 310f) * 0.82f;
-            float breath = (float)Math.sin(t * 1.25f);
-            float hover = (float)Math.sin(t * 0.8f) * dp(1.4f);
-            drawMiloAura(canvas, w, h, t, sc);
-
+            float cy = h * 0.53f + (float)Math.sin(t * 1.15f) * dp(1.1f);
+            drawPistachioShadow(canvas, cx, h * 0.84f, sc);
             canvas.save();
-            canvas.translate(0, hover + dp(4));
-            drawMiloBody(canvas, cx, ground, sc, breath, t);
-            drawMiloHead(canvas, cx, h * 0.35f, sc, breath, t);
-            drawMiloArms(canvas, cx, h * 0.57f, sc, t);
+            canvas.translate(0, (float)Math.sin(t * 0.9f) * dp(0.9f));
+            drawPistachioBody(canvas, cx, cy, sc, t);
+            drawPistachioFace(canvas, cx, cy - dp(10) * sc, sc, t);
+            drawPistachioArms(canvas, cx, cy + dp(26) * sc, sc, t);
+            drawPistachioCrownAndShine(canvas, cx, cy, sc, t);
             canvas.restore();
-            postInvalidateDelayed(70);
+            if (moving) postInvalidateDelayed(80);
         }
-        private void drawMiloAura(Canvas c, int w, int h, float t, float sc) {
-            float cx = w / 2f, cy = h * 0.48f;
+        private void drawPistachioShadow(Canvas c, float cx, float cy, float sc) {
             p.setStyle(Paint.Style.FILL);
-            p.setColor(alpha(GOLD_2, 18));
-            c.drawCircle(cx, cy, dp(96) * sc + (float)Math.sin(t * 1.2f) * dp(1.5f), p);
-            p.setColor(alpha(INFO, 16));
-            c.drawCircle(cx - dp(26) * sc, cy + dp(18) * sc, dp(70) * sc, p);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeCap(Paint.Cap.ROUND);
-            p.setStrokeWidth(dp(1.6f) * sc);
-            RectF orbit = new RectF(cx - dp(104) * sc, cy - dp(66) * sc, cx + dp(104) * sc, cy + dp(66) * sc);
-            p.setColor(alpha(GOLD, 90));
-            c.drawArc(orbit, 18 + (float)Math.sin(t * 0.9f) * 8f, 118, false, p);
-            p.setColor(alpha(INFO, 82));
-            c.drawArc(orbit, 205 + (float)Math.cos(t * 0.8f) * 8f, 76, false, p);
+            p.setColor(alpha(Color.BLACK, 48));
+            c.drawOval(new RectF(cx - dp(66) * sc, cy - dp(8) * sc, cx + dp(66) * sc, cy + dp(12) * sc), p);
         }
-
-        private void drawMiloBody(Canvas c, float cx, float ground, float sc, float breath, float t) {
+        private void drawPistachioBody(Canvas c, float cx, float cy, float sc, float t) {
+            float breathe = (float)Math.sin(t * 1.2f) * dp(1.4f) * sc;
+            int shell = mix(mix(GOLD_2, Color.WHITE, 0.33f), INFO, 0.10f);
+            int shellEdge = mix(GOLD, Color.BLACK, 0.10f);
+            int kernel = mix(SUCCESS, GOLD, 0.30f);
+            int kernelDark = mix(kernel, NAVY, 0.22f);
+            RectF shellOval = new RectF(cx - dp(82) * sc, cy - dp(112) * sc - breathe, cx + dp(82) * sc, cy + dp(104) * sc + breathe);
             p.setStyle(Paint.Style.FILL);
-            p.setShadowLayer(dp(10) * sc, 0, dp(4) * sc, alpha(Color.BLACK, 130));
-            p.setColor(alpha(Color.BLACK, 55));
-            c.drawOval(new RectF(cx - dp(78) * sc, ground - dp(17) * sc, cx + dp(78) * sc, ground + dp(16) * sc), p);
+            p.setShadowLayer(dp(10) * sc, 0, dp(4) * sc, alpha(Color.BLACK, 115));
+            p.setColor(shellEdge);
+            c.drawOval(shellOval, p);
             p.clearShadowLayer();
-            RectF body = new RectF(cx - dp(56) * sc, ground - dp(132) * sc - breath * dp(1), cx + dp(56) * sc, ground - dp(26) * sc + breath * dp(1));
-            p.setColor(mix(INFO, HEADER_START, 0.42f));
-            c.drawRoundRect(body, dp(34) * sc, dp(34) * sc, p);
-            p.setColor(alpha(GOLD_2, 230));
-            c.drawRoundRect(new RectF(body.left + dp(14) * sc, body.top + dp(18) * sc, body.right - dp(14) * sc, body.top + dp(58) * sc), dp(18) * sc, dp(18) * sc, p);
-            p.setColor(alpha(Color.WHITE, 185));
-            p.setTextAlign(Paint.Align.CENTER);
-            p.setTypeface(Typeface.DEFAULT_BOLD);
-            p.setTextSize(dp(17) * sc);
-            c.drawText("Milo", cx, body.top + dp(45) * sc, p);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(dp(3) * sc);
-            p.setColor(alpha(Color.WHITE, 75));
-            c.drawLine(cx - dp(38) * sc, body.top + dp(75) * sc, cx + dp(38) * sc, body.top + dp(75) * sc, p);
-            p.setStyle(Paint.Style.FILL);
-            for (int i = 0; i < 3; i++) {
-                p.setColor(alpha(i == 1 ? SUCCESS : GOLD, 190));
-                c.drawCircle(cx + (i - 1) * dp(22) * sc, body.top + dp(88) * sc + (float)Math.sin(t * 1.8f + i) * dp(0.8f) * sc, dp(4.5f) * sc, p);
-            }
-        }
-        private void drawMiloHead(Canvas c, float cx, float cy, float sc, float breath, float t) {
-            float blinkPhase = t % 5.0f;
-            float blink = blinkPhase > 4.82f ? 0.18f : 1f;
-            RectF head = new RectF(cx - dp(68) * sc, cy - dp(62) * sc, cx + dp(68) * sc, cy + dp(64) * sc);
-            p.setStyle(Paint.Style.FILL);
-            p.setShadowLayer(dp(9) * sc, 0, dp(3) * sc, alpha(Color.BLACK, 135));
-            p.setColor(mix(HEADER_START, Color.WHITE, 0.10f));
-            c.drawRoundRect(head, dp(42) * sc, dp(42) * sc, p);
-            p.clearShadowLayer();
-            p.setColor(alpha(GOLD, 150));
-            c.drawRoundRect(new RectF(head.left + dp(6) * sc, head.top + dp(6) * sc, head.right - dp(6) * sc, head.bottom - dp(6) * sc), dp(36) * sc, dp(36) * sc, p);
-            p.setColor(mix(INFO, NAVY, 0.28f));
-            RectF face = new RectF(head.left + dp(16) * sc, head.top + dp(20) * sc, head.right - dp(16) * sc, head.bottom - dp(18) * sc);
-            c.drawRoundRect(face, dp(28) * sc, dp(28) * sc, p);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(dp(2.2f) * sc);
-            p.setColor(alpha(Color.WHITE, 75));
-            c.drawRoundRect(face, dp(28) * sc, dp(28) * sc, p);
+            p.setColor(shell);
+            c.drawOval(new RectF(shellOval.left + dp(6) * sc, shellOval.top + dp(5) * sc, shellOval.right - dp(6) * sc, shellOval.bottom - dp(5) * sc), p);
 
-            p.setStyle(Paint.Style.FILL);
-            drawEye(c, cx - dp(28) * sc, cy - dp(8) * sc, dp(13) * sc, blink, t, sc);
-            drawEye(c, cx + dp(28) * sc, cy - dp(8) * sc, dp(13) * sc, blink, t + 0.2f, sc);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(dp(4) * sc);
-            p.setStrokeCap(Paint.Cap.ROUND);
-            p.setColor(alpha(GOLD_2, 215));
-            RectF smile = new RectF(cx - dp(26) * sc, cy + dp(15) * sc, cx + dp(26) * sc, cy + dp(42) * sc);
-            c.drawArc(smile, 18, 144, false, p);
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(alpha(SUCCESS, 190));
-            c.drawCircle(cx + (float)Math.sin(t * 1.4f) * dp(10) * sc, cy + dp(39) * sc, dp(3.5f) * sc, p);
+            Path split = new Path();
+            split.moveTo(cx, shellOval.top + dp(9) * sc);
+            split.cubicTo(cx - dp(44) * sc, cy - dp(60) * sc, cx - dp(46) * sc, cy + dp(36) * sc, cx - dp(7) * sc, shellOval.bottom - dp(14) * sc);
+            split.cubicTo(cx + dp(8) * sc, cy + dp(36) * sc, cx + dp(44) * sc, cy - dp(55) * sc, cx, shellOval.top + dp(9) * sc);
+            p.setColor(kernelDark);
+            c.drawPath(split, p);
+            RectF core = new RectF(cx - dp(45) * sc, cy - dp(74) * sc, cx + dp(45) * sc, cy + dp(70) * sc);
+            p.setColor(kernel);
+            c.drawOval(core, p);
+            p.setColor(alpha(Color.WHITE, 60));
+            c.drawOval(new RectF(core.left + dp(10) * sc, core.top + dp(8) * sc, core.left + dp(34) * sc, core.top + dp(58) * sc), p);
 
             p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(dp(4) * sc);
-            p.setColor(alpha(GOLD, 210));
-            c.drawLine(cx, head.top - dp(2) * sc, cx + (float)Math.sin(t * 1.1f) * dp(4) * sc, head.top - dp(23) * sc, p);
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(alpha(GOLD_2, 235));
-            c.drawCircle(cx + (float)Math.sin(t * 1.1f) * dp(4) * sc, head.top - dp(26) * sc, dp(7) * sc + breath * dp(0.5f) * sc, p);
-        }
-        private void drawEye(Canvas c, float x, float y, float r, float blink, float t, float sc) {
-            p.setColor(alpha(Color.WHITE, 235));
-            RectF eye = new RectF(x - r, y - r * blink, x + r, y + r * blink);
-            c.drawOval(eye, p);
-            p.setColor(mix(INFO, GOLD, 0.35f));
-            c.drawCircle(x + (float)Math.sin(t * 0.8f) * r * 0.18f, y, Math.max(dp(2) * sc, r * 0.40f * blink), p);
-            p.setColor(alpha(Color.BLACK, 205));
-            c.drawCircle(x + (float)Math.sin(t * 0.8f) * r * 0.18f, y, Math.max(dp(1.2f) * sc, r * 0.17f * blink), p);
-        }
-        private void drawMiloArms(Canvas c, float cx, float y, float sc, float t) {
-            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3.2f) * sc);
             p.setStrokeCap(Paint.Cap.ROUND);
-            p.setStrokeWidth(dp(11) * sc);
-            p.setColor(mix(INFO, HEADER_START, 0.34f));
-            float wave = (float)Math.sin(t * 1.1f);
-            c.drawLine(cx - dp(58) * sc, y - dp(18) * sc, cx - dp(100) * sc, y + dp(7) * sc + wave * dp(1.5f) * sc, p);
-            c.drawLine(cx + dp(58) * sc, y - dp(18) * sc, cx + dp(100) * sc, y + dp(1) * sc - wave * dp(2) * sc, p);
+            p.setColor(alpha(GOLD, 190));
+            c.drawArc(new RectF(cx - dp(72) * sc, cy + dp(42) * sc, cx + dp(72) * sc, cy + dp(108) * sc), 205, 130, false, p);
+            p.setStyle(Paint.Style.FILL);
+        }
+        private void drawPistachioFace(Canvas c, float cx, float cy, float sc, float t) {
+            float blinkPhase = t % 4.8f;
+            float blink = blinkPhase > 4.62f ? 0.18f : 1f;
+            float gaze = (float)Math.sin(t * 0.75f) * dp(2.4f) * sc;
+            drawFunnyEye(c, cx - dp(22) * sc, cy - dp(12) * sc, dp(10) * sc, blink, gaze, sc);
+            drawFunnyEye(c, cx + dp(22) * sc, cy - dp(12) * sc, dp(10) * sc, blink, gaze, sc);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3.2f) * sc);
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setColor(mix(GOLD, NAVY, 0.18f));
+            c.drawArc(new RectF(cx - dp(28) * sc, cy + dp(5) * sc, cx + dp(28) * sc, cy + dp(40) * sc), 15, 150, false, p);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.WHITE);
+            c.drawRoundRect(new RectF(cx - dp(7) * sc, cy + dp(23) * sc, cx + dp(7) * sc, cy + dp(34) * sc), dp(3) * sc, dp(3) * sc, p);
+            p.setColor(alpha(DANGER, 145));
+            c.drawCircle(cx + dp(30) * sc, cy + dp(12) * sc, dp(5) * sc, p);
+        }
+        private void drawFunnyEye(Canvas c, float x, float y, float r, float blink, float gaze, float sc) {
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.WHITE);
+            c.drawOval(new RectF(x - r, y - r * blink, x + r, y + r * blink), p);
+            p.setColor(mix(INFO, GOLD, 0.42f));
+            c.drawCircle(x + gaze, y, Math.max(dp(2.2f) * sc, r * 0.42f * blink), p);
+            p.setColor(Color.rgb(20, 25, 28));
+            c.drawCircle(x + gaze, y, Math.max(dp(1.2f) * sc, r * 0.18f * blink), p);
+            p.setColor(alpha(Color.WHITE, 210));
+            c.drawCircle(x + gaze - r * 0.16f, y - r * 0.18f, Math.max(1.2f, r * 0.13f), p);
+        }
+        private void drawPistachioArms(Canvas c, float cx, float y, float sc, float t) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(7) * sc);
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setColor(mix(SUCCESS, GOLD, 0.24f));
+            float wave = (float)Math.sin(t * 1.05f) * dp(1.5f) * sc;
+            c.drawLine(cx - dp(52) * sc, y - dp(8) * sc, cx - dp(82) * sc, y + dp(18) * sc + wave, p);
+            c.drawLine(cx + dp(52) * sc, y - dp(8) * sc, cx + dp(82) * sc, y + dp(13) * sc - wave, p);
             p.setStyle(Paint.Style.FILL);
             p.setColor(GOLD_2);
-            c.drawCircle(cx - dp(104) * sc, y + dp(8) * sc + wave * dp(1.5f) * sc, dp(12) * sc, p);
+            c.drawCircle(cx - dp(84) * sc, y + dp(19) * sc + wave, dp(8) * sc, p);
+            c.drawCircle(cx + dp(84) * sc, y + dp(14) * sc - wave, dp(8) * sc, p);
+            p.setColor(mix(NAVY, INFO, 0.28f));
+            c.drawOval(new RectF(cx - dp(42) * sc, y + dp(68) * sc, cx - dp(8) * sc, y + dp(86) * sc), p);
+            c.drawOval(new RectF(cx + dp(8) * sc, y + dp(68) * sc, cx + dp(42) * sc, y + dp(86) * sc), p);
+        }
+        private void drawPistachioCrownAndShine(Canvas c, float cx, float cy, float sc, float t) {
+            Path crown = new Path();
+            float top = cy - dp(122) * sc;
+            crown.moveTo(cx - dp(34) * sc, top + dp(22) * sc);
+            crown.lineTo(cx - dp(19) * sc, top);
+            crown.lineTo(cx, top + dp(18) * sc);
+            crown.lineTo(cx + dp(19) * sc, top);
+            crown.lineTo(cx + dp(34) * sc, top + dp(22) * sc);
+            crown.close();
+            p.setStyle(Paint.Style.FILL);
             p.setColor(GOLD);
-            c.drawCircle(cx + dp(104) * sc, y + dp(1) * sc - wave * dp(2) * sc, dp(12) * sc, p);
+            c.drawPath(crown, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(1.6f) * sc);
+            p.setColor(alpha(Color.WHITE, 125));
+            c.drawPath(crown, p);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(alpha(Color.WHITE, 170));
+            c.drawCircle(cx + (float)Math.sin(t * 1.4f) * dp(10) * sc, top + dp(36) * sc, dp(3.2f) * sc, p);
         }
     }
 
@@ -4029,7 +4269,7 @@ public class MainActivity extends Activity {
 
     private void showAssistant() {
         content.removeAllViews();
-        addHero("میلو، دستیار زنده هوشمند", "تحلیل کوتاه فروش، مشتری، کالا، چک و ریسک");
+        addHero("میلو، پسته زنده هوشمند", "تحلیل کوتاه فروش، مشتری، کالا، چک و ریسک");
         if (!prefs.getBoolean(KEY_NAME_ASKED, false)) maybeAskFirstName(false);
 
         LinearLayout intro = card();
@@ -4037,7 +4277,7 @@ public class MainActivity extends Activity {
         intro.setBackground(gradient(new int[]{alpha(INFO, 30), alpha(GOLD, 24), alpha(SURFACE, 248)}, GradientDrawable.Orientation.LEFT_RIGHT, 26));
         FrameLayout portrait = miloPortrait(dp(168));
         intro.addView(portrait, new LinearLayout.LayoutParams(-1, dp(168)));
-        TextView title = text("میلو آماده تحلیل است", 16.5f, TEXT, Typeface.BOLD);
+        TextView title = text("میلو؛ پسته لوکس و آماده تحلیل", 16.5f, TEXT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
         tp.setMargins(0, dp(10), 0, 0);
@@ -4607,6 +4847,106 @@ public class MainActivity extends Activity {
         else tts.speak(clean, TextToSpeech.QUEUE_FLUSH, null);
     }
 
+    private void addExperienceSettingsCard() {
+        LinearLayout c = card();
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, dp(12), 0, 0);
+        c.setBackground(gradient(new int[]{alpha(INFO, 22), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        c.addView(text("تجربه گرافیکی و مصرف باتری", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("برای گوشی‌های کوچک یا زمان Battery Saver، نمایش جمع‌وجور و حرکت کمتر فعال می‌شود.", 10.8f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        Button compact = secondaryButton((compactUi() ? "✓ " : "") + "حالت جمع‌وجور کارت‌ها");
+        compact.setOnClickListener(v -> { prefs.edit().putBoolean(KEY_COMPACT_UI, !prefs.getBoolean(KEY_COMPACT_UI, false)).apply(); showApp("settings"); });
+        LinearLayout.LayoutParams p1 = new LinearLayout.LayoutParams(-1, dp(48)); p1.setMargins(0, dp(12), 0, dp(8)); c.addView(compact, p1);
+        Button motion = secondaryButton((motionAllowed() ? "" : "✓ ") + "کاهش حرکت و مصرف باتری");
+        motion.setOnClickListener(v -> { prefs.edit().putBoolean(KEY_REDUCED_MOTION, !prefs.getBoolean(KEY_REDUCED_MOTION, false)).apply(); showApp("settings"); });
+        c.addView(motion, new LinearLayout.LayoutParams(-1, dp(48)));
+        content.addView(c, cp);
+    }
+
+    private void addHardwareToolsCard() {
+        LinearLayout c = card();
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, dp(12), 0, 0);
+        c.setBackground(gradient(new int[]{alpha(GOLD, 24), alpha(SURFACE, 248)}, GradientDrawable.Orientation.TL_BR, 22));
+        c.addView(text("ابزارهای سخت‌افزاری و عملیاتی", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("اسکن بارکد/QR، آماده‌سازی چاپ/اشتراک خلاصه، دسترسی سریع به بلوتوث و تست یادآوری محلی.", 10.8f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row1 = new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL);
+        Button scan = secondaryButton("اسکن QR/بارکد");
+        Button bt = secondaryButton("پرینتر/بلوتوث");
+        scan.setTextSize(10.5f); bt.setTextSize(10.5f);
+        scan.setOnClickListener(v -> startBarcodeScan());
+        bt.setOnClickListener(v -> openBluetoothSettings());
+        LinearLayout.LayoutParams b1 = new LinearLayout.LayoutParams(0, dp(46), 1f); b1.setMargins(dp(3), dp(12), dp(3), 0);
+        row1.addView(scan, b1); row1.addView(bt, b1);
+        c.addView(row1, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
+        Button share = secondaryButton("ارسال/چاپ خلاصه");
+        Button notify = secondaryButton("تست یادآوری");
+        share.setTextSize(10.5f); notify.setTextSize(10.5f);
+        share.setOnClickListener(v -> shareOperationalSummary());
+        notify.setOnClickListener(v -> showLocalNotification("یادآوری Meelano", "چک‌ها، مطالبات و گزارش روزانه را بررسی کن."));
+        row2.addView(share, b1); row2.addView(notify, b1);
+        c.addView(row2, new LinearLayout.LayoutParams(-1, -2));
+        content.addView(c, cp);
+    }
+
+    private void addSecureDistributionCard() {
+        LinearLayout c = card();
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, dp(12), 0, 0);
+        c.setBackground(gradient(new int[]{alpha(SUCCESS, 18), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        c.addView(text("مسیر نصب امن و انتشار رسمی", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView body = text("برای کمترین هشدار نصب، نسخه نهایی باید با Keystore اختصاصی شرکت امضا و از Google Play، Managed Play یا کانال سازمانی مورداعتماد منتشر شود. هشدار منابع ناشناس سیاست اندروید است و از داخل APK کامل حذف نمی‌شود.", 10.8f, MUTED, Typeface.NORMAL);
+        body.setLineSpacing(dp(2), 1.05f);
+        c.addView(body, new LinearLayout.LayoutParams(-1, -2));
+        content.addView(c, cp);
+    }
+
+    private void startBarcodeScan() {
+        try {
+            Intent intent = new Intent("com.google.zxing.client.android.SCAN");
+            intent.putExtra("SCAN_MODE", "QR_CODE_MODE,PRODUCT_MODE");
+            startActivityForResult(intent, REQ_BARCODE_SCAN);
+        } catch (Exception ex) {
+            Toast.makeText(this, "برای اسکن واقعی، یک Barcode Scanner نصب کنید؛ سپس دوباره تلاش کنید.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void openBluetoothSettings() {
+        try { startActivity(new Intent(Settings.ACTION_BLUETOOTH_SETTINGS)); }
+        catch (Exception ex) { Toast.makeText(this, "تنظیمات بلوتوث روی این دستگاه در دسترس نیست.", Toast.LENGTH_SHORT).show(); }
+    }
+
+    private void shareOperationalSummary() {
+        String body = lastAssistantAnswer == null || lastAssistantAnswer.trim().isEmpty() ? "خلاصه مدیریتی Meelano آماده چاپ/اشتراک است. برای گزارش دقیق، ابتدا یک سؤال از میلو بپرسید." : lastAssistantAnswer;
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_SUBJECT, "خلاصه مدیریتی Meelano");
+        send.putExtra(Intent.EXTRA_TEXT, body);
+        try { startActivity(Intent.createChooser(send, "چاپ یا ارسال خلاصه")); }
+        catch (Exception ex) { Toast.makeText(this, "برنامه‌ای برای ارسال/چاپ متن پیدا نشد.", Toast.LENGTH_SHORT).show(); }
+    }
+
+    private void showLocalNotification(String title, String body) {
+        try {
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestNotificationPermissionIfNeeded();
+                Toast.makeText(this, "اجازه اعلان را فعال کنید تا یادآوری نمایش داده شود.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Intent intent = new Intent(this, MainActivity.class);
+            PendingIntent pi = PendingIntent.getActivity(this, 0, intent, Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
+            Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? new Notification.Builder(this, NOTIFY_CHANNEL) : new Notification.Builder(this);
+            b.setSmallIcon(ir.meelano.android.R.mipmap.ic_launcher)
+                    .setContentTitle(title == null ? "Meelano" : title)
+                    .setContentText(body == null ? "یادآوری مدیریتی" : body)
+                    .setStyle(new Notification.BigTextStyle().bigText(body == null ? "یادآوری مدیریتی" : body))
+                    .setContentIntent(pi)
+                    .setAutoCancel(true)
+                    .setWhen(System.currentTimeMillis());
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.notify(1414, b.build());
+            Toast.makeText(this, "یادآوری ثبت/نمایش داده شد.", Toast.LENGTH_SHORT).show();
+        } catch (Exception ex) { Toast.makeText(this, "نمایش اعلان ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
+    }
+
     private void renderSettings() {
         content.removeAllViews();
         addHero("تنظیمات Meelano", "مدیریت اتصال، خروج امن، تم‌های لوکس و کلیدهای دستیار هوش مصنوعی");
@@ -4639,12 +4979,15 @@ public class MainActivity extends Activity {
         content.addView(themeCard, tp);
 
         addAiSettingsCard();
+        addExperienceSettingsCard();
+        addHardwareToolsCard();
+        addSecureDistributionCard();
 
         LinearLayout about = card();
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.14.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.15.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -5031,6 +5374,14 @@ public class MainActivity extends Activity {
                     assistantInput.setSelection(assistantInput.getText().length());
                 }
                 submitAssistantQuestion(spoken);
+            }
+        } else if (requestCode == REQ_BARCODE_SCAN && resultCode == RESULT_OK && data != null) {
+            String code = data.getStringExtra("SCAN_RESULT");
+            if (code == null || code.trim().isEmpty()) code = data.getStringExtra("SCAN_RESULT_BYTES");
+            Toast.makeText(this, "کد اسکن‌شده: " + stringOr(code, "—"), Toast.LENGTH_LONG).show();
+            if (assistantInput != null) {
+                assistantInput.setText("این کد/بارکد را در کالاها بررسی کن: " + stringOr(code, ""));
+                assistantInput.setSelection(assistantInput.getText().length());
             }
         }
     }
