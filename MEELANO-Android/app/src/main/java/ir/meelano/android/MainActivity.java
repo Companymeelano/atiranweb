@@ -716,8 +716,12 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) loginCard.setElevation(dp(12));
         outer.addView(loginCard, new LinearLayout.LayoutParams(-1, -2));
 
-        View logo = liveMeelanoLogo(false);
-        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(dp(118), dp(118));
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(ir.meelano.android.R.drawable.meelano_3d);
+        logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        logo.setPadding(dp(5), dp(5), dp(5), dp(5));
+        logo.setBackground(roundedStroke(alpha(GOLD, 18), 28, alpha(GOLD, 72)));
+        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(dp(112), dp(112));
         logoLp.setMargins(0, 0, 0, dp(8));
         loginCard.addView(logo, logoLp);
 
@@ -3790,8 +3794,8 @@ public class MainActivity extends Activity {
         box.setBackground(gradient(new int[]{alpha(GOLD_2, 48), alpha(INFO, 22), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 28));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) box.setElevation(dp(10));
 
-        FrameLayout portrait = miloPortrait(dp(156));
-        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, dp(156));
+        FrameLayout portrait = miloPortrait(dp(120));
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, dp(120));
         pp.setMargins(0, 0, 0, dp(10));
         box.addView(portrait, pp);
         TextView title = text("میلو چطور صدایت کند؟", 18, TEXT, Typeface.BOLD);
@@ -3834,7 +3838,7 @@ public class MainActivity extends Activity {
 
     private FrameLayout miloPortrait(int heightPx) {
         FrameLayout frame = new FrameLayout(this);
-        frame.setPadding(dp(6), dp(6), dp(6), dp(6));
+        frame.setPadding(dp(4), dp(4), dp(4), dp(4));
         frame.setBackground(gradient(new int[]{alpha(GOLD, 34), alpha(INFO, 22), alpha(SURFACE_2, 232)}, GradientDrawable.Orientation.TL_BR, 24));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) frame.setElevation(dp(10));
         LivingMiloView live = new LivingMiloView(this);
@@ -3866,52 +3870,43 @@ public class MainActivity extends Activity {
             float t = (System.currentTimeMillis() - startMs) / 1000f;
             float cx = w / 2f;
             float ground = h * 0.82f;
-            float sc = Math.min(w / 360f, h / 310f);
-            float breath = (float)Math.sin(t * 2.2f);
-            float hover = (float)Math.sin(t * 1.35f) * dp(4);
+            float sc = Math.min(w / 360f, h / 310f) * 0.82f;
+            float breath = (float)Math.sin(t * 1.25f);
+            float hover = (float)Math.sin(t * 0.8f) * dp(1.4f);
             drawMiloAura(canvas, w, h, t, sc);
 
             canvas.save();
-            canvas.translate(0, hover);
-            canvas.rotate((float)Math.sin(t * 1.15f) * 1.8f, cx, h * 0.46f);
+            canvas.translate(0, hover + dp(4));
             drawMiloBody(canvas, cx, ground, sc, breath, t);
-            drawMiloHead(canvas, cx, h * 0.34f, sc, breath, t);
-            drawMiloArms(canvas, cx, h * 0.56f, sc, t);
+            drawMiloHead(canvas, cx, h * 0.35f, sc, breath, t);
+            drawMiloArms(canvas, cx, h * 0.57f, sc, t);
             canvas.restore();
-            drawMiloHolograms(canvas, w, h, t, sc);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) postInvalidateOnAnimation(); else postInvalidateDelayed(16);
+            postInvalidateDelayed(70);
         }
         private void drawMiloAura(Canvas c, int w, int h, float t, float sc) {
             float cx = w / 2f, cy = h * 0.48f;
             p.setStyle(Paint.Style.FILL);
-            p.setColor(alpha(GOLD_2, 28));
-            c.drawCircle(cx, cy, dp(118) * sc + (float)Math.sin(t * 2.1f) * dp(5), p);
-            p.setColor(alpha(INFO, 30));
-            c.drawCircle(cx - dp(42) * sc, cy + dp(25) * sc, dp(92) * sc, p);
+            p.setColor(alpha(GOLD_2, 18));
+            c.drawCircle(cx, cy, dp(96) * sc + (float)Math.sin(t * 1.2f) * dp(1.5f), p);
+            p.setColor(alpha(INFO, 16));
+            c.drawCircle(cx - dp(26) * sc, cy + dp(18) * sc, dp(70) * sc, p);
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeCap(Paint.Cap.ROUND);
-            p.setStrokeWidth(dp(2.2f) * sc);
-            RectF orbit = new RectF(cx - dp(132) * sc, cy - dp(88) * sc, cx + dp(132) * sc, cy + dp(88) * sc);
-            p.setColor(alpha(GOLD, 155));
-            c.drawArc(orbit, t * 62f, 190, false, p);
-            p.setColor(alpha(INFO, 150));
-            c.drawArc(orbit, 180 + t * 74f, 112, false, p);
-            p.setStyle(Paint.Style.FILL);
-            for (int i = 0; i < 7; i++) {
-                float a = t * (0.8f + i * 0.07f) + i * 0.92f;
-                float rx = dp(130 - i * 5) * sc;
-                float ry = dp(82 + (i % 2) * 18) * sc;
-                p.setColor(alpha(i % 2 == 0 ? GOLD_2 : INFO, 118 + i * 12));
-                c.drawCircle(cx + (float)Math.cos(a) * rx, cy + (float)Math.sin(a) * ry, dp(3.2f + (i % 3)) * sc, p);
-            }
+            p.setStrokeWidth(dp(1.6f) * sc);
+            RectF orbit = new RectF(cx - dp(104) * sc, cy - dp(66) * sc, cx + dp(104) * sc, cy + dp(66) * sc);
+            p.setColor(alpha(GOLD, 90));
+            c.drawArc(orbit, 18 + (float)Math.sin(t * 0.9f) * 8f, 118, false, p);
+            p.setColor(alpha(INFO, 82));
+            c.drawArc(orbit, 205 + (float)Math.cos(t * 0.8f) * 8f, 76, false, p);
         }
+
         private void drawMiloBody(Canvas c, float cx, float ground, float sc, float breath, float t) {
             p.setStyle(Paint.Style.FILL);
             p.setShadowLayer(dp(10) * sc, 0, dp(4) * sc, alpha(Color.BLACK, 130));
             p.setColor(alpha(Color.BLACK, 55));
             c.drawOval(new RectF(cx - dp(78) * sc, ground - dp(17) * sc, cx + dp(78) * sc, ground + dp(16) * sc), p);
             p.clearShadowLayer();
-            RectF body = new RectF(cx - dp(62) * sc, ground - dp(142) * sc - breath * dp(2), cx + dp(62) * sc, ground - dp(24) * sc + breath * dp(2));
+            RectF body = new RectF(cx - dp(56) * sc, ground - dp(132) * sc - breath * dp(1), cx + dp(56) * sc, ground - dp(26) * sc + breath * dp(1));
             p.setColor(mix(INFO, HEADER_START, 0.42f));
             c.drawRoundRect(body, dp(34) * sc, dp(34) * sc, p);
             p.setColor(alpha(GOLD_2, 230));
@@ -3928,13 +3923,13 @@ public class MainActivity extends Activity {
             p.setStyle(Paint.Style.FILL);
             for (int i = 0; i < 3; i++) {
                 p.setColor(alpha(i == 1 ? SUCCESS : GOLD, 190));
-                c.drawCircle(cx + (i - 1) * dp(24) * sc, body.top + dp(96) * sc + (float)Math.sin(t * 4 + i) * dp(2) * sc, dp(5) * sc, p);
+                c.drawCircle(cx + (i - 1) * dp(22) * sc, body.top + dp(88) * sc + (float)Math.sin(t * 1.8f + i) * dp(0.8f) * sc, dp(4.5f) * sc, p);
             }
         }
         private void drawMiloHead(Canvas c, float cx, float cy, float sc, float breath, float t) {
-            float blinkPhase = t % 4.2f;
-            float blink = blinkPhase > 3.93f ? 0.12f : 1f;
-            RectF head = new RectF(cx - dp(76) * sc, cy - dp(70) * sc, cx + dp(76) * sc, cy + dp(70) * sc);
+            float blinkPhase = t % 5.0f;
+            float blink = blinkPhase > 4.82f ? 0.18f : 1f;
+            RectF head = new RectF(cx - dp(68) * sc, cy - dp(62) * sc, cx + dp(68) * sc, cy + dp(64) * sc);
             p.setStyle(Paint.Style.FILL);
             p.setShadowLayer(dp(9) * sc, 0, dp(3) * sc, alpha(Color.BLACK, 135));
             p.setColor(mix(HEADER_START, Color.WHITE, 0.10f));
@@ -3961,55 +3956,38 @@ public class MainActivity extends Activity {
             c.drawArc(smile, 18, 144, false, p);
             p.setStyle(Paint.Style.FILL);
             p.setColor(alpha(SUCCESS, 190));
-            c.drawCircle(cx + (float)Math.sin(t * 2.8f) * dp(20) * sc, cy + dp(43) * sc, dp(4) * sc, p);
+            c.drawCircle(cx + (float)Math.sin(t * 1.4f) * dp(10) * sc, cy + dp(39) * sc, dp(3.5f) * sc, p);
 
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(dp(4) * sc);
             p.setColor(alpha(GOLD, 210));
-            c.drawLine(cx, head.top - dp(2) * sc, cx + (float)Math.sin(t * 2f) * dp(10) * sc, head.top - dp(28) * sc, p);
+            c.drawLine(cx, head.top - dp(2) * sc, cx + (float)Math.sin(t * 1.1f) * dp(4) * sc, head.top - dp(23) * sc, p);
             p.setStyle(Paint.Style.FILL);
             p.setColor(alpha(GOLD_2, 235));
-            c.drawCircle(cx + (float)Math.sin(t * 2f) * dp(10) * sc, head.top - dp(31) * sc, dp(8) * sc + breath * dp(1.2f) * sc, p);
+            c.drawCircle(cx + (float)Math.sin(t * 1.1f) * dp(4) * sc, head.top - dp(26) * sc, dp(7) * sc + breath * dp(0.5f) * sc, p);
         }
         private void drawEye(Canvas c, float x, float y, float r, float blink, float t, float sc) {
             p.setColor(alpha(Color.WHITE, 235));
             RectF eye = new RectF(x - r, y - r * blink, x + r, y + r * blink);
             c.drawOval(eye, p);
             p.setColor(mix(INFO, GOLD, 0.35f));
-            c.drawCircle(x + (float)Math.sin(t * 1.6f) * r * 0.18f, y, Math.max(dp(2) * sc, r * 0.40f * blink), p);
+            c.drawCircle(x + (float)Math.sin(t * 0.8f) * r * 0.18f, y, Math.max(dp(2) * sc, r * 0.40f * blink), p);
             p.setColor(alpha(Color.BLACK, 205));
-            c.drawCircle(x + (float)Math.sin(t * 1.6f) * r * 0.18f, y, Math.max(dp(1.2f) * sc, r * 0.17f * blink), p);
+            c.drawCircle(x + (float)Math.sin(t * 0.8f) * r * 0.18f, y, Math.max(dp(1.2f) * sc, r * 0.17f * blink), p);
         }
         private void drawMiloArms(Canvas c, float cx, float y, float sc, float t) {
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeCap(Paint.Cap.ROUND);
             p.setStrokeWidth(dp(11) * sc);
             p.setColor(mix(INFO, HEADER_START, 0.34f));
-            float wave = (float)Math.sin(t * 4.4f);
-            c.drawLine(cx - dp(58) * sc, y - dp(18) * sc, cx - dp(100) * sc, y + dp(8) * sc + wave * dp(5) * sc, p);
-            c.drawLine(cx + dp(58) * sc, y - dp(18) * sc, cx + dp(100) * sc, y - dp(2) * sc - wave * dp(10) * sc, p);
+            float wave = (float)Math.sin(t * 1.1f);
+            c.drawLine(cx - dp(58) * sc, y - dp(18) * sc, cx - dp(100) * sc, y + dp(7) * sc + wave * dp(1.5f) * sc, p);
+            c.drawLine(cx + dp(58) * sc, y - dp(18) * sc, cx + dp(100) * sc, y + dp(1) * sc - wave * dp(2) * sc, p);
             p.setStyle(Paint.Style.FILL);
             p.setColor(GOLD_2);
-            c.drawCircle(cx - dp(104) * sc, y + dp(9) * sc + wave * dp(5) * sc, dp(12) * sc, p);
+            c.drawCircle(cx - dp(104) * sc, y + dp(8) * sc + wave * dp(1.5f) * sc, dp(12) * sc, p);
             p.setColor(GOLD);
-            c.drawCircle(cx + dp(104) * sc, y - dp(2) * sc - wave * dp(10) * sc, dp(12) * sc, p);
-        }
-        private void drawMiloHolograms(Canvas c, int w, int h, float t, float sc) {
-            p.setStyle(Paint.Style.FILL);
-            p.setTypeface(Typeface.DEFAULT_BOLD);
-            p.setTextAlign(Paint.Align.CENTER);
-            String[] labels = {"SQL", "فروش", "ریسک"};
-            int[] colors = {INFO, GOLD, WARNING};
-            for (int i = 0; i < labels.length; i++) {
-                float x = w * (0.18f + i * 0.32f) + (float)Math.sin(t * 1.7f + i) * dp(5) * sc;
-                float y = h * (0.16f + (i % 2) * 0.60f) + (float)Math.cos(t * 1.4f + i) * dp(6) * sc;
-                RectF panel = new RectF(x - dp(34) * sc, y - dp(16) * sc, x + dp(34) * sc, y + dp(16) * sc);
-                p.setColor(alpha(colors[i], 44));
-                c.drawRoundRect(panel, dp(12) * sc, dp(12) * sc, p);
-                p.setColor(alpha(colors[i], 220));
-                p.setTextSize(dp(10.5f) * sc);
-                c.drawText(labels[i], x, y + dp(4) * sc, p);
-            }
+            c.drawCircle(cx + dp(104) * sc, y + dp(1) * sc - wave * dp(2) * sc, dp(12) * sc, p);
         }
     }
 
@@ -4057,9 +4035,9 @@ public class MainActivity extends Activity {
         LinearLayout intro = card();
         intro.setPadding(dp(14), dp(14), dp(14), dp(14));
         intro.setBackground(gradient(new int[]{alpha(INFO, 30), alpha(GOLD, 24), alpha(SURFACE, 248)}, GradientDrawable.Orientation.LEFT_RIGHT, 26));
-        FrameLayout portrait = miloPortrait(dp(230));
-        intro.addView(portrait, new LinearLayout.LayoutParams(-1, dp(230)));
-        TextView title = text("میلو زنده است و آماده تحلیل", 16.5f, TEXT, Typeface.BOLD);
+        FrameLayout portrait = miloPortrait(dp(168));
+        intro.addView(portrait, new LinearLayout.LayoutParams(-1, dp(168)));
+        TextView title = text("میلو آماده تحلیل است", 16.5f, TEXT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
         tp.setMargins(0, dp(10), 0, 0);
@@ -4666,7 +4644,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.13.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.14.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
