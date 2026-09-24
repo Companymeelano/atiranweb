@@ -1,2 +1,0 @@
-76694564f4fbd498bb447b187a5b6c53a31cd52183bcaad1b3ac527c815dd202  artifacts/MEELANO-Android-v1.1.0-debug.apk
-66557cc7a0319f9f31adcb48e486d318e5ed4a1eed3f1532c052656330e1d051  artifacts/MEELANO-Android-v1.1.0.apk

@@ -1,20 +1,46 @@
-# MEELANO Android
+# MEELANO Android Native
 
-نسخه Android قابل نصب برای MEELANO با پوسته WebView لوکس، RTL فارسی و اتصال امن به نسخه PWA/API.
+این پروژه نسخه **اندروید واقعی و قابل نصب** برای MEELANO است. این نسخه PWA نیست و از WebView/مرورگر داخلی استفاده نمی‌کند؛ تمام صفحه‌ها، کارت‌ها، لیست‌ها، فرم ورود و نمودارها با کامپوننت‌های Native اندروید در Java ساخته شده‌اند.
 
-## ویژگی‌های نسخه 1.1.0
+## ویژگی‌های نسخه 2.0.0-native
 
-- پوسته Android تیره و طلایی هماهنگ با برند MEELANO
-- صفحه شروع بسیار زیبا برای ثبت آدرس سرویس
-- نوار بالایی اختصاصی با لوگو، وضعیت اتصال، Home، Back، Refresh و Settings
-- WebView بهینه‌شده برای PWA، JavaScript، Cookie، DOM Storage و دانلود خروجی‌ها
-- صفحه خطای اختصاصی با دکمه «تلاش دوباره» و «تغییر آدرس اتصال»
+- اپلیکیشن نصب‌شدنی Android با UI کاملاً Native
+- بدون PWA، بدون HTML و بدون WebView
+- ورود مستقیم به API امن MEELANO با نام کاربری و رمز Atiran
+- ذخیره Session امن سرور از طریق Cookie؛ بدون ذخیره رمز عبور
+- داشبورد Native با KPI و نمودار Line/Bar اختصاصی
+- مشتریان با جستجو و Customer 360 Native
+- کالا و انبار با کارت‌های Product Intelligence
+- نمایش Native برای فروش و چک‌ها از endpoint جدول‌های مجاز
+- گزارش‌های مدیریتی و Executive Analytics با نمودارهای Native
+- صفحه تنظیمات، تغییر آدرس API و خروج امن
+- تم تیره/طلایی هماهنگ با برند MEELANO و پشتیبانی RTL فارسی
 - پشتیبانی از HTTPS و همچنین HTTP برای شبکه داخلی
-- هیچ رمز SQL یا اطلاعات حساس داخل APK ذخیره نمی‌شود؛ فقط آدرس سرویس ذخیره می‌شود
+
+## معماری اتصال
+
+اپ اندروید به SQL Server وصل نمی‌شود و هیچ credential دیتابیس داخل APK نیست.
+
+جریان اتصال:
+
+```text
+MEELANO Android Native → HTTPS/HTTP API → SQL Server Atiran
+```
+
+API همان endpointهای امن MEELANO را ارائه می‌کند:
+
+- `POST /api/login`
+- `GET /api/session`
+- `GET /api/dashboard`
+- `GET /api/customers`
+- `GET /api/products`
+- `GET /api/analytics`
+- `GET /api/table/{table}`
+- `POST /api/logout`
 
 ## آدرس سرویس
 
-در اولین اجرا آدرس سایت/API MEELANO را وارد کنید، مانند:
+در اولین اجرا آدرس API/سرور MEELANO را وارد کنید، مانند:
 
 - `https://meelano.example.com`
 - `http://192.168.1.150:5000`
@@ -31,18 +57,16 @@
    - `Build > Build Bundle(s) / APK(s) > Build APK(s)`
    - یا از ترمینال: `gradle :app:assembleRelease`
 
-> در این پروژه، Release برای تحویل مستقیم با signing debug امضا می‌شود تا APK قابل نصب باشد. برای انتشار رسمی در Play Store یا تحویل نهایی بلندمدت، حتماً signingConfig اختصاصی و امن خودتان را جایگزین کنید.
-
-## خروجی پیشنهادی
-
-پس از Build، فایل قابل نصب در مسیر زیر ساخته می‌شود:
+خروجی Release:
 
 ```text
 app/build/outputs/apk/release/app-release.apk
 ```
 
-نام پیشنهادی برای تحویل به مشتری:
+نام فایل تحویلی این نسخه:
 
 ```text
-MEELANO-Android-v1.1.0.apk
+MEELANO-Android-Native-v2.0.0.apk
 ```
+
+> برای انتشار رسمی در Play Store یا تحویل سازمانی بلندمدت، signingConfig اختصاصی و امن خودتان را جایگزین signing debug کنید.
