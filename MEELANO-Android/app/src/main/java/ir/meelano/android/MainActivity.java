@@ -285,10 +285,6 @@ public class MainActivity extends Activity {
         titles.addView(subtitle, new LinearLayout.LayoutParams(-1, 0, 1f));
         header.addView(titles, new LinearLayout.LayoutParams(0, dp(48), 1f));
 
-        TextView refresh = iconButton("↻", "تلاش مجدد");
-        refresh.setOnClickListener(v -> refreshActivePage());
-        header.addView(refresh, headerButtonLp(false));
-
         connectionIndicator = iconButton("◌", "وضعیت اتصال");
         connectionIndicator.setOnClickListener(v -> refreshActivePage());
         header.addView(connectionIndicator, headerButtonLp(true));
@@ -512,19 +508,22 @@ public class MainActivity extends Activity {
         LinearLayout loginCard = card();
         loginCard.setGravity(Gravity.CENTER_HORIZONTAL);
         loginCard.setPadding(dp(22), dp(24), dp(22), dp(22));
-        loginCard.setBackground(roundedStroke(alpha(SURFACE, 242), 30, alpha(GOLD, 62)));
+        loginCard.setBackground(gradient(new int[]{alpha(GOLD, 34), alpha(INFO, 18), alpha(SURFACE, 246)}, GradientDrawable.Orientation.TL_BR, 30));
         outer.addView(loginCard, new LinearLayout.LayoutParams(-1, -2));
 
-        ImageView logo = new ImageView(this);
-        logo.setImageResource(ir.meelano.android.R.drawable.meelano_3d);
-        logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        loginCard.addView(logo, new LinearLayout.LayoutParams(dp(124), dp(124)));
+        TextView logo = text("M", 44, ON_PRIMARY, Typeface.BOLD);
+        logo.setGravity(Gravity.CENTER);
+        logo.setShadowLayer(dp(5), 0, dp(2), alpha(Color.BLACK, 120));
+        logo.setBackground(gradient(new int[]{GOLD_2, GOLD, alpha(INFO, 180)}, GradientDrawable.Orientation.TL_BR, 32));
+        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(dp(112), dp(112));
+        logoLp.setMargins(0, 0, 0, dp(8));
+        loginCard.addView(logo, logoLp);
 
         TextView h = text("Meelano Android", 23, TEXT, Typeface.BOLD);
         h.setGravity(Gravity.CENTER);
         loginCard.addView(h, new LinearLayout.LayoutParams(-1, -2));
 
-        TextView sub = text("نسخه اندروید اختصاصی؛ فقط نام کاربری و رمز Meelano را وارد کنید.", 12.5f, MUTED, Typeface.NORMAL);
+        TextView sub = text("ورود امن به پنل مالی Meelano با تجربه‌ای لاکچری و تم‌محور", 12.5f, MUTED, Typeface.NORMAL);
         sub.setGravity(Gravity.CENTER);
         sub.setLineSpacing(dp(2), 1.05f);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2);
@@ -1069,7 +1068,7 @@ public class MainActivity extends Activity {
         titleBox.addView(text(label, 12, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         titleBox.addView(text(formatNumber(count) + " فقره", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         line.addView(titleBox, new LinearLayout.LayoutParams(0, -2, 1f));
-        TextView money = text(money(amount), 11.3f, TEXT, Typeface.BOLD);
+        TextView money = text(compactMoney(amount), 11.3f, TEXT, Typeface.BOLD);
         money.setGravity(Gravity.CENTER);
         money.setPadding(dp(9), dp(5), dp(9), dp(5));
         money.setBackground(roundedStroke(SURFACE_2, 999, alpha(accent, 92)));
@@ -1188,6 +1187,8 @@ public class MainActivity extends Activity {
 
     private LinearLayout bankIconRow(int index, JSONObject b, int accent) {
         String bankName = b == null ? "بانک" : b.optString("label", "بانک");
+        String branch = b == null ? "" : b.optString("branch", "");
+        boolean duplicate = b != null && b.optBoolean("duplicate", false);
         int brand = bankBrandColor(bankName, accent);
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1195,7 +1196,7 @@ public class MainActivity extends Activity {
         row.setPadding(dp(9), dp(8), dp(9), dp(8));
         row.setBackground(roundedStroke(alpha(brand, 18), 16, alpha(brand, 82)));
         row.setContentDescription(bankName);
-        TextView icon = text(bankIconText(bankName), 12.5f, Color.WHITE, Typeface.BOLD);
+        TextView icon = text(bankIconText(bankName) + (duplicate && !branch.isEmpty() ? "\n" + branch : ""), duplicate && !branch.isEmpty() ? 10.2f : 12.5f, Color.WHITE, Typeface.BOLD);
         icon.setGravity(Gravity.CENTER);
         icon.setMaxLines(2);
         icon.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, 120));
@@ -1204,6 +1205,7 @@ public class MainActivity extends Activity {
         LinearLayout values = new LinearLayout(this);
         values.setOrientation(LinearLayout.VERTICAL);
         values.setPadding(dp(9), 0, dp(9), 0);
+        if (duplicate && !branch.isEmpty()) values.addView(bankValueLine("شعبه", branch, brand), new LinearLayout.LayoutParams(-1, -2));
         values.addView(bankValueLine("موجودی", money(b == null ? 0 : b.opt("balance")), SUCCESS), new LinearLayout.LayoutParams(-1, -2));
         values.addView(bankValueLine("ورودی", money(b == null ? 0 : b.opt("inflow")), INFO), new LinearLayout.LayoutParams(-1, -2));
         values.addView(bankValueLine("خروجی", money(b == null ? 0 : b.opt("outflow")), WARNING), new LinearLayout.LayoutParams(-1, -2));
@@ -1601,7 +1603,7 @@ public class MainActivity extends Activity {
         }
         if (!incoming) ensureBlankCheckCategory(breakdown, chart);
         addMetric(metrics, "تعداد چک", formatNumber(count));
-        addMetric(metrics, "جمع مبلغ", money(total));
+        addMetric(metrics, "جمع مبلغ", compactMoney(total));
         addMetric(metrics, incoming ? "نوع" : "نوع", incoming ? "دریافتی" : "پرداختی");
         out.put("metrics", metrics); out.put("chart", chart); out.put("breakdown", breakdown); return out;
     }
@@ -1734,6 +1736,17 @@ public class MainActivity extends Activity {
         return ir.meelano.android.R.drawable.icon_dashboard;
     }
 
+    private String kpiGlyph(String title, int index) {
+        String t = title == null ? "" : title;
+        if (t.contains("مشتری")) return "👥";
+        if (t.contains("کالا")) return "◼";
+        if (t.contains("فروش") || t.contains("فاکتور")) return "₿";
+        if (t.contains("چک")) return "✓";
+        if (t.contains("ویزیت")) return "⌾";
+        if (t.contains("هدف")) return "◎";
+        return "◆";
+    }
+
     private void addDashboardKpiTable(JSONArray kpis) {
         if (kpis == null || kpis.length() == 0) return;
         LinearLayout c = card();
@@ -1750,10 +1763,10 @@ public class MainActivity extends Activity {
             cell.setGravity(Gravity.CENTER_VERTICAL);
             cell.setPadding(dp(8), dp(8), dp(8), dp(8));
             cell.setBackground(roundedStroke(alpha(accent, 20), 15, alpha(accent, 64)));
-            ImageView icon = new ImageView(this);
-            icon.setImageResource(kpiIconResource(item == null ? "" : item.optString("title"), i));
-            icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-            cell.addView(icon, new LinearLayout.LayoutParams(dp(34), dp(34)));
+            TextView icon = text(kpiGlyph(item == null ? "" : item.optString("title"), i), 18, TEXT, Typeface.BOLD);
+            icon.setGravity(Gravity.CENTER);
+            icon.setBackground(gradient(new int[]{alpha(accent, 130), alpha(GOLD_2, 58)}, GradientDrawable.Orientation.TL_BR, 14));
+            cell.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
             LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(8), 0, dp(8), 0);
             copy.addView(text(item == null ? "شاخص" : item.optString("title", "شاخص"), 10.5f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
             copy.addView(text(formatNumber(item == null ? 0 : item.opt("value")), 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
@@ -2343,8 +2356,10 @@ public class MainActivity extends Activity {
         m.setBackground(roundedStroke(SURFACE_2, 14, BORDER));
         TextView l = text(label, 9.5f, MUTED, Typeface.NORMAL);
         l.setGravity(Gravity.CENTER);
-        TextView v = text(value, 11, TEXT, Typeface.BOLD);
+        float valueSize = value != null && value.length() > 18 ? 9.2f : (value != null && value.length() > 13 ? 10f : 11f);
+        TextView v = text(value, valueSize, TEXT, Typeface.BOLD);
         v.setGravity(Gravity.CENTER);
+        v.setMaxLines(2);
         m.addView(l, new LinearLayout.LayoutParams(-1, -2));
         m.addView(v, new LinearLayout.LayoutParams(-1, -2));
         return m;
@@ -2356,7 +2371,8 @@ public class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
-        box.setPadding(0, 0, 0, dp(12));
+        box.setPadding(dp(8), dp(8), dp(8), dp(8));
+        box.setBackground(roundedStroke(alpha(INFO, 14), 18, alpha(INFO, 44)));
         EditText q = input(hint, query, false);
         q.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         Button b = secondaryButton("جستجو");
@@ -2369,7 +2385,9 @@ public class MainActivity extends Activity {
             if (actionId == EditorInfo.IME_ACTION_SEARCH) { action.run(q.getText().toString().trim()); return true; }
             return false;
         });
-        content.addView(box, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 0, 0, dp(14));
+        content.addView(box, lp);
     }
 
     private void loadTable(String title, String sub, String table, String query) {
@@ -2826,12 +2844,14 @@ public class MainActivity extends Activity {
         Set<String> get = columns(c, "getchk");
         Set<String> put = columns(c, "putchk");
         if (!hasCol(bank, "RDF") || !hasCol(bank, "BANKNAME") || !hasCol(bank, "MAN")) return out;
+        String branch = resolve(bank, "BRANCHCODE", "BranchCode", "branch_code", "SHOBE", "shobe", "shobeh", "Branch", "code", "Code", "BANKCODE", "RDF");
+        String branchExpr = branch == null ? "CAST(NULL AS nvarchar(80))" : "TRY_CONVERT(nvarchar(80),b.[" + branch + "])";
         String inflow = hasCol(get, "our_bankrdf") && hasCol(get, "getchkmab") ? "ISNULL((SELECT SUM(TRY_CONVERT(decimal(19,2),g.getchkmab)) FROM dbo.getchk g WHERE g.our_bankrdf=b.RDF),0)" : "CAST(0 AS decimal(19,2))";
         String outflow = hasCol(put, "bankrdf") && hasCol(put, "putchkmab") ? "ISNULL((SELECT SUM(TRY_CONVERT(decimal(19,2),p.putchkmab)) FROM dbo.putchk p WHERE p.bankrdf=b.RDF),0)" : "CAST(0 AS decimal(19,2))";
         String where = hasCol(bank, "Active") ? " WHERE ISNULL(b.Active,1)=1" : "";
-        String sql = "SELECT TOP (20) TRY_CONVERT(nvarchar(250),b.BANKNAME), ISNULL(TRY_CONVERT(decimal(19,2),b.MAN),0), " + inflow + ", " + outflow + " FROM dbo.BANK b " + where + " ORDER BY ISNULL(TRY_CONVERT(decimal(19,2),b.MAN),0) DESC";
+        String sql = "SELECT TOP (20) TRY_CONVERT(nvarchar(250),b.BANKNAME), ISNULL(TRY_CONVERT(decimal(19,2),b.MAN),0), " + inflow + ", " + outflow + ", " + branchExpr + ", COUNT(1) OVER (PARTITION BY TRY_CONVERT(nvarchar(250),b.BANKNAME)) FROM dbo.BANK b " + where + " ORDER BY ISNULL(TRY_CONVERT(decimal(19,2),b.MAN),0) DESC";
         try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
-            while (r.next()) { JSONObject o = new JSONObject(); o.put("label", stringOr(r.getString(1), "بدون نام")); o.put("balance", r.getDouble(2)); o.put("inflow", r.getDouble(3)); o.put("outflow", r.getDouble(4)); o.put("value", r.getDouble(2)); out.put(o); }
+            while (r.next()) { JSONObject o = new JSONObject(); o.put("label", stringOr(r.getString(1), "بدون نام")); o.put("balance", r.getDouble(2)); o.put("inflow", r.getDouble(3)); o.put("outflow", r.getDouble(4)); o.put("branch", stringOr(r.getString(5), "")); o.put("duplicate", r.getLong(6) > 1); o.put("value", r.getDouble(2)); out.put(o); }
         }
         return out;
     }
@@ -3066,7 +3086,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.7.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.8.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -3188,6 +3208,18 @@ public class MainActivity extends Activity {
 
     private String money(Object value) {
         return formatNumber(value) + " ریال";
+    }
+
+    private String compactMoney(Object value) {
+        if (value == null || JSONObject.NULL.equals(value)) return "۰ ریال";
+        try {
+            double v = value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(String.valueOf(value));
+            double a = Math.abs(v);
+            if (a >= 1000000000000d) return formatNumber(v / 1000000000000d) + " همت";
+            if (a >= 1000000000d) return formatNumber(v / 1000000000d) + " میلیارد";
+            if (a >= 1000000d) return formatNumber(v / 1000000d) + " میلیون";
+            return money(v);
+        } catch (Exception ignored) { return money(value); }
     }
 
     private String readableError(Exception e) {

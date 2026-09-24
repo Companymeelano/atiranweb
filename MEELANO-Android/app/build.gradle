@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.android'
         minSdk 24
         targetSdk 35
-        versionCode 12
-        versionName '3.7.0-direct-sql-bank-check-customer-polish'
+        versionCode 13
+        versionName '3.8.0-direct-sql-ux-polish'
     }
 
     compileOptions {
