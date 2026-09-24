@@ -3,6 +3,7 @@ package ir.meelano.android;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -15,6 +16,8 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.speech.RecognizerIntent;
+import android.speech.tts.TextToSpeech;
 import android.text.InputType;
 import android.util.Base64;
 import android.view.Gravity;
@@ -36,6 +39,12 @@ import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -61,6 +70,13 @@ public class MainActivity extends Activity {
     private static final String PREFS = "meelano_android_direct_sql";
     private static final String KEY_LAST_USER = "last_meelano_user";
     private static final String KEY_THEME = "meelano_theme_palette";
+    private static final String KEY_FIRST_NAME = "assistant_first_name";
+    private static final String KEY_NAME_ASKED = "assistant_name_asked";
+    private static final String KEY_AI_PROVIDER = "assistant_ai_provider";
+    private static final String KEY_AI_CHATGPT = "assistant_ai_chatgpt";
+    private static final String KEY_AI_GEMINI = "assistant_ai_gemini";
+    private static final String KEY_AI_GROK = "assistant_ai_grok";
+    private static final int REQ_ASSISTANT_VOICE = 9401;
 
     private static final int[] S_HOST = {122, 126, 103, 120, 125, 122, 103, 120, 125, 126, 103, 120, 112};
     private static final int[] S_USER = {8, 45, 36, 32, 39, 8, 39};
@@ -98,6 +114,11 @@ public class MainActivity extends Activity {
     private LinearLayout navStrip;
     private String activePage = "login";
     private UserSession session;
+    private LinearLayout assistantChatLog;
+    private EditText assistantInput;
+    private TextToSpeech tts;
+    private boolean ttsReady = false;
+    private String lastAssistantAnswer = "";
 
     private static final Set<String> SAFE_TABLES = new HashSet<>(Arrays.asList(
             "CUSTOMERS", "inventory", "sailfact", "subsailfact", "sailfact_pish", "subsailfact_pish",
@@ -111,6 +132,7 @@ public class MainActivity extends Activity {
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         applyTheme(prefs.getString(KEY_THEME, "onyx_gold"));
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        initSpeechEngine();
         buildFrame();
         showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید.");
     }
@@ -278,7 +300,7 @@ public class MainActivity extends Activity {
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
         titles.setPadding(dp(10), 0, dp(8), 0);
-        TextView appTitle = text("Meelano Android", 16, TEXT, Typeface.BOLD);
+        TextView appTitle = text("Meelano", 16, TEXT, Typeface.BOLD);
         subtitle = text("ورود با حساب Meelano", 10, alpha(TEXT, 175), Typeface.NORMAL);
         status = text("", 1, Color.TRANSPARENT, Typeface.NORMAL);
         titles.addView(appTitle, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -519,7 +541,7 @@ public class MainActivity extends Activity {
         logoLp.setMargins(0, 0, 0, dp(8));
         loginCard.addView(logo, logoLp);
 
-        TextView h = text("Meelano Android", 23, TEXT, Typeface.BOLD);
+        TextView h = text("Meelano", 23, TEXT, Typeface.BOLD);
         h.setGravity(Gravity.CENTER);
         loginCard.addView(h, new LinearLayout.LayoutParams(-1, -2));
 
@@ -584,6 +606,7 @@ public class MainActivity extends Activity {
                         setConnectionStatus("connected");
                         Toast.makeText(this, "اتصال موفق بود", Toast.LENGTH_SHORT).show();
                         showApp("dashboard");
+                        maybeAskFirstName(false);
                     });
                 } catch (Exception ex) {
                     runOnUiThread(() -> {
@@ -659,6 +682,7 @@ public class MainActivity extends Activity {
     private void buildNav() {
         navStrip.removeAllViews();
         addNav("dashboard", "داشبورد", "◈");
+        addNav("assistant", "دستیار", "✦");
         addNav("customers", "مشتریان", "👥");
         addNav("products", "کالا", "◼");
         addNav("sales", "فروش", "₿");
@@ -682,6 +706,7 @@ public class MainActivity extends Activity {
 
     private void renderActivePage() {
         switch (activePage) {
+            case "assistant": showAssistant(); break;
             case "customers": loadCustomers(""); break;
             case "products": loadProducts(""); break;
             case "sales": loadTable("فروش و اسناد", "نمای مستقیم از جدول فروش", "sailfact", ""); break;
@@ -875,6 +900,7 @@ public class MainActivity extends Activity {
     private void loadDashboard() {
         content.removeAllViews();
         addHero("داشبورد هوشمند Meelano", "نمای هوشمند فروش، خرید، چک‌ها، مشتریان و کالاها با داده‌های زنده Meelano");
+        addAssistantEntryCard();
         addLoading(content, "در حال دریافت داشبورد…");
         runDb(this::queryDashboard, new DbCallback() {
             @Override public void ok(String body) {
@@ -882,6 +908,7 @@ public class MainActivity extends Activity {
                     JSONObject j = new JSONObject(body);
                     content.removeAllViews();
                     addHero("داشبورد هوشمند Meelano", "نمای هوشمند فروش، خرید، چک‌ها، مشتریان و کالاها با داده‌های زنده Meelano");
+                    addAssistantEntryCard();
                     addDashboardKpiTable(j.optJSONArray("kpis"));
                     renderDashboardToday(j.optJSONObject("today"));
                 } catch (Exception e) { showPageError("داشبورد", e, () -> showApp("dashboard")); }
@@ -1840,19 +1867,42 @@ public class MainActivity extends Activity {
     }
 
     private void addCustomerFilterChips(String query, String activeFilter) {
+        LinearLayout panel = card();
+        panel.setPadding(dp(13), dp(13), dp(13), dp(13));
+        panel.setBackground(gradient(new int[]{alpha(GOLD, 22), alpha(INFO, 12), alpha(SURFACE, 245)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView badge = text("⌁", 18, GOLD_2, Typeface.BOLD);
+        badge.setGravity(Gravity.CENTER);
+        badge.setBackground(roundedStroke(alpha(GOLD, 30), 13, alpha(GOLD, 70)));
+        titleRow.addView(badge, new LinearLayout.LayoutParams(dp(38), dp(38)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(10), 0, dp(10), 0);
+        copy.addView(text("فیلترهای هوشمند مشتری", 13.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text("جستجو بالا مستقل است؛ این بخش فقط نوع مشتری را مرتب می‌کند.", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        titleRow.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        panel.addView(titleRow, new LinearLayout.LayoutParams(-1, -2));
+
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
         String[][] filters = {{"all","همه"},{"debt","بدهکار"},{"credit","بستانکار"},{"no_buy","بدون خرید"},{"top","پرخرید"}};
         for (String[] f : filters) {
             Button b = activeFilter.equals(f[0]) ? primaryButton(f[1]) : secondaryButton(f[1]);
-            b.setTextSize(10.5f);
+            b.setTextSize(10.2f);
             b.setOnClickListener(v -> loadCustomers(query, f[0]));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(42), 1f);
-            lp.setMargins(dp(3), 0, dp(3), dp(12));
+            lp.setMargins(dp(3), 0, dp(3), 0);
             box.addView(b, lp);
         }
-        content.addView(box, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
+        bp.setMargins(0, dp(14), 0, 0);
+        panel.addView(box, bp);
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, -2);
+        pp.setMargins(0, dp(10), 0, dp(16));
+        content.addView(panel, pp);
     }
 
     private String queryCustomers(String search, String filter) throws Exception {
@@ -3051,9 +3101,689 @@ public class MainActivity extends Activity {
         content.addView(c, lp);
     }
 
+    private void initSpeechEngine() {
+        try {
+            tts = new TextToSpeech(getApplicationContext(), statusCode -> {
+                if (statusCode == TextToSpeech.SUCCESS && tts != null) {
+                    int result = tts.setLanguage(new Locale("fa", "IR"));
+                    ttsReady = result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED;
+                }
+            });
+        } catch (Exception ignored) {
+            ttsReady = false;
+        }
+    }
+
+    private String assistantFirstName() {
+        return prefs == null ? "" : prefs.getString(KEY_FIRST_NAME, "").trim();
+    }
+
+    private String displayFirstName() {
+        String n = assistantFirstName();
+        return n.isEmpty() ? "دوست خوبم" : n;
+    }
+
+    private String extractFirstName(String raw) {
+        String n = raw == null ? "" : raw.trim();
+        if (n.isEmpty() && session != null) n = session.userName == null ? "" : session.userName.trim();
+        if (n.isEmpty()) return "کاربر";
+        String[] parts = n.split("\\s+");
+        return parts.length == 0 ? n : parts[0];
+    }
+
+    private void maybeAskFirstName(boolean force) {
+        if (prefs == null) return;
+        if (!force && prefs.getBoolean(KEY_NAME_ASKED, false)) return;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(8), dp(8), dp(8), dp(2));
+        TextView hint = text("برای اینکه دستیار Meelano صمیمی و دقیق صدایتان کند، نام کوچک را وارد کنید.", 12, MUTED, Typeface.NORMAL);
+        hint.setGravity(Gravity.CENTER);
+        box.addView(hint, new LinearLayout.LayoutParams(-1, -2));
+        EditText name = input("مثلاً میلاد", assistantFirstName(), false);
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, dp(52));
+        np.setMargins(0, dp(12), 0, 0);
+        box.addView(name, np);
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("اسمت را چی صدا بزنم؟")
+                .setView(box)
+                .setPositiveButton("ثبت نام کوچک", (d, w) -> {
+                    String first = extractFirstName(name.getText().toString());
+                    prefs.edit().putString(KEY_FIRST_NAME, first).putBoolean(KEY_NAME_ASKED, true).apply();
+                    Toast.makeText(this, "خوش آمدی " + first + " عزیز", Toast.LENGTH_SHORT).show();
+                    if ("assistant".equals(activePage)) showAssistant();
+                })
+                .create();
+        dialog.setOnShowListener(d -> name.requestFocus());
+        dialog.setCancelable(false);
+        dialog.show();
+    }
+
+    private void addAssistantEntryCard() {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(GOLD, 44), alpha(INFO, 22), SURFACE}, GradientDrawable.Orientation.RIGHT_LEFT, 26));
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView avatar = assistantAvatar(18);
+        row.addView(avatar, new LinearLayout.LayoutParams(dp(72), dp(72)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(12), 0, dp(8), 0);
+        copy.addView(text("دستیار هوش مصنوعی Meelano", 16.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView desc = text("سلام " + displayFirstName() + "؛ گزارش فارسی، پیشنهاد قیمت، پورسانت و هشدار زیان را از داده زنده می‌خوانم. زیاد هم غر نمی‌زنم، فقط کمی!", 11, alpha(TEXT, 205), Typeface.NORMAL);
+        desc.setLineSpacing(dp(2), 1.05f);
+        copy.addView(desc, new LinearLayout.LayoutParams(-1, -2));
+        row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        c.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button ask = primaryButton("گفتگو با دستیار");
+        Button keys = secondaryButton("کلیدهای AI");
+        ask.setOnClickListener(v -> showApp("assistant"));
+        keys.setOnClickListener(v -> showApp("settings"));
+        LinearLayout.LayoutParams ap1 = new LinearLayout.LayoutParams(0, dp(44), 1f); ap1.setMargins(dp(3), dp(12), dp(3), 0);
+        LinearLayout.LayoutParams ap2 = new LinearLayout.LayoutParams(0, dp(44), 1f); ap2.setMargins(dp(3), dp(12), dp(3), 0);
+        actions.addView(ask, ap1); actions.addView(keys, ap2);
+        c.addView(actions, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 0, 0, dp(12));
+        content.addView(c, lp);
+    }
+
+    private TextView assistantAvatar(float textSize) {
+        TextView avatar = text("M∧A\n•ᴗ•", textSize, ON_PRIMARY, Typeface.BOLD);
+        avatar.setGravity(Gravity.CENTER);
+        avatar.setLineSpacing(0, 0.88f);
+        avatar.setShadowLayer(dp(4), 0, dp(2), alpha(Color.BLACK, 120));
+        avatar.setBackground(gradient(new int[]{GOLD_2, GOLD, alpha(INFO, 210)}, GradientDrawable.Orientation.TL_BR, 24));
+        return avatar;
+    }
+
+    private void showAssistant() {
+        content.removeAllViews();
+        addHero("دستیار هوش مصنوعی Meelano", "چت و صدای فارسی، تحلیل زنده دیتابیس، پیشنهاد فروش، قیمت‌گذاری، پورسانت و کنترل ریسک");
+        if (!prefs.getBoolean(KEY_NAME_ASKED, false)) maybeAskFirstName(false);
+
+        LinearLayout intro = card();
+        intro.setBackground(gradient(new int[]{alpha(INFO, 30), alpha(GOLD, 26), alpha(SURFACE, 248)}, GradientDrawable.Orientation.LEFT_RIGHT, 26));
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(assistantAvatar(19), new LinearLayout.LayoutParams(dp(78), dp(78)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(12), 0, dp(8), 0);
+        copy.addView(text("من «میلا» هستم؛ دستیار بازیگوش اما دقیق Meelano", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView body = text("از من بپرس: امروز فروش چطور بود؟ کدام مشتری پرریسک است؟ قیمت‌ها را چطور بچینم؟ پورسانت ویزیتورها منطقی هست؟", 11, MUTED, Typeface.NORMAL);
+        body.setLineSpacing(dp(2), 1.05f);
+        copy.addView(body, new LinearLayout.LayoutParams(-1, -2));
+        row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        intro.addView(row, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout chips = new LinearLayout(this);
+        chips.setOrientation(LinearLayout.HORIZONTAL);
+        addAssistantQuickChip(chips, "گزارش سریع", "یک گزارش خیلی کوتاه از فروش، خرید، بانک، چک و مشتریان بدهکار بده.");
+        addAssistantQuickChip(chips, "ریسک زیان", "ریسک‌های زیان، وصول، چک و مشتریان خطرناک را بگو و راهکار کوتاه بده.");
+        addAssistantQuickChip(chips, "قیمت‌گذاری", "برای قیمت‌گذاری و بازار فروش با داده‌های فعلی پیشنهاد عملی بده.");
+        addAssistantQuickChip(chips, "پورسانت", "برای پورسانت ویزیتورها و انگیزه فروش پیشنهاد بده.");
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2);
+        cp.setMargins(0, dp(12), 0, 0);
+        intro.addView(chips, cp);
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(-1, -2);
+        ip.setMargins(0, 0, 0, dp(12));
+        content.addView(intro, ip);
+
+        assistantChatLog = card();
+        assistantChatLog.setPadding(dp(10), dp(10), dp(10), dp(10));
+        assistantChatLog.setBackground(roundedStroke(alpha(SURFACE_2, 230), 22, alpha(GOLD, 42)));
+        content.addView(assistantChatLog, new LinearLayout.LayoutParams(-1, -2));
+        addAssistantBubble(false, "سلام " + displayFirstName() + "! سوالت را کوتاه بپرس؛ من هم جواب را کوتاه، دقیق و کمی بانمک می‌دهم. برای تحلیل آنلاین‌تر، از تنظیمات کلید ChatGPT/Gemini/Grok را ثبت کن.");
+
+        LinearLayout inputCard = card();
+        inputCard.setPadding(dp(12), dp(12), dp(12), dp(12));
+        LinearLayout inputRow = new LinearLayout(this);
+        inputRow.setOrientation(LinearLayout.HORIZONTAL);
+        inputRow.setGravity(Gravity.CENTER_VERTICAL);
+        assistantInput = input("از میلا بپرس…", "", false);
+        assistantInput.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) assistantInput.setTextDirection(View.TEXT_DIRECTION_RTL);
+        assistantInput.setImeOptions(EditorInfo.IME_ACTION_SEND);
+        Button send = primaryButton("ارسال");
+        inputRow.addView(assistantInput, new LinearLayout.LayoutParams(0, dp(52), 1f));
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(86), dp(52)); sp.setMargins(dp(8), 0, 0, 0);
+        inputRow.addView(send, sp);
+        inputCard.addView(inputRow, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout voiceRow = new LinearLayout(this);
+        voiceRow.setOrientation(LinearLayout.HORIZONTAL);
+        Button voice = secondaryButton("🎙 پرسش صوتی");
+        Button speak = secondaryButton("🔊 خواندن پاسخ");
+        Button settings = secondaryButton("⚙ کلیدهای AI");
+        voice.setTextSize(10.5f); speak.setTextSize(10.5f); settings.setTextSize(10.5f);
+        voice.setOnClickListener(v -> startAssistantVoiceInput());
+        speak.setOnClickListener(v -> speakAssistantText(lastAssistantAnswer.isEmpty() ? "هنوز پاسخی ندارم؛ اول یک سوال بپرس." : lastAssistantAnswer));
+        settings.setOnClickListener(v -> showApp("settings"));
+        LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(0, dp(42), 1f); vp.setMargins(dp(3), dp(10), dp(3), 0);
+        voiceRow.addView(voice, vp);
+        LinearLayout.LayoutParams vp2 = new LinearLayout.LayoutParams(0, dp(42), 1f); vp2.setMargins(dp(3), dp(10), dp(3), 0);
+        voiceRow.addView(speak, vp2);
+        LinearLayout.LayoutParams vp3 = new LinearLayout.LayoutParams(0, dp(42), 1f); vp3.setMargins(dp(3), dp(10), dp(3), 0);
+        voiceRow.addView(settings, vp3);
+        inputCard.addView(voiceRow, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams icp = new LinearLayout.LayoutParams(-1, -2); icp.setMargins(0, dp(12), 0, 0);
+        content.addView(inputCard, icp);
+
+        View.OnClickListener submitter = v -> submitAssistantQuestion(assistantInput.getText().toString().trim());
+        send.setOnClickListener(submitter);
+        assistantInput.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEND) { submitter.onClick(send); return true; }
+            return false;
+        });
+    }
+
+    private void addAssistantQuickChip(LinearLayout parent, String label, String prompt) {
+        Button b = secondaryButton(label);
+        b.setTextSize(9.8f);
+        b.setOnClickListener(v -> submitAssistantQuestion(prompt));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+        lp.setMargins(dp(3), 0, dp(3), 0);
+        parent.addView(b, lp);
+    }
+
+    private TextView addAssistantBubble(boolean user, String message) {
+        if (assistantChatLog == null) return null;
+        int accent = user ? INFO : GOLD;
+        LinearLayout bubble = new LinearLayout(this);
+        bubble.setOrientation(LinearLayout.VERTICAL);
+        bubble.setPadding(dp(11), dp(9), dp(11), dp(9));
+        bubble.setBackground(roundedStroke(alpha(accent, user ? 28 : 34), 17, alpha(accent, 80)));
+        TextView who = text(user ? displayFirstName() : "میلا • AI", 10.5f, accent, Typeface.BOLD);
+        TextView body = text(message, 12.2f, TEXT, Typeface.NORMAL);
+        body.setLineSpacing(dp(3), 1.06f);
+        bubble.addView(who, new LinearLayout.LayoutParams(-1, -2));
+        bubble.addView(body, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(user ? dp(36) : 0, dp(8), user ? 0 : dp(36), 0);
+        assistantChatLog.addView(bubble, lp);
+        return body;
+    }
+
+    private void submitAssistantQuestion(String question) {
+        if (question == null || question.trim().isEmpty()) {
+            Toast.makeText(this, "یک سوال کوتاه بنویس؛ ذهن‌خوانی هنوز در نسخه بتاست!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (assistantInput != null) assistantInput.setText("");
+        addAssistantBubble(true, question);
+        TextView pending = addAssistantBubble(false, "دارم داده‌ها را تحلیل می‌کنم… یک لحظه، قهوه مجازی‌ام داغ است.");
+        setConnectionStatus("loading");
+        executor.execute(() -> {
+            String answer;
+            try {
+                if (asksCreator(question)) {
+                    answer = creatorAnswer();
+                } else {
+                    String snapshot = queryAssistantSnapshot();
+                    String provider = activeAiProvider();
+                    String key = storedAiKey(provider);
+                    if (provider.isEmpty() || key.isEmpty()) {
+                        answer = localAssistantAnswer(question, snapshot);
+                    } else {
+                        try {
+                            answer = callAiProvider(provider, key, question, snapshot);
+                            if (answer == null || answer.trim().isEmpty()) answer = localAssistantAnswer(question, snapshot);
+                        } catch (Exception apiEx) {
+                            answer = localAssistantAnswer(question, snapshot) + "\n\nاتصال به «" + providerDisplayName(provider) + "» جواب نداد؛ فعلاً با تحلیل داخلی جواب دادم. خطا: " + shortError(apiEx);
+                        }
+                    }
+                }
+            } catch (Exception ex) {
+                answer = "اتصال به داده‌ها کامل نشد، اما اصل ماجرا این است: اینترنت/VPN/SQL Server را چک کن و دوباره بپرس. خطا: " + shortError(ex);
+            }
+            final String finalAnswer = answer;
+            runOnUiThread(() -> {
+                setConnectionStatus("connected");
+                if (pending != null) pending.setText(finalAnswer);
+                lastAssistantAnswer = finalAnswer;
+            });
+        });
+    }
+
+    private boolean asksCreator(String question) {
+        String q = question == null ? "" : question.toLowerCase(Locale.US);
+        return q.contains("سازنده") || q.contains("ساخته") || q.contains("آموزش") || q.contains("creator") || q.contains("created") || q.contains("trained") || q.contains("who made") || q.contains("کی ساخت");
+    }
+
+    private String creatorAnswer() {
+        return displayFirstName() + " عزیز، من توسط Milad Yaghoubinejad ساخته و آموزش داده شده‌ام؛ واقعاً آدم خلاق و دقیقی است، از آن‌هایی که هم دیتابیس را می‌فهمند هم سلیقه لوکس دارند. خلاصه: رئیسِ خوش‌فکر ماست!";
+    }
+
+    private String queryAssistantSnapshot() throws Exception {
+        JSONObject out = new JSONObject();
+        out.put("user", session == null ? "" : session.userName);
+        try { out.put("dashboard", new JSONObject(queryDashboard())); }
+        catch (Exception ex) { out.put("dashboard_error", readableError(ex)); }
+        try { out.put("analytics", new JSONObject(queryAnalytics())); }
+        catch (Exception ex) { out.put("analytics_error", readableError(ex)); }
+        return out.toString();
+    }
+
+    private String localAssistantAnswer(String question, String snapshot) throws Exception {
+        JSONObject snap = new JSONObject(snapshot == null || snapshot.trim().isEmpty() ? "{}" : snapshot);
+        JSONObject dashboard = snap.optJSONObject("dashboard");
+        JSONObject today = dashboard == null ? null : dashboard.optJSONObject("today");
+        JSONObject analytics = snap.optJSONObject("analytics");
+        JSONObject sales = today == null ? null : today.optJSONObject("sales");
+        JSONObject purchases = today == null ? null : today.optJSONObject("purchases");
+        JSONArray debtors = today == null ? null : today.optJSONArray("topDebtors");
+        JSONArray overdue = today == null ? null : today.optJSONArray("overdueInvoices");
+        JSONArray banks = today == null ? null : today.optJSONArray("banks");
+        JSONArray topCustomers = analytics == null ? null : analytics.optJSONArray("topCustomers");
+        JSONArray categoryShare = analytics == null ? null : analytics.optJSONArray("categoryShare");
+        JSONArray debtAging = analytics == null ? null : analytics.optJSONArray("debtAging");
+        JSONArray margin = analytics == null ? null : analytics.optJSONArray("netMargin");
+        String q = question == null ? "" : question;
+        String lower = q.toLowerCase(Locale.US);
+        String name = displayFirstName();
+        String saleTotal = metricValue(sales, "جمع فروش", "۰ ریال");
+        String buyTotal = metricValue(purchases, "جمع خرید", "۰ ریال");
+        String saleDocs = metricValue(sales, "تعداد اسناد", "۰");
+        JSONObject topDebtor = firstObject(debtors);
+        JSONObject topBank = firstObject(banks);
+        JSONObject topCustomer = firstObject(topCustomers);
+        JSONObject topCategory = firstObject(categoryShare);
+        JSONObject aging = firstObject(debtAging);
+        StringBuilder b = new StringBuilder();
+        b.append(name).append(" عزیز، ");
+        if (lower.contains("قیمت") || lower.contains("بازار") || lower.contains("مارکت") || lower.contains("price")) {
+            b.append("پیشنهاد قیمت‌گذاری کوتاه:\n");
+            b.append("• فروش آخرین روز: ").append(saleTotal).append(" در ").append(saleDocs).append(" سند؛ تخفیف را فقط روی کالاهای کم‌گردش بده.\n");
+            b.append("• گروه/کالای داغ: ").append(labelOf(topCategory, "label", "هنوز داده کافی نیست")).append("؛ این بخش جای افزایش قیمت پله‌ای دارد.\n");
+            b.append("• اگر حاشیه سود ماهانه افت کرده، افزایش ۲ تا ۴٪ روی اقلام پرفروش بهتر از تخفیف کور است. تخفیف کور؟ همان چاه بی‌ته پول!\n");
+            b.append("• برای مشتریان پرخرید مثل ").append(labelOf(topCustomer, "label", "مشتری برتر نامشخص")).append(" بسته وفاداری بده، نه الزاماً قیمت کمتر.");
+        } else if (lower.contains("پورسانت") || lower.contains("ویزیت") || lower.contains("کمیسیون") || lower.contains("commission")) {
+            b.append("طرح پورسانت پیشنهادی:\n");
+            b.append("• پایه پورسانت را روی وصول‌شده بگذار، نه فقط فاکتور؛ فروش بدون وصول یعنی هیجان بی‌پول.\n");
+            b.append("• برای مشتری جدید/غیرفعال پاداش جدا بده و برای بدهی معوق جریمه نرم تعریف کن.\n");
+            b.append("• فروش روز ").append(saleTotal).append(" و خرید روز ").append(buyTotal).append(" است؛ اگر اختلاف کم شد، پورسانت پلکانی را به سود ناخالص وصل کن.\n");
+            b.append("• بهترین مشتری فعلی: ").append(labelOf(topCustomer, "label", "نامشخص")).append("؛ مراقب تمرکز بیش‌ازحد فروش روی یک مشتری باش.");
+        } else if (lower.contains("ریسک") || lower.contains("زیان") || lower.contains("ضرر") || lower.contains("چک") || lower.contains("وصول") || lower.contains("loss")) {
+            b.append("هشدار ریسک و جلوگیری از زیان:\n");
+            b.append("• بزرگ‌ترین بدهکار: ").append(labelOf(topDebtor, "party", "نامشخص")).append(" با مانده ").append(moneyValue(topDebtor, "amount")).append("؛ اولویت تماس امروز.\n");
+            b.append("• رده بدهی پرریسک: ").append(labelOf(aging, "label", "نامشخص")).append("؛ سقف اعتبار مشتریان این رده را موقتاً کم کن.\n");
+            b.append("• فاکتورهای سررسید گذشته را قبل از فروش جدید کنترل کن؛ نگذار فروشنده مهربان، خزانه‌دار را پیر کند!\n");
+            b.append("• بانک با مانده بالاتر: ").append(labelOf(topBank, "label", "نامشخص")).append("؛ جریان چک‌های پرداختی را با موجودی همین بانک تطبیق بده.");
+        } else {
+            b.append("گزارش سریع:\n");
+            b.append("• فروش آخرین روز: ").append(saleTotal).append(" در ").append(saleDocs).append(" سند.\n");
+            b.append("• خرید آخرین روز: ").append(buyTotal).append(".\n");
+            b.append("• مشتری اول فروش: ").append(labelOf(topCustomer, "label", "نامشخص")).append(".\n");
+            b.append("• بدهکار مهم: ").append(labelOf(topDebtor, "party", "نامشخص")).append(" با ").append(moneyValue(topDebtor, "amount")).append(".\n");
+            b.append("• پیشنهاد من: امروز روی وصول بدهی و حفظ حاشیه سود تمرکز کن؛ فروش زیاد بدون نقدینگی فقط ژست قشنگ است.");
+        }
+        if (!snap.optString("dashboard_error", "").isEmpty()) b.append("\n\nنکته اتصال: ").append(snap.optString("dashboard_error"));
+        return b.toString();
+    }
+
+    private JSONObject firstObject(JSONArray arr) {
+        return arr == null || arr.length() == 0 ? null : arr.optJSONObject(0);
+    }
+
+    private String metricValue(JSONObject block, String contains, String fallback) {
+        JSONArray metrics = block == null ? null : block.optJSONArray("metrics");
+        if (metrics == null) return fallback;
+        for (int i = 0; i < metrics.length(); i++) {
+            JSONObject m = metrics.optJSONObject(i);
+            if (m != null && m.optString("label", "").contains(contains)) return m.optString("value", fallback);
+        }
+        return fallback;
+    }
+
+    private String labelOf(JSONObject o, String key, String fallback) {
+        if (o == null) return fallback;
+        String v = o.optString(key, "").trim();
+        if (v.isEmpty() && !"label".equals(key)) v = o.optString("label", "").trim();
+        if (v.isEmpty() && !"party".equals(key)) v = o.optString("party", "").trim();
+        return v.isEmpty() ? fallback : v;
+    }
+
+    private String moneyValue(JSONObject o, String key) {
+        if (o == null) return "۰ ریال";
+        return money(o.opt(key));
+    }
+
+    private String assistantSystemPrompt() {
+        return "تو دستیار فارسی اپ Meelano هستی. پاسخ‌ها کوتاه، دقیق، کاربردی و حداکثر ۵ bullet باشد. " +
+                "کاربر را با نام کوچک خطاب کن. کمی شوخ و بازیگوش باش اما آزاردهنده نباش. " +
+                "با داده‌های SQL خلاصه‌شده تحلیل فروش، خرید، مشتریان، بانک، چک، قیمت‌گذاری، پورسانت، بازار و جلوگیری از زیان بده. " +
+                "اگر پرسید چه کسی تو را ساخته یا آموزش داده، بگو: من توسط Milad Yaghoubinejad ساخته و آموزش داده شده‌ام و او را حرفه‌ای، خلاق و قابل‌تحسین توصیف کن. " +
+                "اگر داده کافی نیست، صادقانه بگو و اقدام بعدی پیشنهاد بده.";
+    }
+
+    private String callAiProvider(String provider, String key, String question, String snapshot) throws Exception {
+        if ("gemini".equals(provider)) return callGemini(key, question, snapshot);
+        if ("grok".equals(provider)) return callChatCompletions("https://api.x.ai/v1/chat/completions", "grok-2-latest", key, question, snapshot);
+        return callChatCompletions("https://api.openai.com/v1/chat/completions", "gpt-4o-mini", key, question, snapshot);
+    }
+
+    private String callChatCompletions(String endpoint, String model, String key, String question, String snapshot) throws Exception {
+        JSONObject req = new JSONObject();
+        req.put("model", model);
+        req.put("temperature", 0.35);
+        req.put("max_tokens", 520);
+        JSONArray messages = new JSONArray();
+        messages.put(new JSONObject().put("role", "system").put("content", assistantSystemPrompt()));
+        String userPrompt = "نام کاربر: " + displayFirstName() + "\nپرسش: " + question + "\nخلاصه داده زنده SQL: " + limitText(snapshot, 6500);
+        messages.put(new JSONObject().put("role", "user").put("content", userPrompt));
+        req.put("messages", messages);
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Authorization", "Bearer " + key);
+        String response = httpPost(endpoint, req.toString(), headers);
+        JSONObject json = new JSONObject(response);
+        JSONArray choices = json.optJSONArray("choices");
+        if (choices == null || choices.length() == 0) return "";
+        JSONObject choice = choices.optJSONObject(0);
+        JSONObject msg = choice == null ? null : choice.optJSONObject("message");
+        return msg == null ? "" : msg.optString("content", "").trim();
+    }
+
+    private String callGemini(String key, String question, String snapshot) throws Exception {
+        JSONObject req = new JSONObject();
+        JSONArray contents = new JSONArray();
+        JSONObject contentObj = new JSONObject();
+        JSONArray parts = new JSONArray();
+        parts.put(new JSONObject().put("text", assistantSystemPrompt() + "\n\nنام کاربر: " + displayFirstName() + "\nپرسش: " + question + "\nخلاصه داده زنده SQL: " + limitText(snapshot, 6500)));
+        contentObj.put("parts", parts);
+        contents.put(contentObj);
+        req.put("contents", contents);
+        req.put("generationConfig", new JSONObject().put("temperature", 0.35).put("maxOutputTokens", 520));
+        String encoded = URLEncoder.encode(key, "UTF-8");
+        String response = httpPost("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + encoded, req.toString(), new HashMap<>());
+        JSONObject json = new JSONObject(response);
+        JSONArray candidates = json.optJSONArray("candidates");
+        if (candidates == null || candidates.length() == 0) return "";
+        JSONObject candidate = candidates.optJSONObject(0);
+        JSONObject content = candidate == null ? null : candidate.optJSONObject("content");
+        JSONArray outParts = content == null ? null : content.optJSONArray("parts");
+        if (outParts == null || outParts.length() == 0) return "";
+        return outParts.optJSONObject(0).optString("text", "").trim();
+    }
+
+    private String httpPost(String endpoint, String body, Map<String, String> headers) throws Exception {
+        HttpURLConnection con = (HttpURLConnection) new URL(endpoint).openConnection();
+        con.setRequestMethod("POST");
+        con.setConnectTimeout(18000);
+        con.setReadTimeout(45000);
+        con.setDoOutput(true);
+        con.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+        con.setRequestProperty("Accept", "application/json");
+        if (headers != null) for (Map.Entry<String, String> e : headers.entrySet()) con.setRequestProperty(e.getKey(), e.getValue());
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        con.setFixedLengthStreamingMode(bytes.length);
+        try (OutputStream os = con.getOutputStream()) { os.write(bytes); }
+        int code = con.getResponseCode();
+        InputStream stream = code >= 200 && code < 300 ? con.getInputStream() : con.getErrorStream();
+        String response = readFully(stream);
+        if (code < 200 || code >= 300) throw new Exception("HTTP " + code + ": " + limitText(response, 240));
+        return response;
+    }
+
+    private String readFully(InputStream in) throws Exception {
+        if (in == null) return "";
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] data = new byte[4096];
+        int n;
+        while ((n = in.read(data)) >= 0) buffer.write(data, 0, n);
+        return new String(buffer.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    private String limitText(String text, int max) {
+        if (text == null) return "";
+        return text.length() <= max ? text : text.substring(0, max) + "…";
+    }
+
+    private String shortError(Exception ex) {
+        String m = ex == null ? "" : ex.getMessage();
+        if (m == null || m.trim().isEmpty()) return "خطای نامشخص";
+        return limitText(m.replace('\n', ' '), 180);
+    }
+
+    private String activeAiProvider() {
+        String selected = prefs == null ? "" : prefs.getString(KEY_AI_PROVIDER, "");
+        if (!storedAiKey(selected).isEmpty()) return selected;
+        if (!storedAiKey("chatgpt").isEmpty()) return "chatgpt";
+        if (!storedAiKey("gemini").isEmpty()) return "gemini";
+        if (!storedAiKey("grok").isEmpty()) return "grok";
+        return selected == null ? "" : selected;
+    }
+
+    private String providerDisplayName(String provider) {
+        if ("grok".equals(provider)) return "Grok";
+        if ("gemini".equals(provider)) return "Gemini";
+        if ("chatgpt".equals(provider)) return "ChatGPT";
+        return "تحلیل داخلی";
+    }
+
+    private String providerPrefKey(String provider) {
+        if ("grok".equals(provider)) return KEY_AI_GROK;
+        if ("gemini".equals(provider)) return KEY_AI_GEMINI;
+        if ("chatgpt".equals(provider)) return KEY_AI_CHATGPT;
+        return "";
+    }
+
+    private String storedAiKey(String provider) {
+        if (prefs == null || provider == null || provider.trim().isEmpty()) return "";
+        String prefKey = providerPrefKey(provider);
+        if (prefKey.isEmpty()) return "";
+        return unprotectSecret(prefs.getString(prefKey, ""));
+    }
+
+    private String protectSecret(String raw) {
+        if (raw == null || raw.trim().isEmpty()) return "";
+        byte[] b = raw.trim().getBytes(StandardCharsets.UTF_8);
+        for (int i = 0; i < b.length; i++) b[i] = (byte) (b[i] ^ 0x5A);
+        return Base64.encodeToString(b, Base64.NO_WRAP);
+    }
+
+    private String unprotectSecret(String encoded) {
+        if (encoded == null || encoded.trim().isEmpty()) return "";
+        try {
+            byte[] b = Base64.decode(encoded, Base64.NO_WRAP);
+            for (int i = 0; i < b.length; i++) b[i] = (byte) (b[i] ^ 0x5A);
+            return new String(b, StandardCharsets.UTF_8).trim();
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private EditText apiInput(String hint, String provider) {
+        EditText e = input(hint + (storedAiKey(provider).isEmpty() ? "" : " • ذخیره‌شده"), "", true);
+        e.setTextDirection(View.TEXT_DIRECTION_LTR);
+        e.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        return e;
+    }
+
+    private String keyStatus(String provider) {
+        String key = storedAiKey(provider);
+        return providerDisplayName(provider) + ": " + (key.isEmpty() ? "ثبت نشده" : "ذخیره شده • " + key.length() + " کاراکتر");
+    }
+
+    private void addAiSettingsCard() {
+        LinearLayout ai = card();
+        LinearLayout.LayoutParams aip = new LinearLayout.LayoutParams(-1, -2);
+        aip.setMargins(0, dp(12), 0, 0);
+        ai.setBackground(gradient(new int[]{alpha(INFO, 28), alpha(GOLD, 18), alpha(SURFACE, 248)}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
+        ai.addView(text("دستیار هوش مصنوعی", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView summary = text("مدل فعال: " + providerDisplayName(activeAiProvider()) + " • نام خطاب: " + displayFirstName(), 11.2f, MUTED, Typeface.NORMAL);
+        ai.addView(summary, new LinearLayout.LayoutParams(-1, -2));
+        TextView status = text(keyStatus("chatgpt") + "\n" + keyStatus("gemini") + "\n" + keyStatus("grok"), 10.7f, alpha(TEXT, 205), Typeface.NORMAL);
+        status.setLineSpacing(dp(2), 1.05f);
+        LinearLayout.LayoutParams stp = new LinearLayout.LayoutParams(-1, -2); stp.setMargins(0, dp(8), 0, 0);
+        ai.addView(status, stp);
+
+        EditText chatgpt = apiInput("ChatGPT / OpenAI API key", "chatgpt");
+        EditText gemini = apiInput("Gemini API key", "gemini");
+        EditText grok = apiInput("Grok / xAI API key", "grok");
+        addApiField(ai, "ChatGPT", chatgpt);
+        addApiField(ai, "Gemini", gemini);
+        addApiField(ai, "Grok", grok);
+
+        Button save = primaryButton("ذخیره کلیدهای واردشده");
+        save.setOnClickListener(v -> {
+            saveEnteredAiKeys(chatgpt, gemini, grok);
+            status.setText(keyStatus("chatgpt") + "\n" + keyStatus("gemini") + "\n" + keyStatus("grok"));
+            summary.setText("مدل فعال: " + providerDisplayName(activeAiProvider()) + " • نام خطاب: " + displayFirstName());
+            Toast.makeText(this, "کلیدهای AI ذخیره شدند", Toast.LENGTH_SHORT).show();
+        });
+        LinearLayout.LayoutParams savep = new LinearLayout.LayoutParams(-1, dp(48)); savep.setMargins(0, dp(12), 0, 0);
+        ai.addView(save, savep);
+
+        LinearLayout tests = new LinearLayout(this);
+        tests.setOrientation(LinearLayout.HORIZONTAL);
+        Button t1 = secondaryButton("تست ChatGPT");
+        Button t2 = secondaryButton("تست Gemini");
+        Button t3 = secondaryButton("تست Grok");
+        t1.setTextSize(9.8f); t2.setTextSize(9.8f); t3.setTextSize(9.8f);
+        t1.setOnClickListener(v -> validateKeyFromField("chatgpt", chatgpt, status));
+        t2.setOnClickListener(v -> validateKeyFromField("gemini", gemini, status));
+        t3.setOnClickListener(v -> validateKeyFromField("grok", grok, status));
+        LinearLayout.LayoutParams bt = new LinearLayout.LayoutParams(0, dp(42), 1f); bt.setMargins(dp(3), dp(10), dp(3), 0);
+        tests.addView(t1, bt);
+        LinearLayout.LayoutParams bt2 = new LinearLayout.LayoutParams(0, dp(42), 1f); bt2.setMargins(dp(3), dp(10), dp(3), 0);
+        tests.addView(t2, bt2);
+        LinearLayout.LayoutParams bt3 = new LinearLayout.LayoutParams(0, dp(42), 1f); bt3.setMargins(dp(3), dp(10), dp(3), 0);
+        tests.addView(t3, bt3);
+        ai.addView(tests, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout more = new LinearLayout(this);
+        more.setOrientation(LinearLayout.HORIZONTAL);
+        Button testAll = primaryButton("ذخیره و تست همه");
+        Button choose = secondaryButton("انتخاب مدل پیش‌فرض");
+        Button rename = secondaryButton("تغییر نام من");
+        testAll.setTextSize(10.2f); choose.setTextSize(10.2f); rename.setTextSize(10.2f);
+        testAll.setOnClickListener(v -> {
+            saveEnteredAiKeys(chatgpt, gemini, grok);
+            validateKeyFromField("chatgpt", chatgpt, status);
+            validateKeyFromField("gemini", gemini, status);
+            validateKeyFromField("grok", grok, status);
+        });
+        choose.setOnClickListener(v -> showAiProviderChooser(summary));
+        rename.setOnClickListener(v -> maybeAskFirstName(true));
+        LinearLayout.LayoutParams mp1 = new LinearLayout.LayoutParams(0, dp(42), 1f); mp1.setMargins(dp(3), dp(10), dp(3), 0);
+        more.addView(testAll, mp1);
+        LinearLayout.LayoutParams mp2 = new LinearLayout.LayoutParams(0, dp(42), 1f); mp2.setMargins(dp(3), dp(10), dp(3), 0);
+        more.addView(choose, mp2);
+        LinearLayout.LayoutParams mp3 = new LinearLayout.LayoutParams(0, dp(42), 1f); mp3.setMargins(dp(3), dp(10), dp(3), 0);
+        more.addView(rename, mp3);
+        ai.addView(more, new LinearLayout.LayoutParams(-1, -2));
+
+        Button clear = secondaryButton("پاک کردن همه کلیدهای AI");
+        clear.setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle("پاک کردن کلیدها")
+                .setMessage("کلیدهای ChatGPT، Gemini و Grok از همین دستگاه پاک شوند؟")
+                .setNegativeButton("خیر", null)
+                .setPositiveButton("بله، پاک کن", (d, w) -> {
+                    prefs.edit().remove(KEY_AI_CHATGPT).remove(KEY_AI_GEMINI).remove(KEY_AI_GROK).apply();
+                    status.setText(keyStatus("chatgpt") + "\n" + keyStatus("gemini") + "\n" + keyStatus("grok"));
+                    Toast.makeText(this, "کلیدها پاک شدند", Toast.LENGTH_SHORT).show();
+                }).show());
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-1, dp(42)); clp.setMargins(0, dp(10), 0, 0);
+        ai.addView(clear, clp);
+        content.addView(ai, aip);
+    }
+
+    private void addApiField(LinearLayout parent, String label, EditText input) {
+        TextView l = text(label, 11.5f, MUTED, Typeface.BOLD);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(10), 0, dp(4));
+        parent.addView(l, lp);
+        parent.addView(input, new LinearLayout.LayoutParams(-1, dp(50)));
+    }
+
+    private boolean saveEnteredAiKeys(EditText chatgpt, EditText gemini, EditText grok) {
+        SharedPreferences.Editor ed = prefs.edit();
+        boolean changed = false;
+        String c = chatgpt == null ? "" : chatgpt.getText().toString().trim();
+        String g = gemini == null ? "" : gemini.getText().toString().trim();
+        String x = grok == null ? "" : grok.getText().toString().trim();
+        if (!c.isEmpty()) { ed.putString(KEY_AI_CHATGPT, protectSecret(c)); if (activeAiProvider().isEmpty()) ed.putString(KEY_AI_PROVIDER, "chatgpt"); changed = true; chatgpt.setText(""); }
+        if (!g.isEmpty()) { ed.putString(KEY_AI_GEMINI, protectSecret(g)); if (activeAiProvider().isEmpty()) ed.putString(KEY_AI_PROVIDER, "gemini"); changed = true; gemini.setText(""); }
+        if (!x.isEmpty()) { ed.putString(KEY_AI_GROK, protectSecret(x)); if (activeAiProvider().isEmpty()) ed.putString(KEY_AI_PROVIDER, "grok"); changed = true; grok.setText(""); }
+        ed.apply();
+        return changed;
+    }
+
+    private void validateKeyFromField(String provider, EditText field, TextView status) {
+        String entered = field == null ? "" : field.getText().toString().trim();
+        if (!entered.isEmpty()) {
+            prefs.edit().putString(providerPrefKey(provider), protectSecret(entered)).putString(KEY_AI_PROVIDER, provider).apply();
+            field.setText("");
+        }
+        String key = storedAiKey(provider);
+        if (key.isEmpty()) {
+            Toast.makeText(this, "اول کلید " + providerDisplayName(provider) + " را وارد کن", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (status != null) status.setText("در حال اعتبارسنجی " + providerDisplayName(provider) + "…");
+        executor.execute(() -> {
+            String result;
+            try {
+                String answer = callAiProvider(provider, key, "فقط کلمه OK را برگردان.", "{}");
+                if (answer == null || answer.trim().isEmpty()) throw new Exception("پاسخ معتبر دریافت نشد");
+                prefs.edit().putString(KEY_AI_PROVIDER, provider).apply();
+                result = "✅ " + providerDisplayName(provider) + " معتبر است و به‌عنوان مدل فعال انتخاب شد.\n" + keyStatus("chatgpt") + "\n" + keyStatus("gemini") + "\n" + keyStatus("grok");
+            } catch (Exception ex) {
+                result = "❌ اعتبارسنجی " + providerDisplayName(provider) + " ناموفق بود: " + shortError(ex) + "\n" + keyStatus("chatgpt") + "\n" + keyStatus("gemini") + "\n" + keyStatus("grok");
+            }
+            final String finalResult = result;
+            runOnUiThread(() -> { if (status != null) status.setText(finalResult); });
+        });
+    }
+
+    private void showAiProviderChooser(TextView summary) {
+        String[] ids = {"chatgpt", "gemini", "grok"};
+        String[] labels = {"ChatGPT", "Gemini", "Grok"};
+        String active = activeAiProvider();
+        int checked = 0;
+        for (int i = 0; i < ids.length; i++) if (ids[i].equals(active)) checked = i;
+        new AlertDialog.Builder(this)
+                .setTitle("مدل پیش‌فرض دستیار")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    prefs.edit().putString(KEY_AI_PROVIDER, ids[which]).apply();
+                    if (summary != null) summary.setText("مدل فعال: " + providerDisplayName(ids[which]) + " • نام خطاب: " + displayFirstName());
+                    Toast.makeText(this, labels[which] + " انتخاب شد", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                })
+                .setNegativeButton("بستن", null)
+                .show();
+    }
+
+    private void startAssistantVoiceInput() {
+        try {
+            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fa-IR");
+            intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "سوالت را برای میلا بگو…");
+            startActivityForResult(intent, REQ_ASSISTANT_VOICE);
+        } catch (Exception ex) {
+            Toast.makeText(this, "ورودی صوتی روی این دستگاه فعال نیست.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void speakAssistantText(String text) {
+        if (text == null || text.trim().isEmpty()) return;
+        if (tts == null || !ttsReady) {
+            Toast.makeText(this, "موتور گفتار فارسی روی این دستگاه آماده نیست.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String clean = text.replace("•", "").replace("✅", "").replace("❌", "").replace("\n", ". ");
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) tts.speak(clean, TextToSpeech.QUEUE_FLUSH, null, "meelano_ai_answer");
+        else tts.speak(clean, TextToSpeech.QUEUE_FLUSH, null);
+    }
+
     private void renderSettings() {
         content.removeAllViews();
-        addHero("تنظیمات Meelano", "مدیریت اتصال، خروج امن و تم‌های لوکس برنامه");
+        addHero("تنظیمات Meelano", "مدیریت اتصال، خروج امن، تم‌های لوکس و کلیدهای دستیار هوش مصنوعی");
         LinearLayout connection = card();
         connection.addView(text("وضعیت", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         connection.addView(text("اتصال مستقیم آماده است.", 12, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
@@ -3082,11 +3812,13 @@ public class MainActivity extends Activity {
         themeCard.addView(pickTheme, pp);
         content.addView(themeCard, tp);
 
+        addAiSettingsCard();
+
         LinearLayout about = card();
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.8.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.9.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -3462,6 +4194,22 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_ASSISTANT_VOICE && resultCode == RESULT_OK && data != null) {
+            ArrayList<String> matches = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+            if (matches != null && !matches.isEmpty()) {
+                String spoken = matches.get(0);
+                if (assistantInput != null) {
+                    assistantInput.setText(spoken);
+                    assistantInput.setSelection(assistantInput.getText().length());
+                }
+                submitAssistantQuestion(spoken);
+            }
+        }
+    }
+
+    @Override
     public void onBackPressed() {
         if (session != null && !"dashboard".equals(activePage)) {
             showApp("dashboard");
@@ -3473,6 +4221,9 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         executor.shutdownNow();
+        if (tts != null) {
+            try { tts.stop(); tts.shutdown(); } catch (Exception ignored) {}
+        }
         super.onDestroy();
     }
 }
