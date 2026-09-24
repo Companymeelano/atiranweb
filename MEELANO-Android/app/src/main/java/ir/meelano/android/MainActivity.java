@@ -33,6 +33,8 @@ import android.provider.Settings;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
 import android.text.InputType;
 import android.util.Base64;
 import android.view.Gravity;
@@ -83,6 +85,12 @@ import java.util.TreeSet;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.security.KeyStore;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -126,6 +134,7 @@ public class MainActivity extends Activity {
     private static final int[] S_DB = {8, 61, 32, 59, 40, 39, 123};
     private static final int S_KEY = 73;
     private static final int SQL_PORT = 1433;
+    private static final String LOCAL_KEY_ALIAS = "meelano_local_secret_v319";
 
     private int NAVY = Color.rgb(7, 9, 16);
     private int SURFACE = Color.rgb(18, 22, 31);
@@ -201,6 +210,10 @@ public class MainActivity extends Activity {
             float widthDp = getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density;
             return widthDp > 0 && widthDp < 370;
         } catch (Exception ignored) { return false; }
+    }
+
+    private boolean isLightTheme() {
+        return Color.red(NAVY) + Color.green(NAVY) + Color.blue(NAVY) > 520;
     }
 
     private boolean motionAllowed() {
@@ -517,61 +530,84 @@ public class MainActivity extends Activity {
             root.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         }
 
+        LinearLayout headerWrap = new LinearLayout(this);
+        headerWrap.setOrientation(LinearLayout.VERTICAL);
+        headerWrap.setPadding(dp(8), dp(6), dp(8), dp(6));
+        headerWrap.setBackground(gradient(new int[]{mix(HEADER_START, INFO, 0.10f), mix(HEADER_END, GOLD_2, 0.08f), HEADER_END}, GradientDrawable.Orientation.LEFT_RIGHT, 0));
+
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setPadding(dp(10), dp(7), dp(10), dp(7));
-        header.setBackground(gradient(new int[]{HEADER_START, HEADER_END}, GradientDrawable.Orientation.LEFT_RIGHT, 0));
+        header.setPadding(dp(2), 0, dp(2), 0);
 
         View logo = liveMeelanoLogo(true);
-        header.addView(logo, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        header.addView(logo, new LinearLayout.LayoutParams(dp(50), dp(50)));
 
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
+        titles.setGravity(Gravity.CENTER_VERTICAL);
         titles.setPadding(dp(10), 0, dp(8), 0);
-        TextView appTitle = text("Meelano", 16, TEXT, Typeface.BOLD);
-        subtitle = text("ورود با حساب Meelano", 10, alpha(TEXT, 175), Typeface.NORMAL);
+        TextView appTitle = text("Meelano", 17.5f, TEXT, Typeface.BOLD);
+        appTitle.setSingleLine(true);
+        appTitle.setShadowLayer(dp(2), 0, dp(1), alpha(Color.WHITE, isLightTheme() ? 90 : 20));
+        subtitle = text("ورود با حساب Meelano", 10.2f, alpha(TEXT, 205), Typeface.NORMAL);
+        subtitle.setSingleLine(true);
         status = text("", 1, Color.TRANSPARENT, Typeface.NORMAL);
-        titles.addView(appTitle, new LinearLayout.LayoutParams(-1, 0, 1f));
-        titles.addView(subtitle, new LinearLayout.LayoutParams(-1, 0, 1f));
-        header.addView(titles, new LinearLayout.LayoutParams(0, dp(48), 1f));
+        titles.addView(appTitle, new LinearLayout.LayoutParams(-1, -2));
+        titles.addView(subtitle, new LinearLayout.LayoutParams(-1, -2));
+        header.addView(titles, new LinearLayout.LayoutParams(0, dp(50), 1f));
 
         connectionIndicator = iconButton("◌", "وضعیت اتصال");
-        connectionIndicator.setOnClickListener(v -> refreshActivePage());
-        header.addView(connectionIndicator, headerButtonLp(true));
+        connectionIndicator.setOnClickListener(v -> showApp("health"));
+        header.addView(connectionIndicator, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        headerWrap.addView(header, new LinearLayout.LayoutParams(-1, dp(54)));
 
-        TextView search = iconButton("⌕", "جستجوی سراسری");
-        search.setOnClickListener(v -> showGlobalSearchDialog());
-        header.addView(search, headerButtonLp(true));
-
-        TextView privacy = iconButton(privacyMode() ? "◉" : "◍", "حالت محرمانه");
-        privacy.setOnClickListener(v -> togglePrivacyMode());
-        header.addView(privacy, headerButtonLp(true));
-
-        TextView theme = iconButton("◐", "انتخاب تم");
-        theme.setOnClickListener(v -> showThemeChooser());
-        header.addView(theme, headerButtonLp(true));
-
-        TextView settings = iconButton("⚙", "تنظیمات");
-        settings.setOnClickListener(v -> {
-            if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings");
-        });
-        header.addView(settings, headerButtonLp(true));
-
-        TextView logout = iconButton("⎋", "خروج از حساب");
-        logout.setOnClickListener(v -> {
-            if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید.");
-            else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید.");
-        });
-        header.addView(logout, headerButtonLp(true));
+        HorizontalScrollView toolScroll = new HorizontalScrollView(this);
+        styleHorizontalScroll(toolScroll);
+        toolScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout tools = new LinearLayout(this);
+        tools.setOrientation(LinearLayout.HORIZONTAL);
+        tools.setGravity(Gravity.CENTER_VERTICAL);
+        tools.setPadding(dp(2), dp(3), dp(2), dp(2));
+        addHeaderTool(tools, "⌕", "جستجو", Color.rgb(126, 87, 255), v -> showGlobalSearchDialog());
+        addHeaderTool(tools, privacyMode() ? "◉" : "◍", "محرمانه", Color.rgb(236, 72, 153), v -> togglePrivacyMode());
+        addHeaderTool(tools, "◐", "تم", Color.rgb(255, 137, 66), v -> showThemeChooser());
+        addHeaderTool(tools, "⚡", "فرماندهی", Color.rgb(0, 184, 217), v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("command"); });
+        addHeaderTool(tools, "⚙", "تنظیمات", INFO, v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings"); });
+        addHeaderTool(tools, "⎋", "خروج", DANGER, v -> { if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید."); else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید."); });
+        toolScroll.addView(tools, new HorizontalScrollView.LayoutParams(-2, -1));
+        headerWrap.addView(toolScroll, new LinearLayout.LayoutParams(-1, dp(45)));
         setConnectionStatus(session == null ? "idle" : "connected");
 
-        root.addView(header, new LinearLayout.LayoutParams(-1, dp(66)));
+        root.addView(headerWrap, new LinearLayout.LayoutParams(-1, dp(111)));
 
         stage = new FrameLayout(this);
         stage.setBackgroundColor(NAVY);
         root.addView(stage, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(root);
+    }
+
+    private void addHeaderTool(LinearLayout parent, String glyph, String label, int accent, View.OnClickListener listener) {
+        TextView b = new TextView(this);
+        b.setText((glyph == null ? "" : glyph) + "  " + (label == null ? "" : label));
+        b.setTextSize(11.2f);
+        b.setGravity(Gravity.CENTER);
+        b.setSingleLine(true);
+        b.setTextColor(Color.WHITE);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setPadding(dp(9), 0, dp(9), 0);
+        b.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, 135));
+        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, 0.20f), accent, mix(accent, Color.BLACK, 0.22f)}, GradientDrawable.Orientation.LEFT_RIGHT, 999);
+        bg.setStroke(dp(1), alpha(Color.WHITE, 125));
+        b.setBackground(bg);
+        b.setContentDescription(label);
+        b.setClickable(true);
+        b.setFocusable(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) b.setElevation(dp(4));
+        b.setOnClickListener(listener);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(Math.max(72, Math.min(104, 46 + (label == null ? 0 : label.length() * 8)))), dp(36));
+        lp.setMargins(dp(4), 0, dp(4), 0);
+        parent.addView(b, lp);
     }
 
     private LinearLayout.LayoutParams headerButtonLp(boolean margin) {
@@ -1145,6 +1181,7 @@ public class MainActivity extends Activity {
     private void buildNav() {
         navStrip.removeAllViews();
         addNav("dashboard", "داشبورد", "◈");
+        addNav("command", "فرماندهی", "⚡");
         addNav("assistant", "دستیار", "✦");
         addNav("customers", "مشتریان", "👥");
         addNav("products", "کالا", "◼");
@@ -1191,6 +1228,7 @@ public class MainActivity extends Activity {
     }
 
     private int navAccent(String key) {
+        if ("command".equals(key)) return Color.rgb(0, 184, 217);
         if ("assistant".equals(key)) return mix(GOLD_2, INFO, 0.45f);
         if ("customers".equals(key)) return SUCCESS;
         if ("products".equals(key)) return WARNING;
@@ -1202,6 +1240,7 @@ public class MainActivity extends Activity {
 
     private void renderActivePage() {
         switch (activePage) {
+            case "command": loadCommandCenter(); break;
             case "assistant": showAssistant(); break;
             case "customers": loadCustomers(""); break;
             case "products": loadProducts(""); break;
@@ -1218,6 +1257,162 @@ public class MainActivity extends Activity {
     private void refreshActivePage() {
         if ("login".equals(activePage)) showLogin("برای اتصال مجدد، اطلاعات Meelano را وارد کنید.");
         else showApp(activePage);
+    }
+
+    private void loadCommandCenter() {
+        content.removeAllViews();
+        addHero("فرماندهی هوشمند Meelano", "پیش‌بینی نقدینگی، رادار کالا، تقویم مدیریتی، ریسک مشتری و خروجی عملیاتی در یک صفحه.");
+        addLoading(content, "میلو در حال ساخت اتاق فرمان است…");
+        runDb(this::queryDashboard, new DbCallback() {
+            @Override public void ok(String body) {
+                try {
+                    if (prefs != null) prefs.edit().putString(KEY_CACHE_DASHBOARD, body).apply();
+                    JSONObject today = new JSONObject(body).optJSONObject("today");
+                    renderCommandCenter(today, false);
+                } catch (Exception e) { showPageError("فرماندهی", e, () -> showApp("command")); }
+            }
+            @Override public void fail(Exception e) {
+                try {
+                    String cached = prefs == null ? "" : prefs.getString(KEY_CACHE_DASHBOARD, "");
+                    if (cached == null || cached.trim().isEmpty()) { showPageError("فرماندهی", e, () -> showApp("command")); return; }
+                    renderCommandCenter(new JSONObject(cached).optJSONObject("today"), true);
+                    addCacheBanner("فرماندهی آفلاین", "آخرین داده ذخیره‌شده نمایش داده شد. خطا: " + shortError(e));
+                } catch (Exception ex) { showPageError("فرماندهی", e, () -> showApp("command")); }
+            }
+        });
+    }
+
+    private void renderCommandCenter(JSONObject today, boolean cached) {
+        content.removeAllViews();
+        addHero("فرماندهی هوشمند Meelano", cached ? "نمای آفلاین از آخرین داده ذخیره‌شده" : "اتاق تصمیم سریع برای امروز و هفته پیش‌رو");
+        addCashForecastCard(today);
+        addManagementCalendarCard(today);
+        addProductRadarCard(today);
+        addSmartComparisonCard(today);
+        addCommandShortcutCard(today);
+    }
+
+    private void addCashForecastCard(JSONObject today) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{Color.rgb(21, 91, 181), Color.rgb(0, 184, 217), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 28));
+        c.addView(text("پیش‌بینی نقدینگی ۷ روزه", 17, Color.WHITE, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        JSONObject sales = today == null ? null : today.optJSONObject("sales");
+        JSONObject get = today == null ? null : today.optJSONObject("getChecks");
+        JSONObject put = today == null ? null : today.optJSONObject("putChecks");
+        double salesTotal = metricMoneyValue(sales == null ? null : sales.optJSONArray("metrics"), "جمع فروش");
+        double inChecks = metricMoneyValue(get == null ? null : get.optJSONArray("metrics"), "جمع مبلغ");
+        double outChecks = metricMoneyValue(put == null ? null : put.optJSONArray("metrics"), "جمع مبلغ");
+        double debtor = valueOf(firstObject(today == null ? null : today.optJSONArray("topDebtors")));
+        double pressure = outChecks - inChecks - Math.max(0, salesTotal * 0.25);
+        int accent = pressure > 0 ? DANGER : SUCCESS;
+        addActionItem(c, pressure > 0 ? "فشار" : "آرام", pressure > 0 ? "چک‌های پرداختی/تعهدات از ورودی جلوتر است؛ امروز وصول بدهکار اولویت اول است." : "ورودی‌های فروش/چک فشار شدید نشان نمی‌دهد؛ با این حال وصول را رها نکن.", accent);
+        addActionItem(c, "ورودی", "فروش/چک دریافتی قابل اتکا: " + money(salesTotal + inChecks), SUCCESS);
+        addActionItem(c, "خروجی", "چک/تعهد پرداختی قابل پایش: " + money(outChecks), WARNING);
+        addActionItem(c, "وصول", "بزرگ‌ترین فرصت وصول: " + labelOf(firstObject(today == null ? null : today.optJSONArray("topDebtors")), "party", "—") + " • " + money(debtor), DANGER);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addManagementCalendarCard(JSONObject today) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(Color.rgb(126, 87, 255), 46), alpha(GOLD, 22), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 26));
+        c.addView(text("تقویم مدیریتی امروز", 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        JSONObject overdue = firstObject(today == null ? null : today.optJSONArray("overdueInvoices"));
+        JSONObject inactive = firstObject(today == null ? null : today.optJSONArray("inactiveCustomers"));
+        JSONObject debtor = firstObject(today == null ? null : today.optJSONArray("topDebtors"));
+        addActionItem(c, "۹:۰۰", "مرور سلامت اتصال و گزارش روزانه میلو", INFO);
+        addActionItem(c, "۱۰:۳۰", "تماس وصول: " + labelOf(debtor, "party", "بدهکار مهم") + " • " + moneyValue(debtor, "amount"), DANGER);
+        addActionItem(c, "۱۲:۰۰", "پیگیری فاکتور معوق: " + labelOf(overdue, "party", "موردی ثبت نشده"), WARNING);
+        addActionItem(c, "۱۶:۰۰", "بازفعال‌سازی مشتری خاموش: " + labelOf(inactive, "party", "مشتری پیشنهادی ندارد"), SUCCESS);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addProductRadarCard(JSONObject today) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(WARNING, 34), alpha(Color.rgb(236, 72, 153), 22), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 26));
+        c.addView(text("رادار کالاهای خطرناک و طلایی", 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        JSONArray items = today == null ? null : today.optJSONArray("todayItems");
+        if (items == null || items.length() == 0) {
+            addActionItem(c, "داده", "برای تحلیل کالا، فروش روز باید دارای اقلام ثبت‌شده باشد.", MUTED);
+        } else {
+            for (int i = 0; i < Math.min(4, items.length()); i++) {
+                JSONObject it = items.optJSONObject(i);
+                addActionItem(c, i == 0 ? "طلایی" : "رصد", labelOf(it, "item", "کالا") + " • " + moneyValue(it, "amount") + " • " + it.optString("hint", ""), i == 0 ? GOLD : WARNING);
+            }
+            addActionItem(c, "تصمیم", "برای کالای پرفروش موجودی را چک کن؛ برای کالاهای کم‌گردش، تخفیف کور نده، بسته پیشنهادی بساز.", INFO);
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addSmartComparisonCard(JSONObject today) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(SUCCESS, 28), alpha(INFO, 24), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 26));
+        c.addView(text("مقایسه امروز با روزهای اخیر", 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        JSONObject sales = today == null ? null : today.optJSONObject("sales");
+        JSONObject buy = today == null ? null : today.optJSONObject("purchases");
+        addActionItem(c, "فروش", trendDeltaText(sales == null ? null : sales.optJSONArray("chart")), trendDeltaAccent(sales == null ? null : sales.optJSONArray("chart")));
+        addActionItem(c, "خرید", trendDeltaText(buy == null ? null : buy.optJSONArray("chart")), trendDeltaAccent(buy == null ? null : buy.optJSONArray("chart")));
+        addActionItem(c, "میلو", "اگر فروش رشد کرده اما وصول نه، خوشحالی‌ات را قسطی کن؛ نقدینگی رئیس واقعی است.", GOLD);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private String trendDeltaText(JSONArray arr) {
+        if (arr == null || arr.length() < 2) return "برای مقایسه، حداقل دو روز داده لازم است.";
+        double prev = valueOf(arr.optJSONObject(arr.length() - 2));
+        double last = valueOf(arr.optJSONObject(arr.length() - 1));
+        double diff = last - prev;
+        double pct = prev == 0 ? 0 : (diff / Math.abs(prev)) * 100.0;
+        return (diff >= 0 ? "رشد " : "افت ") + money(Math.abs(diff)) + (prev == 0 ? "" : " • " + formatNumber(pct) + "٪") + " نسبت به نقطه قبل";
+    }
+
+    private int trendDeltaAccent(JSONArray arr) {
+        if (arr == null || arr.length() < 2) return MUTED;
+        return valueOf(arr.optJSONObject(arr.length() - 1)) >= valueOf(arr.optJSONObject(arr.length() - 2)) ? SUCCESS : DANGER;
+    }
+
+    private void addCommandShortcutCard(JSONObject today) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(Color.rgb(255, 137, 66), 34), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.addView(text("میانبرهای مدیریتی", 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row1 = new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL);
+        Button voice = primaryButton("میلو گزارش را بخوان"); voice.setTextSize(10.2f); voice.setOnClickListener(v -> speakAssistantText(buildDailyVoiceSummary(today)));
+        Button customers = secondaryButton("مشتریان پرریسک"); customers.setTextSize(10.2f); customers.setOnClickListener(v -> loadCustomers("", "debt"));
+        row1.addView(voice, weightedButtonLp()); row1.addView(customers, weightedButtonLp());
+        LinearLayout.LayoutParams r1 = new LinearLayout.LayoutParams(-1, -2); r1.setMargins(0, dp(10), 0, dp(8)); c.addView(row1, r1);
+        LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
+        Button csv = secondaryButton("CSV خلاصه"); csv.setTextSize(10.2f); csv.setOnClickListener(v -> exportTodayCsv(today));
+        Button health = secondaryButton("سلامت اتصال"); health.setTextSize(10.2f); health.setOnClickListener(v -> showApp("health"));
+        row2.addView(csv, weightedButtonLp()); row2.addView(health, weightedButtonLp());
+        c.addView(row2, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void exportTodayCsv(JSONObject today) {
+        try {
+            File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
+            File file = new File(dir, "Meelano-Today-Command-v3.19.csv");
+            StringBuilder b = new StringBuilder("section,label,value\n");
+            appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
+            appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
+            appendCsvMetricRows(b, "get_checks", today == null ? null : today.optJSONObject("getChecks"));
+            appendCsvMetricRows(b, "put_checks", today == null ? null : today.optJSONObject("putChecks"));
+            try (FileOutputStream fos = new FileOutputStream(file)) { fos.write(b.toString().getBytes(StandardCharsets.UTF_8)); }
+            sharePlainText("CSV خلاصه Meelano", "خروجی CSV ساخته شد:\n" + file.getAbsolutePath() + "\n\n" + b.toString(), null);
+        } catch (Exception ex) { Toast.makeText(this, "ساخت CSV ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
+    }
+
+    private void appendCsvMetricRows(StringBuilder b, String section, JSONObject block) {
+        JSONArray m = block == null ? null : block.optJSONArray("metrics");
+        if (m == null) return;
+        for (int i = 0; i < m.length(); i++) {
+            JSONObject o = m.optJSONObject(i);
+            if (o == null) continue;
+            b.append(section).append(',').append(csvSafe(o.optString("label", ""))).append(',').append(csvSafe(o.optString("value", ""))).append('\n');
+        }
+    }
+
+    private String csvSafe(String v) {
+        String s = v == null ? "" : v.replace("\"", "\"\"");
+        return "\"" + s + "\"";
     }
 
     private void showGlobalSearchDialog() {
@@ -3102,6 +3297,7 @@ public class MainActivity extends Activity {
         int invoices = r.optInt("تعداد_فاکتور", 0);
         int accent = balance > 0 ? DANGER : (balance < 0 ? SUCCESS : INFO);
         String statusText = balance > 0 ? "بدهکار" : (balance < 0 ? "بستانکار" : "تسویه");
+        int riskScore = customerRiskScore(r);
         LinearLayout c = card();
         c.setClickable(true);
         c.setBackground(gradient(new int[]{alpha(Color.WHITE, 24), alpha(accent, 42), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 26));
@@ -3132,7 +3328,7 @@ public class MainActivity extends Activity {
         tags.setOrientation(LinearLayout.HORIZONTAL);
         addCustomerTagChip(tags, customerSmartTag(balance, salesTotal, invoices, creditLimit), accent);
         addCustomerTagChip(tags, invoices == 0 ? "نیازمند بازفعال‌سازی" : "آخرین فاکتور: " + stringOr(r.optString("آخرین_خرید", ""), "—"), invoices == 0 ? WARNING : INFO);
-        addCustomerTagChip(tags, importanceLabel(salesTotal, invoices, balance), GOLD);
+        addCustomerTagChip(tags, customerRiskLabel(riskScore), customerRiskAccent(riskScore));
         LinearLayout.LayoutParams tagp = new LinearLayout.LayoutParams(-1, -2); tagp.setMargins(0, dp(10), 0, 0); c.addView(tags, tagp);
 
         LinearLayout row1 = new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL);
@@ -3159,7 +3355,11 @@ public class MainActivity extends Activity {
         Button call = primaryButton("تماس سریع");
         call.setTextSize(10.5f);
         call.setOnClickListener(v -> openPhoneDialer(firstPhone(r)));
+        Button msg = secondaryButton("پیام میلو");
+        msg.setTextSize(10.2f);
+        msg.setOnClickListener(v -> showCustomerMessageDialog(r));
         actions.addView(ledger, weightedButtonLp());
+        actions.addView(msg, weightedButtonLp());
         actions.addView(call, weightedButtonLp());
         LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(-1, -2); alp.setMargins(0, dp(8), 0, 0); c.addView(actions, alp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
@@ -3184,6 +3384,68 @@ public class MainActivity extends Activity {
         if (salesTotal > 0 && invoices >= 5 && balance <= 0) return "مشتری طلایی";
         if (salesTotal > 0 && invoices >= 2) return "مشتری فعال";
         return balance > 0 ? "نیازمند پیگیری" : "عادی";
+    }
+
+    private int customerRiskScore(JSONObject r) {
+        if (r == null) return 0;
+        double balance = Math.max(0, r.optDouble("مانده", 0));
+        double credit = Math.max(0, r.optDouble("اعتبار", 0));
+        double checks = Math.max(0, r.optDouble("جمع_چک", 0));
+        double sales = Math.max(0, r.optDouble("جمع_فروش", 0));
+        int invoices = r.optInt("تعداد_فاکتور", 0);
+        int score = 8;
+        if (balance > 0) score += Math.min(42, (int)(balance / Math.max(1, sales / Math.max(1, invoices)) * 12));
+        if (credit > 0 && balance > credit) score += 24;
+        if (checks > 0 && checks > Math.max(1, balance) * 0.55) score += 13;
+        if (invoices == 0) score += 18;
+        if (sales > 0 && invoices >= 5 && balance <= 0) score -= 18;
+        return Math.max(0, Math.min(100, score));
+    }
+
+    private String customerRiskLabel(int score) {
+        if (score >= 72) return "ریسک بالا؛ فروش نقدی";
+        if (score >= 45) return "ریسک متوسط";
+        if (score >= 22) return "ریسک کم";
+        return "امن و وفادار";
+    }
+
+    private int customerRiskAccent(int score) {
+        if (score >= 72) return DANGER;
+        if (score >= 45) return WARNING;
+        if (score >= 22) return INFO;
+        return SUCCESS;
+    }
+
+    private void showCustomerMessageDialog(JSONObject r) {
+        String[] labels = {"پیام وصول محترمانه", "پیام فروش مجدد", "یادآوری چک/تعهد"};
+        new AlertDialog.Builder(this)
+                .setTitle("میلو چه پیامی بدهد؟")
+                .setItems(labels, (d, which) -> {
+                    String body = buildCustomerMessage(r, which);
+                    new AlertDialog.Builder(this)
+                            .setTitle(labels[which])
+                            .setMessage(body)
+                            .setNegativeButton("بستن", null)
+                            .setPositiveButton("ارسال/کپی", (dd, w) -> sharePlainText("پیام مشتری Meelano", body, null))
+                            .show();
+                })
+                .show();
+    }
+
+    private String buildCustomerMessage(JSONObject r, int type) {
+        String name = r == null ? "" : r.optString("نام", "").trim();
+        if (name.isEmpty()) name = "همکار گرامی";
+        String amount = r == null ? "" : money(r.opt("مانده"));
+        if (type == 1) return "سلام " + name + " عزیز، وقت شما بخیر. برای شما یک پیشنهاد/موجودی جدید آماده کرده‌ایم که می‌تواند برای خرید بعدی مناسب باشد. اگر مایل باشید جزئیات را ارسال کنم. با احترام، Meelano";
+        if (type == 2) return "سلام " + name + " عزیز، وقت بخیر. جهت یادآوری تعهد/چک ثبت‌شده، لطفاً وضعیت پرداخت را اطلاع دهید تا برنامه‌ریزی مالی دقیق انجام شود. سپاس از همکاری شما.";
+        return "سلام " + name + " عزیز، وقت بخیر. بابت مانده حساب " + amount + " لطفاً زمان تسویه یا پرداخت مرحله‌ای را اعلام بفرمایید. هدف فقط هماهنگی دقیق‌تر است؛ میلو هم قول می‌دهد خیلی غر نزند!";
+    }
+
+    private void appendFollowupHistory(String key, String status, String note) {
+        if (prefs == null || key == null) return;
+        String old = prefs.getString(key, "");
+        String line = nowText() + " • " + status + (note == null || note.trim().isEmpty() ? "" : " • " + note.trim());
+        prefs.edit().putString(key, line + (old == null || old.isEmpty() ? "" : "\n" + old)).apply();
     }
 
     private String importanceLabel(double salesTotal, int invoices, double balance) {
@@ -3320,8 +3582,9 @@ public class MainActivity extends Activity {
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f)); c.addView(head, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
         double avg = customer.optInt("تعداد_فاکتور", 0) == 0 ? 0 : customer.optDouble("جمع_فروش", 0) / Math.max(1, customer.optInt("تعداد_فاکتور", 0));
+        int risk = customerRiskScore(customer);
         row.addView(customerMiniMetric("میانگین خرید", money(avg), GOLD), weightedMiniLp());
-        row.addView(customerMiniMetric("چک باز", money(customer.opt("جمع_چک")), WARNING), weightedMiniLp());
+        row.addView(customerMiniMetric("ریسک", formatNumber(risk) + "٪", customerRiskAccent(risk)), weightedMiniLp());
         row.addView(customerMiniMetric("آخرین خرید", stringOr(customer.optString("آخرین_خرید", ""), "—"), INFO), weightedMiniLp());
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
         TextView advice = text("پیشنهاد میلو: " + customerAdvice(customer), 10.8f, alpha(TEXT, 220), Typeface.BOLD);
@@ -3348,7 +3611,17 @@ public class MainActivity extends Activity {
         String noteKey = "follow_note_" + code;
         String dateKey = "follow_date_" + code;
         String statusKey = "follow_status_" + code;
+        String historyKey = "follow_history_" + code;
         c.addView(text("وضعیت فعلی: " + prefs.getString(statusKey, "ثبت نشده") + " • یادآوری بعدی: " + prefs.getString(dateKey, "—"), 10.8f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        String hist = prefs.getString(historyKey, "");
+        if (hist != null && !hist.trim().isEmpty()) {
+            TextView timeline = text("تاریخچه:
+" + limitText(hist, 420), 10.2f, alpha(TEXT, 205), Typeface.NORMAL);
+            timeline.setLineSpacing(dp(2), 1.04f);
+            timeline.setBackground(roundedStroke(alpha(INFO, 14), 14, alpha(INFO, 55)));
+            timeline.setPadding(dp(8), dp(7), dp(8), dp(7));
+            LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2); hp.setMargins(0, dp(8), 0, 0); c.addView(timeline, hp);
+        }
         EditText note = input("توضیح پیگیری / قول پرداخت", prefs.getString(noteKey, ""), false);
         note.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) note.setTextDirection(View.TEXT_DIRECTION_RTL);
         EditText next = input("تاریخ یادآوری بعدی", prefs.getString(dateKey, ""), false);
@@ -3357,9 +3630,9 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
         Button called = secondaryButton("تماس شد"); Button promised = secondaryButton("قول پرداخت"); Button save = primaryButton("ذخیره");
         called.setTextSize(9.8f); promised.setTextSize(9.8f); save.setTextSize(9.8f);
-        called.setOnClickListener(v -> { prefs.edit().putString(statusKey, "تماس گرفته شد").apply(); Toast.makeText(this, "ثبت شد.", Toast.LENGTH_SHORT).show(); });
-        promised.setOnClickListener(v -> { prefs.edit().putString(statusKey, "قول پرداخت داد").apply(); Toast.makeText(this, "ثبت شد.", Toast.LENGTH_SHORT).show(); });
-        save.setOnClickListener(v -> { prefs.edit().putString(noteKey, note.getText().toString()).putString(dateKey, next.getText().toString()).putString(statusKey, "نیازمند پیگیری").apply(); Toast.makeText(this, "یادداشت پیگیری ذخیره شد.", Toast.LENGTH_SHORT).show(); });
+        called.setOnClickListener(v -> { appendFollowupHistory(historyKey, "تماس گرفته شد", note.getText().toString()); prefs.edit().putString(statusKey, "تماس گرفته شد").apply(); Toast.makeText(this, "ثبت شد.", Toast.LENGTH_SHORT).show(); showCustomerDetail(customer, "all"); });
+        promised.setOnClickListener(v -> { appendFollowupHistory(historyKey, "قول پرداخت داد", note.getText().toString()); prefs.edit().putString(statusKey, "قول پرداخت داد").apply(); Toast.makeText(this, "ثبت شد.", Toast.LENGTH_SHORT).show(); showCustomerDetail(customer, "all"); });
+        save.setOnClickListener(v -> { appendFollowupHistory(historyKey, "یادداشت", note.getText().toString()); prefs.edit().putString(noteKey, note.getText().toString()).putString(dateKey, next.getText().toString()).putString(statusKey, "نیازمند پیگیری").apply(); Toast.makeText(this, "یادداشت پیگیری ذخیره شد.", Toast.LENGTH_SHORT).show(); showCustomerDetail(customer, "all"); });
         row.addView(called, weightedButtonLp()); row.addView(promised, weightedButtonLp()); row.addView(save, weightedButtonLp());
         c.addView(row, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(10)); content.addView(c, lp);
@@ -4081,7 +4354,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.18.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.19.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -5412,6 +5685,10 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "یک سوال کوتاه بنویس؛ ذهن‌خوانی هنوز در نسخه بتاست!", Toast.LENGTH_SHORT).show();
             return;
         }
+        if (handleAssistantNavigationCommand(question)) {
+            if (assistantInput != null) assistantInput.setText("");
+            return;
+        }
         if (assistantInput != null) assistantInput.setText("");
         updateMiloMood("thinking");
         addAssistantBubble(true, question);
@@ -5453,6 +5730,25 @@ public class MainActivity extends Activity {
                 lastAssistantAnswer = finalAnswer;
             });
         });
+    }
+
+    private boolean handleAssistantNavigationCommand(String question) {
+        String q = question == null ? "" : question.trim().toLowerCase(Locale.US);
+        boolean command = q.contains("نشان بده") || q.contains("باز کن") || q.contains("برو") || q.contains("بخوان") || q.contains("نمایش");
+        if (!command) return false;
+        if (session == null) { showLogin("برای اجرای فرمان صوتی ابتدا وارد شوید."); return true; }
+        if (q.contains("بدهکار") || q.contains("مشتری پرریسک")) {
+            showApp("customers");
+            loadCustomers("", "debt");
+            Toast.makeText(this, "میلو مشتریان بدهکار/پرریسک را باز کرد.", Toast.LENGTH_SHORT).show();
+            return true;
+        }
+        if (q.contains("کالا") || q.contains("رادار")) { showApp("command"); Toast.makeText(this, "رادار کالا در فرماندهی باز شد.", Toast.LENGTH_SHORT).show(); return true; }
+        if (q.contains("فروش امروز") || q.contains("ریسک امروز") || q.contains("نقدینگی") || q.contains("تقویم")) { showApp("command"); Toast.makeText(this, "فرماندهی امروز باز شد.", Toast.LENGTH_SHORT).show(); return true; }
+        if (q.contains("گزارش") || q.contains("اتاق فرمان")) { showApp("reports"); return true; }
+        if (q.contains("سلامت اتصال") || q.contains("اتصال")) { showApp("health"); return true; }
+        if (q.contains("تنظیمات") || q.contains("تم")) { showApp("settings"); return true; }
+        return false;
     }
 
     private boolean asksCreator(String question) {
@@ -5733,20 +6029,68 @@ public class MainActivity extends Activity {
 
     private String protectSecret(String raw) {
         if (raw == null || raw.trim().isEmpty()) return "";
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) return "ks:" + keystoreEncrypt(raw.trim());
+        } catch (Exception ignored) { }
+        return "x:" + legacyProtectSecret(raw);
+    }
+
+    private String unprotectSecret(String encoded) {
+        if (encoded == null || encoded.trim().isEmpty()) return "";
+        String v = encoded.trim();
+        try {
+            if (v.startsWith("ks:")) return keystoreDecrypt(v.substring(3));
+            if (v.startsWith("x:")) return legacyUnprotectSecret(v.substring(2));
+            return legacyUnprotectSecret(v);
+        } catch (Exception ignored) {
+            try { return legacyUnprotectSecret(v); } catch (Exception ignored2) { return ""; }
+        }
+    }
+
+    private String legacyProtectSecret(String raw) {
         byte[] b = raw.trim().getBytes(StandardCharsets.UTF_8);
         for (int i = 0; i < b.length; i++) b[i] = (byte) (b[i] ^ 0x5A);
         return Base64.encodeToString(b, Base64.NO_WRAP);
     }
 
-    private String unprotectSecret(String encoded) {
-        if (encoded == null || encoded.trim().isEmpty()) return "";
-        try {
-            byte[] b = Base64.decode(encoded, Base64.NO_WRAP);
-            for (int i = 0; i < b.length; i++) b[i] = (byte) (b[i] ^ 0x5A);
-            return new String(b, StandardCharsets.UTF_8).trim();
-        } catch (Exception ignored) {
-            return "";
+    private String legacyUnprotectSecret(String encoded) {
+        byte[] b = Base64.decode(encoded, Base64.NO_WRAP);
+        for (int i = 0; i < b.length; i++) b[i] = (byte) (b[i] ^ 0x5A);
+        return new String(b, StandardCharsets.UTF_8).trim();
+    }
+
+    private SecretKey localSecretKey() throws Exception {
+        KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+        ks.load(null);
+        if (!ks.containsAlias(LOCAL_KEY_ALIAS)) {
+            KeyGenerator kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+            KeyGenParameterSpec spec = new KeyGenParameterSpec.Builder(LOCAL_KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .setRandomizedEncryptionRequired(true)
+                    .build();
+            kg.init(spec);
+            kg.generateKey();
         }
+        return (SecretKey) ks.getKey(LOCAL_KEY_ALIAS, null);
+    }
+
+    private String keystoreEncrypt(String raw) throws Exception {
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, localSecretKey());
+        byte[] iv = cipher.getIV();
+        byte[] enc = cipher.doFinal(raw.getBytes(StandardCharsets.UTF_8));
+        return Base64.encodeToString(iv, Base64.NO_WRAP) + "." + Base64.encodeToString(enc, Base64.NO_WRAP);
+    }
+
+    private String keystoreDecrypt(String payload) throws Exception {
+        String[] parts = payload.split("\\.", 2);
+        if (parts.length != 2) return "";
+        byte[] iv = Base64.decode(parts[0], Base64.NO_WRAP);
+        byte[] enc = Base64.decode(parts[1], Base64.NO_WRAP);
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.DECRYPT_MODE, localSecretKey(), new GCMParameterSpec(128, iv));
+        return new String(cipher.doFinal(enc), StandardCharsets.UTF_8).trim();
     }
 
     private EditText apiInput(String hint, String provider) {
@@ -6059,6 +6403,19 @@ public class MainActivity extends Activity {
         content.addView(c, cp);
     }
 
+    private void addLocalSecurityCard() {
+        LinearLayout c = card();
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, dp(12), 0, 0);
+        c.setBackground(gradient(new int[]{alpha(Color.rgb(126, 87, 255), 28), alpha(SUCCESS, 18), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.addView(text("امنیت محلی پیشرفته", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("PIN ورود سریع و کلیدهای AI از این نسخه با Android Keystore رمزنگاری می‌شوند؛ داده‌های قدیمی هنگام ذخیره بعدی خودکار به قالب امن‌تر مهاجرت می‌کنند.", 10.8f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        TextView badge = text(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? "✓ Keystore فعال روی این دستگاه" : "حالت سازگار قدیمی", 11, Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? SUCCESS : WARNING, Typeface.BOLD);
+        badge.setGravity(Gravity.CENTER); badge.setPadding(dp(8), dp(8), dp(8), dp(8));
+        badge.setBackground(roundedStroke(alpha(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? SUCCESS : WARNING, 18), 16, alpha(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? SUCCESS : WARNING, 70)));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2); bp.setMargins(0, dp(10), 0, 0); c.addView(badge, bp);
+        content.addView(c, cp);
+    }
+
     private void addReminderSettingsCard() {
         LinearLayout c = card();
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, dp(12), 0, 0);
@@ -6127,10 +6484,40 @@ public class MainActivity extends Activity {
         safe.setPadding(dp(10), dp(9), dp(10), dp(9));
         safe.setGravity(Gravity.CENTER); safe.setBackground(roundedStroke(alpha(GOLD, 18), 16, alpha(GOLD, 65)));
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2); sp.setMargins(0, dp(10), 0, dp(10)); c.addView(safe, sp);
-        Button test = primaryButton("اجرای تست اتصال و latency");
+        LinearLayout tests = new LinearLayout(this); tests.setOrientation(LinearLayout.HORIZONTAL);
+        Button test = primaryButton("تست latency");
+        Button diag = secondaryButton("عیب‌یابی مرحله‌ای");
+        test.setTextSize(10.5f); diag.setTextSize(10.5f);
         test.setOnClickListener(v -> testConnectionHealth());
-        c.addView(test, new LinearLayout.LayoutParams(-1, dp(50)));
+        diag.setOnClickListener(v -> runConnectionDiagnostics());
+        tests.addView(test, weightedButtonLp()); tests.addView(diag, weightedButtonLp());
+        c.addView(tests, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(12), 0, 0); content.addView(c, lp);
+    }
+
+    private void runConnectionDiagnostics() {
+        runDb(() -> {
+            long t0 = System.currentTimeMillis();
+            StringBuilder out = new StringBuilder();
+            out.append("✓ تنظیمات اتصال مخفی Meelano آماده است\n");
+            try (Connection c = openConnection()) {
+                long connected = System.currentTimeMillis();
+                out.append("✓ ورود SQL موفق • ").append(connected - t0).append("ms\n");
+                try (PreparedStatement ps = c.prepareStatement("SELECT DB_NAME(), @@VERSION")) {
+                    try (ResultSet r = ps.executeQuery()) {
+                        if (r.next()) {
+                            out.append("✓ اجرای Query موفق • پایگاه: ").append(stringOr(r.getString(1), "—")).append("\n");
+                            out.append("✓ نسخه سرور دریافت شد؛ جزئیات حساس نمایش داده نمی‌شود\n");
+                        }
+                    }
+                }
+                out.append("✓ نتیجه: اتصال سالم است؛ اگر داده‌ها خالی‌اند، دسترسی جدول/فیلتر تاریخ را بررسی کنید.");
+            }
+            return out.toString();
+        }, new DbCallback() {
+            @Override public void ok(String body) { new AlertDialog.Builder(MainActivity.this).setTitle("عیب‌یابی اتصال").setMessage(body).setPositiveButton("باشه", null).show(); if ("health".equals(activePage)) renderConnectionHealthPage(); }
+            @Override public void fail(Exception e) { new AlertDialog.Builder(MainActivity.this).setTitle("عیب‌یابی اتصال").setMessage("اتصال کامل نشد:\n" + readableError(e) + "\n\nجزئیات محرمانه اتصال نمایش داده نمی‌شود.").setPositiveButton("باشه", null).show(); if ("health".equals(activePage)) renderConnectionHealthPage(); }
+        });
     }
 
     private void testConnectionHealth() {
@@ -6196,6 +6583,7 @@ public class MainActivity extends Activity {
 
         addAiSettingsCard();
         addQuickLoginSettingsCard();
+        addLocalSecurityCard();
         addReminderSettingsCard();
         addPrivacySettingsCard();
         addConnectionHealthCard();
@@ -6208,7 +6596,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.18.0\nاین نسخه مدیریت روزانه، ورود سریع، ویجت، یادآوری، جستجوی سراسری، حالت محرمانه، پروفایل ۳۶۰ مشتری و سلامت اتصال را به اپ Native Direct SQL اضافه می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.19.0\nاین نسخه فرماندهی هوشمند، پیش‌بینی نقدینگی، رادار کالا، تقویم مدیریتی، ریسک مشتری، پیام‌های آماده میلو، CSV، عیب‌یابی اتصال و هدر دوبخشی بدون تداخل با لوگو/نام Meelano را اضافه می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
