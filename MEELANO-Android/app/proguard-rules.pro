@@ -1,1 +1,1 @@
-# MEELANO Android wrapper: no custom rules required.
+# Meelano Native Android: no custom rules required.

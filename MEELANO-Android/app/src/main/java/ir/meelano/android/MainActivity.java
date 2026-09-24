@@ -59,7 +59,8 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     private static final String PREFS = "meelano_android_direct_sql";
-    private static final String KEY_LAST_USER = "last_atiran_user";
+    private static final String KEY_LAST_USER = "last_meelano_user";
+    private static final String KEY_THEME = "meelano_theme_palette";
 
     private static final int[] S_HOST = {122, 126, 103, 120, 125, 122, 103, 120, 125, 126, 103, 120, 112};
     private static final int[] S_USER = {8, 45, 36, 32, 39, 8, 39};
@@ -68,18 +69,23 @@ public class MainActivity extends Activity {
     private static final int S_KEY = 73;
     private static final int SQL_PORT = 1433;
 
-    private static final int NAVY = Color.rgb(7, 9, 16);
-    private static final int SURFACE = Color.rgb(18, 22, 31);
-    private static final int SURFACE_2 = Color.rgb(24, 30, 42);
-    private static final int GOLD = Color.rgb(231, 177, 90);
-    private static final int GOLD_2 = Color.rgb(242, 207, 138);
-    private static final int SUCCESS = Color.rgb(72, 199, 163);
-    private static final int INFO = Color.rgb(102, 170, 245);
-    private static final int WARNING = Color.rgb(244, 181, 95);
-    private static final int DANGER = Color.rgb(241, 106, 117);
-    private static final int TEXT = Color.rgb(246, 248, 252);
-    private static final int MUTED = Color.rgb(154, 166, 183);
-    private static final int BORDER = Color.argb(42, 255, 255, 255);
+    private int NAVY = Color.rgb(7, 9, 16);
+    private int SURFACE = Color.rgb(18, 22, 31);
+    private int SURFACE_2 = Color.rgb(24, 30, 42);
+    private int GOLD = Color.rgb(231, 177, 90);
+    private int GOLD_2 = Color.rgb(242, 207, 138);
+    private int SUCCESS = Color.rgb(72, 199, 163);
+    private int INFO = Color.rgb(102, 170, 245);
+    private int WARNING = Color.rgb(244, 181, 95);
+    private int DANGER = Color.rgb(241, 106, 117);
+    private int TEXT = Color.rgb(246, 248, 252);
+    private int MUTED = Color.rgb(154, 166, 183);
+    private int BORDER = Color.argb(42, 255, 255, 255);
+    private int HEADER_START = Color.rgb(9, 12, 20);
+    private int HEADER_END = Color.rgb(22, 26, 38);
+    private int HERO_START = Color.rgb(26, 32, 45);
+    private int HERO_END = Color.rgb(15, 19, 28);
+    private int ON_PRIMARY = Color.rgb(20, 16, 10);
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final NumberFormat numberFormat = NumberFormat.getInstance(new Locale("fa", "IR"));
@@ -101,12 +107,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(NAVY);
-        getWindow().setNavigationBarColor(NAVY);
-        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        applyTheme(prefs.getString(KEY_THEME, "onyx_gold"));
+        getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         buildFrame();
-        showLogin("برای ورود، نام کاربری و رمز Atiran را وارد کنید.");
+        showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید.");
     }
 
     private static String hidden(int[] data) {
@@ -117,6 +122,98 @@ public class MainActivity extends Activity {
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
+    private void applyTheme(String themeId) {
+        String id = themeId == null ? "onyx_gold" : themeId;
+        if ("royal_amethyst".equals(id)) {
+            NAVY = Color.rgb(10, 8, 24);
+            SURFACE = Color.rgb(25, 20, 45);
+            SURFACE_2 = Color.rgb(35, 27, 63);
+            GOLD = Color.rgb(184, 114, 255);
+            GOLD_2 = Color.rgb(248, 113, 193);
+            SUCCESS = Color.rgb(70, 220, 177);
+            INFO = Color.rgb(96, 189, 255);
+            WARNING = Color.rgb(255, 190, 102);
+            DANGER = Color.rgb(255, 105, 136);
+            TEXT = Color.rgb(252, 248, 255);
+            MUTED = Color.rgb(184, 174, 205);
+            BORDER = Color.argb(52, 255, 255, 255);
+            HEADER_START = Color.rgb(18, 12, 43);
+            HEADER_END = Color.rgb(48, 25, 88);
+            HERO_START = Color.rgb(49, 30, 87);
+            HERO_END = Color.rgb(20, 14, 42);
+            ON_PRIMARY = Color.WHITE;
+        } else if ("ivory_sunrise".equals(id)) {
+            NAVY = Color.rgb(248, 241, 229);
+            SURFACE = Color.rgb(255, 251, 244);
+            SURFACE_2 = Color.rgb(247, 232, 212);
+            GOLD = Color.rgb(213, 126, 55);
+            GOLD_2 = Color.rgb(255, 185, 109);
+            SUCCESS = Color.rgb(32, 158, 119);
+            INFO = Color.rgb(51, 126, 210);
+            WARNING = Color.rgb(224, 148, 58);
+            DANGER = Color.rgb(210, 77, 91);
+            TEXT = Color.rgb(40, 33, 27);
+            MUTED = Color.rgb(111, 95, 78);
+            BORDER = Color.argb(52, 92, 62, 32);
+            HEADER_START = Color.rgb(255, 247, 232);
+            HEADER_END = Color.rgb(247, 223, 190);
+            HERO_START = Color.rgb(255, 246, 232);
+            HERO_END = Color.rgb(242, 222, 196);
+            ON_PRIMARY = Color.rgb(42, 27, 15);
+        } else if ("crystal_lagoon".equals(id)) {
+            NAVY = Color.rgb(235, 248, 250);
+            SURFACE = Color.rgb(255, 255, 255);
+            SURFACE_2 = Color.rgb(222, 244, 249);
+            GOLD = Color.rgb(0, 151, 178);
+            GOLD_2 = Color.rgb(87, 217, 220);
+            SUCCESS = Color.rgb(21, 168, 128);
+            INFO = Color.rgb(42, 125, 225);
+            WARNING = Color.rgb(238, 158, 63);
+            DANGER = Color.rgb(218, 70, 105);
+            TEXT = Color.rgb(18, 42, 54);
+            MUTED = Color.rgb(84, 109, 121);
+            BORDER = Color.argb(48, 23, 91, 111);
+            HEADER_START = Color.rgb(227, 249, 253);
+            HEADER_END = Color.rgb(197, 237, 248);
+            HERO_START = Color.rgb(217, 248, 251);
+            HERO_END = Color.rgb(242, 253, 255);
+            ON_PRIMARY = Color.WHITE;
+        } else {
+            NAVY = Color.rgb(7, 9, 16);
+            SURFACE = Color.rgb(18, 22, 31);
+            SURFACE_2 = Color.rgb(24, 30, 42);
+            GOLD = Color.rgb(231, 177, 90);
+            GOLD_2 = Color.rgb(242, 207, 138);
+            SUCCESS = Color.rgb(72, 199, 163);
+            INFO = Color.rgb(102, 170, 245);
+            WARNING = Color.rgb(244, 181, 95);
+            DANGER = Color.rgb(241, 106, 117);
+            TEXT = Color.rgb(246, 248, 252);
+            MUTED = Color.rgb(154, 166, 183);
+            BORDER = Color.argb(42, 255, 255, 255);
+            HEADER_START = Color.rgb(9, 12, 20);
+            HEADER_END = Color.rgb(22, 26, 38);
+            HERO_START = Color.rgb(26, 32, 45);
+            HERO_END = Color.rgb(15, 19, 28);
+            ON_PRIMARY = Color.rgb(20, 16, 10);
+        }
+        if (getWindow() != null) {
+            getWindow().setStatusBarColor(NAVY);
+            getWindow().setNavigationBarColor(NAVY);
+        }
+    }
+
+    private String currentThemeId() {
+        return prefs == null ? "onyx_gold" : prefs.getString(KEY_THEME, "onyx_gold");
+    }
+
+    private String themeName(String id) {
+        if ("royal_amethyst".equals(id)) return "شب آمتیست سلطنتی";
+        if ("ivory_sunrise".equals(id)) return "طلوع عاجی لوکس";
+        if ("crystal_lagoon".equals(id)) return "لاگون کریستالی روشن";
+        return "اونیکس طلایی Meelano";
     }
 
     private int alpha(int color, int amount) {
@@ -168,7 +265,7 @@ public class MainActivity extends Activity {
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(10), dp(7), dp(10), dp(7));
-        header.setBackground(gradient(new int[]{Color.rgb(9, 12, 20), Color.rgb(22, 26, 38)}, GradientDrawable.Orientation.LEFT_RIGHT, 0));
+        header.setBackground(gradient(new int[]{HEADER_START, HEADER_END}, GradientDrawable.Orientation.LEFT_RIGHT, 0));
 
         ImageView logo = new ImageView(this);
         logo.setImageResource(ir.meelano.android.R.drawable.meelano_3d);
@@ -180,9 +277,9 @@ public class MainActivity extends Activity {
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
         titles.setPadding(dp(10), 0, dp(10), 0);
-        TextView appTitle = text("MEELANO Android", 16, TEXT, Typeface.BOLD);
+        TextView appTitle = text("Meelano Android", 16, TEXT, Typeface.BOLD);
         status = text("اتصال مستقیم به سرور", 10.5f, MUTED, Typeface.NORMAL);
-        subtitle = text("ورود با حساب Atiran", 9.5f, alpha(TEXT, 155), Typeface.NORMAL);
+        subtitle = text("ورود با حساب Meelano", 9.5f, alpha(TEXT, 155), Typeface.NORMAL);
         titles.addView(appTitle, new LinearLayout.LayoutParams(-1, 0, 1f));
         titles.addView(status, new LinearLayout.LayoutParams(-1, 0, 1f));
         titles.addView(subtitle, new LinearLayout.LayoutParams(-1, 0, 1f));
@@ -191,6 +288,12 @@ public class MainActivity extends Activity {
         TextView refresh = iconButton("↻", "تلاش مجدد");
         refresh.setOnClickListener(v -> refreshActivePage());
         header.addView(refresh, new LinearLayout.LayoutParams(dp(43), dp(43)));
+
+        TextView theme = iconButton("◐", "انتخاب تم");
+        theme.setOnClickListener(v -> showThemeChooser());
+        LinearLayout.LayoutParams themeLp = new LinearLayout.LayoutParams(dp(43), dp(43));
+        themeLp.setMargins(dp(6), 0, 0, 0);
+        header.addView(theme, themeLp);
 
         TextView settings = iconButton("⚙", "تنظیمات");
         settings.setOnClickListener(v -> {
@@ -222,11 +325,47 @@ public class MainActivity extends Activity {
         return b;
     }
 
+    private void showThemeChooser() {
+        final String[] ids = {"onyx_gold", "royal_amethyst", "ivory_sunrise", "crystal_lagoon"};
+        final String[] names = {
+                "دارک ۱ • اونیکس طلایی Meelano",
+                "دارک ۲ • شب آمتیست سلطنتی",
+                "روشن ۱ • طلوع عاجی لوکس",
+                "روشن ۲ • لاگون کریستالی روشن"
+        };
+        int checked = 0;
+        String current = currentThemeId();
+        for (int i = 0; i < ids.length; i++) if (ids[i].equals(current)) checked = i;
+        new AlertDialog.Builder(this)
+                .setTitle("انتخاب تم لوکس Meelano")
+                .setSingleChoiceItems(names, checked, (dialog, which) -> {
+                    prefs.edit().putString(KEY_THEME, ids[which]).apply();
+                    applyTheme(ids[which]);
+                    dialog.dismiss();
+                    Toast.makeText(this, "تم «" + themeName(ids[which]) + "» اعمال شد", Toast.LENGTH_SHORT).show();
+                    rebuildUiAfterThemeChange();
+                })
+                .setNegativeButton("بستن", null)
+                .show();
+    }
+
+    private void rebuildUiAfterThemeChange() {
+        UserSession oldSession = session;
+        String page = activePage;
+        buildFrame();
+        session = oldSession;
+        if (oldSession == null || "login".equals(page)) {
+            showLogin("تم جدید Meelano اعمال شد. برای ورود، نام کاربری و رمز Meelano را وارد کنید.");
+        } else {
+            showApp(page == null ? "dashboard" : page);
+        }
+    }
+
     private Button primaryButton(String label) {
         Button b = new Button(this);
         b.setText(label);
         b.setAllCaps(false);
-        b.setTextColor(Color.rgb(20, 16, 10));
+        b.setTextColor(ON_PRIMARY);
         b.setTextSize(13.5f);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setBackground(gradient(new int[]{GOLD_2, GOLD}, GradientDrawable.Orientation.LEFT_RIGHT, 17));
@@ -248,12 +387,12 @@ public class MainActivity extends Activity {
         e.setSingleLine(true);
         e.setHint(hint);
         e.setText(value == null ? "" : value);
-        e.setHintTextColor(Color.rgb(112, 122, 138));
+        e.setHintTextColor(alpha(MUTED, 190));
         e.setTextColor(TEXT);
         e.setTextSize(14);
         e.setSelectAllOnFocus(true);
         e.setPadding(dp(14), 0, dp(14), 0);
-        e.setBackground(roundedStroke(SURFACE_2, 16, alpha(Color.WHITE, 40)));
+        e.setBackground(roundedStroke(SURFACE_2, 16, BORDER));
         e.setInputType(password ? (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD) : InputType.TYPE_CLASS_TEXT);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
             e.setTextDirection(View.TEXT_DIRECTION_LTR);
@@ -275,11 +414,11 @@ public class MainActivity extends Activity {
         activePage = "login";
         session = null;
         status.setText("اتصال مستقیم به سرور");
-        subtitle.setText("ورود با حساب Atiran");
+        subtitle.setText("ورود با حساب Meelano");
         stage.removeAllViews();
 
         FrameLayout backdrop = new FrameLayout(this);
-        backdrop.setBackground(gradient(new int[]{NAVY, Color.rgb(14, 18, 29), NAVY}, GradientDrawable.Orientation.TOP_BOTTOM, 0));
+        backdrop.setBackground(gradient(new int[]{NAVY, SURFACE, NAVY}, GradientDrawable.Orientation.TOP_BOTTOM, 0));
 
         View glow1 = new View(this);
         GradientDrawable g1 = new GradientDrawable();
@@ -293,7 +432,7 @@ public class MainActivity extends Activity {
         View glow2 = new View(this);
         GradientDrawable g2 = new GradientDrawable();
         g2.setShape(GradientDrawable.OVAL);
-        g2.setColor(Color.argb(24, 93, 196, 255));
+        g2.setColor(alpha(INFO, 28));
         glow2.setBackground(g2);
         FrameLayout.LayoutParams g2p = new FrameLayout.LayoutParams(dp(270), dp(270), Gravity.BOTTOM | Gravity.LEFT);
         g2p.setMargins(dp(-100), 0, 0, dp(-90));
@@ -318,11 +457,11 @@ public class MainActivity extends Activity {
         logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         loginCard.addView(logo, new LinearLayout.LayoutParams(dp(124), dp(124)));
 
-        TextView h = text("MEELANO Android", 23, TEXT, Typeface.BOLD);
+        TextView h = text("Meelano Android", 23, TEXT, Typeface.BOLD);
         h.setGravity(Gravity.CENTER);
         loginCard.addView(h, new LinearLayout.LayoutParams(-1, -2));
 
-        TextView sub = text("نسخه اندروید با اتصال مستقیم؛ فقط نام کاربری و رمز Atiran را وارد کنید.", 12.5f, MUTED, Typeface.NORMAL);
+        TextView sub = text("نسخه اندروید اختصاصی؛ فقط نام کاربری و رمز Meelano را وارد کنید.", 12.5f, MUTED, Typeface.NORMAL);
         sub.setGravity(Gravity.CENTER);
         sub.setLineSpacing(dp(2), 1.05f);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2);
@@ -339,14 +478,14 @@ public class MainActivity extends Activity {
             loginCard.addView(msg, mp);
         }
 
-        TextView userLabel = text("نام کاربری Atiran", 12, MUTED, Typeface.BOLD);
+        TextView userLabel = text("نام کاربری Meelano", 12, MUTED, Typeface.BOLD);
         loginCard.addView(userLabel, new LinearLayout.LayoutParams(-1, -2));
         EditText username = input("username", prefs.getString(KEY_LAST_USER, ""), false);
         LinearLayout.LayoutParams up = new LinearLayout.LayoutParams(-1, dp(54));
         up.setMargins(0, dp(6), 0, dp(12));
         loginCard.addView(username, up);
 
-        TextView passLabel = text("رمز عبور Atiran", 12, MUTED, Typeface.BOLD);
+        TextView passLabel = text("رمز عبور Meelano", 12, MUTED, Typeface.BOLD);
         loginCard.addView(passLabel, new LinearLayout.LayoutParams(-1, -2));
         EditText password = input("password", "", true);
         password.setImeOptions(EditorInfo.IME_ACTION_DONE);
@@ -463,11 +602,10 @@ public class MainActivity extends Activity {
         addNav("sales", "فروش", "₿");
         addNav("checks", "چک‌ها", "✓");
         addNav("reports", "گزارش", "⌁");
-        addNav("settings", "تنظیمات", "⚙");
     }
 
     private void addNav(String key, String label, String icon) {
-        TextView b = text(icon + "  " + label, 12.5f, key.equals(activePage) ? Color.rgb(22, 16, 8) : TEXT, Typeface.BOLD);
+        TextView b = text(icon + "  " + label, 12.5f, key.equals(activePage) ? ON_PRIMARY : TEXT, Typeface.BOLD);
         b.setGravity(Gravity.CENTER);
         b.setSingleLine(true);
         b.setPadding(dp(15), 0, dp(15), 0);
@@ -494,13 +632,13 @@ public class MainActivity extends Activity {
     }
 
     private void refreshActivePage() {
-        if ("login".equals(activePage)) showLogin("برای اتصال مجدد، اطلاعات Atiran را وارد کنید.");
+        if ("login".equals(activePage)) showLogin("برای اتصال مجدد، اطلاعات Meelano را وارد کنید.");
         else showApp(activePage);
     }
 
     private void addHero(String title, String text) {
         LinearLayout hero = card();
-        hero.setBackground(gradient(new int[]{Color.rgb(26, 32, 45), Color.rgb(15, 19, 28)}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
+        hero.setBackground(gradient(new int[]{HERO_START, HERO_END}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -586,9 +724,9 @@ public class MainActivity extends Activity {
         return DriverManager.getConnection(url, props);
     }
 
-    private UserSession authenticate(String atiranUser, String atiranPassword) throws Exception {
-        String user = cleanText(atiranUser);
-        String pass = atiranPassword == null ? "" : atiranPassword;
+    private UserSession authenticate(String meelanoUser, String meelanoPassword) throws Exception {
+        String user = cleanText(meelanoUser);
+        String pass = meelanoPassword == null ? "" : meelanoPassword;
         try (Connection c = openConnection()) {
             String visitorSql = "SELECT TOP (1) v.vis_rdf, v.vis_name, v.UserID FROM dbo.visitors AS v " +
                     "WHERE LTRIM(RTRIM(CONVERT(nvarchar(100),v.Username)))=? " +
@@ -606,7 +744,7 @@ public class MainActivity extends Activity {
                 }
             }
 
-            // Users created in Atiran's user-management screen are stored in sys_users.
+            // Users created in the back-office user-management screen are stored in sys_users.
             // user_password may be VARBINARY encoded as ANSI bytes, Unicode bytes, or a text value.
             // We fetch candidate rows by user name and compare the password locally in several
             // compatible encodings instead of relying on one CONVERT(varchar, varbinary) shape.
@@ -629,9 +767,9 @@ public class MainActivity extends Activity {
                     }
                 }
             }
-            if (foundUser) throw new DbException("رمز عبور Atiran برای این کاربر تطبیق پیدا نکرد.");
+            if (foundUser) throw new DbException("رمز عبور Meelano برای این کاربر تطبیق پیدا نکرد.");
         }
-        throw new DbException("نام کاربری یا رمز عبور Atiran معتبر نیست.");
+        throw new DbException("نام کاربری یا رمز عبور Meelano معتبر نیست.");
     }
 
     private boolean passwordMatches(byte[] rawPassword, String textPassword, String enteredPassword) {
@@ -672,14 +810,14 @@ public class MainActivity extends Activity {
 
     private void loadDashboard() {
         content.removeAllViews();
-        addHero("مرکز فرماندهی", "KPIها و نمودارها با اتصال مستقیم به داده‌های Atiran");
+        addHero("داشبورد هوشمند Meelano", "نمای هوشمند فروش، خرید، چک‌ها، مشتریان و کالاها با داده‌های زنده Meelano");
         addLoading(content, "در حال دریافت داشبورد…");
         runDb(this::queryDashboard, new DbCallback() {
             @Override public void ok(String body) {
                 try {
                     JSONObject j = new JSONObject(body);
                     content.removeAllViews();
-                    addHero("مرکز فرماندهی", "KPIها و نمودارها با اتصال مستقیم به داده‌های Atiran");
+                    addHero("داشبورد هوشمند Meelano", "نمای هوشمند فروش، خرید، چک‌ها، مشتریان و کالاها با داده‌های زنده Meelano");
                     addKpis(j.optJSONArray("kpis"));
                     renderDashboardToday(j.optJSONObject("today"));
                     JSONObject a = j.optJSONObject("analytics");
@@ -743,7 +881,7 @@ public class MainActivity extends Activity {
     private void addDashboardBlock(String title, String sub, int iconRes, JSONObject data, int accent, boolean large) {
         if (data == null) return;
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(accent, 38), Color.rgb(18, 22, 31)}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
+        c.setBackground(gradient(new int[]{alpha(accent, 38), SURFACE}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
@@ -787,7 +925,7 @@ public class MainActivity extends Activity {
     private void addCompactListSection(String title, String sub, int iconRes, JSONArray rows, String labelKey, String valueKey, int accent) {
         if (rows == null || rows.length() == 0) return;
         LinearLayout c = card();
-        c.setBackground(roundedStroke(Color.rgb(18, 22, 31), 22, alpha(accent, 56)));
+        c.setBackground(roundedStroke(SURFACE, 22, alpha(accent, 56)));
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
@@ -808,7 +946,7 @@ public class MainActivity extends Activity {
             line.setOrientation(LinearLayout.HORIZONTAL);
             line.setGravity(Gravity.CENTER_VERTICAL);
             line.setPadding(dp(9), dp(8), dp(9), dp(8));
-            line.setBackground(roundedStroke(SURFACE_2, 14, alpha(Color.WHITE, 24)));
+            line.setBackground(roundedStroke(SURFACE_2, 14, BORDER));
             TextView name = text(r.optString(labelKey, r.optString("party", r.optString("item", "—"))), 11.5f, TEXT, Typeface.BOLD);
             TextView val = text(valueKey.equals("days") ? r.optString("hint", "") : money(r.opt(valueKey)), 10.5f, accent, Typeface.BOLD);
             line.addView(name, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -995,7 +1133,7 @@ public class MainActivity extends Activity {
             JSONObject item = kpis.optJSONObject(i);
             String titleText = item == null ? "شاخص" : item.optString("title", "شاخص");
             LinearLayout c = card();
-            c.setBackground(gradient(new int[]{Color.rgb(20, 25, 36), Color.rgb(30, 36, 50)}, GradientDrawable.Orientation.TOP_BOTTOM, 20));
+            c.setBackground(gradient(new int[]{SURFACE, SURFACE_2}, GradientDrawable.Orientation.TOP_BOTTOM, 20));
             ImageView icon = new ImageView(this);
             icon.setImageResource(kpiIconResource(titleText, i));
             icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
@@ -1122,7 +1260,7 @@ public class MainActivity extends Activity {
         String status = balance > 0 ? "بدهکار" : (balance < 0 ? "بستانکار" : "تسویه");
         LinearLayout c = card();
         c.setClickable(true);
-        c.setBackground(gradient(new int[]{alpha(accent, 36), Color.rgb(18, 22, 31)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.setBackground(gradient(new int[]{alpha(accent, 36), SURFACE}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
         c.setOnClickListener(v -> showCustomerDetail(r, "all"));
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
@@ -1390,7 +1528,7 @@ public class MainActivity extends Activity {
         int accent = stock > 0 ? SUCCESS : WARNING;
         LinearLayout c = card();
         c.setClickable(true);
-        c.setBackground(gradient(new int[]{Color.rgb(18, 22, 31), alpha(accent, 32)}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
+        c.setBackground(gradient(new int[]{SURFACE, alpha(accent, 32)}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
         c.setOnClickListener(v -> showProductDialog(r));
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
@@ -1517,7 +1655,7 @@ public class MainActivity extends Activity {
         LinearLayout m = new LinearLayout(this);
         m.setOrientation(LinearLayout.VERTICAL);
         m.setPadding(dp(6), dp(8), dp(6), dp(8));
-        m.setBackground(roundedStroke(SURFACE_2, 14, alpha(Color.WHITE, 24)));
+        m.setBackground(roundedStroke(SURFACE_2, 14, BORDER));
         TextView l = text(label, 9.5f, MUTED, Typeface.NORMAL);
         l.setGravity(Gravity.CENTER);
         TextView v = text(value, 11, TEXT, Typeface.BOLD);
@@ -1762,7 +1900,7 @@ public class MainActivity extends Activity {
                 LinearLayout row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.VERTICAL);
                 row.setPadding(dp(10), dp(10), dp(10), dp(10));
-                row.setBackground(roundedStroke(SURFACE_2, 16, alpha(Color.WHITE, 22)));
+                row.setBackground(roundedStroke(SURFACE_2, 16, BORDER));
                 row.addView(text(b.optString("label", "بانک"), 13, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
                 row.addView(text("مانده: " + money(b.opt("balance")) + "   |   ورودی: " + money(b.opt("inflow")) + "   |   خروجی: " + money(b.opt("outflow")), 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
                 LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
@@ -1778,7 +1916,7 @@ public class MainActivity extends Activity {
     private void addDailyReportLaunchers(String latestSales, String latestPurchase) {
         LinearLayout c = card();
         c.addView(text("گزارش روزانه فروش و خرید", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        c.addView(text("تاریخ را وارد کنید؛ اگر خالی باشد آخرین روز ثبت‌شده واقعی در Atiran استفاده می‌شود.", 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("تاریخ را وارد کنید؛ اگر خالی باشد آخرین روز ثبت‌شده واقعی در Meelano استفاده می‌شود.", 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
 
         EditText salesDate = input(latestSales == null || latestSales.isEmpty() ? "تاریخ فروش، مثلا 1403/01/01" : latestSales, "", false);
         Button sales = primaryButton("گزارش روزانه فروش");
@@ -1800,7 +1938,7 @@ public class MainActivity extends Activity {
 
     private void showDailyReportPage(String type, String date) {
         content.removeAllViews();
-        addHero(type.equals("sales") ? "گزارش روزانه فروش" : "گزارش روزانه خرید", "در حال آماده‌سازی گزارش واقعی روزانه از Atiran");
+        addHero(type.equals("sales") ? "گزارش روزانه فروش" : "گزارش روزانه خرید", "در حال آماده‌سازی گزارش واقعی روزانه از Meelano");
         addLoading(content, "در حال دریافت گزارش روزانه…");
         runDb(() -> queryDailyReport(type, date), new DbCallback() {
             @Override public void ok(String body) {
@@ -1849,7 +1987,7 @@ public class MainActivity extends Activity {
                 LinearLayout item = new LinearLayout(this);
                 item.setOrientation(LinearLayout.VERTICAL);
                 item.setPadding(dp(10), dp(10), dp(10), dp(10));
-                item.setBackground(roundedStroke(SURFACE_2, 15, alpha(Color.WHITE, 22)));
+                item.setBackground(roundedStroke(SURFACE_2, 15, BORDER));
                 if (documents) {
                     item.addView(text("شماره سند: " + row.optString("number", "—") + "   |   " + row.optString("party", "بدون نام"), 12.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
                     item.addView(text("مبلغ: " + money(row.opt("amount")) + "   |   اقلام: " + formatNumber(row.opt("items")), 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
@@ -2210,7 +2348,7 @@ public class MainActivity extends Activity {
 
     private void renderSettings() {
         content.removeAllViews();
-        addHero("تنظیمات", "مدیریت اتصال و خروج امن");
+        addHero("تنظیمات Meelano", "مدیریت اتصال، خروج امن و تم‌های لوکس برنامه");
         LinearLayout connection = card();
         connection.addView(text("وضعیت", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         connection.addView(text("اتصال مستقیم آماده است.", 12, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
@@ -2221,17 +2359,29 @@ public class MainActivity extends Activity {
         rp.setMargins(0, dp(14), 0, 0);
         connection.addView(retry, rp);
         Button logout = primaryButton("خروج");
-        logout.setOnClickListener(v -> showLogin("برای ورود مجدد اطلاعات Atiran را وارد کنید."));
+        logout.setOnClickListener(v -> showLogin("برای ورود مجدد اطلاعات Meelano را وارد کنید."));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(50));
         lp.setMargins(0, dp(10), 0, 0);
         connection.addView(logout, lp);
         content.addView(connection, new LinearLayout.LayoutParams(-1, -2));
 
+        LinearLayout themeCard = card();
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
+        tp.setMargins(0, dp(12), 0, 0);
+        themeCard.addView(text("تم ظاهری", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        themeCard.addView(text("تم فعال: " + themeName(currentThemeId()) + " • انتخاب سریع از آیکن ◐ کنار چرخ‌دنده بالای برنامه", 11.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        Button pickTheme = primaryButton("انتخاب تم لوکس Meelano");
+        pickTheme.setOnClickListener(v -> showThemeChooser());
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, dp(50));
+        pp.setMargins(0, dp(12), 0, 0);
+        themeCard.addView(pickTheme, pp);
+        content.addView(themeCard, tp);
+
         LinearLayout about = card();
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("MEELANO Android Direct SQL v3.0.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Atiran وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.4.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -2398,7 +2548,7 @@ public class MainActivity extends Activity {
             super(context);
             this.data = data;
             this.color = color;
-            setBackground(roundedStroke(SURFACE_2, 18, alpha(Color.WHITE, 25)));
+            setBackground(roundedStroke(SURFACE_2, 18, BORDER));
         }
 
         @Override protected void onDraw(Canvas canvas) {
@@ -2408,7 +2558,7 @@ public class MainActivity extends Activity {
             int left = dp(20), right = dp(16), top = dp(18), bottom = dp(34);
             paint.setStyle(Paint.Style.STROKE);
             paint.setStrokeWidth(dp(1));
-            paint.setColor(alpha(Color.WHITE, 35));
+            paint.setColor(alpha(TEXT, 35));
             for (int i = 0; i < 4; i++) {
                 float y = top + (h - top - bottom) * i / 3f;
                 canvas.drawLine(left, y, w - right, y, paint);
@@ -2467,7 +2617,7 @@ public class MainActivity extends Activity {
             this.data = data;
             this.primary = primary;
             this.secondary = secondary;
-            setBackground(roundedStroke(SURFACE_2, 18, alpha(Color.WHITE, 25)));
+            setBackground(roundedStroke(SURFACE_2, 18, BORDER));
         }
 
         @Override protected void onDraw(Canvas canvas) {
@@ -2524,7 +2674,7 @@ public class MainActivity extends Activity {
             super(context);
             this.data = data;
             this.color = color;
-            setBackground(roundedStroke(SURFACE_2, 18, alpha(Color.WHITE, 25)));
+            setBackground(roundedStroke(SURFACE_2, 18, BORDER));
         }
 
         @Override protected void onDraw(Canvas canvas) {
