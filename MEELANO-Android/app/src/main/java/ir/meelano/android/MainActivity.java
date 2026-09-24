@@ -355,7 +355,8 @@ public class MainActivity extends Activity {
         noteLp.setMargins(0, dp(14), 0, 0);
         loginCard.addView(note, noteLp);
 
-        View.OnClickListener doLogin = v -> {
+        final View.OnClickListener[] doLogin = new View.OnClickListener[1];
+        doLogin[0] = v -> {
             String u = username.getText().toString().trim();
             String p = password.getText().toString();
             if (u.isEmpty()) { username.setError("نام کاربری الزامی است"); return; }
@@ -380,15 +381,15 @@ public class MainActivity extends Activity {
                         login.setEnabled(true);
                         login.setText("اتصال و ورود");
                         status.setText("عدم اتصال");
-                        showLoginError(readableError(ex), () -> doLogin.onClick(login));
+                        showLoginError(readableError(ex), () -> doLogin[0].onClick(login));
                     });
                 }
             });
         };
-        login.setOnClickListener(doLogin);
+        login.setOnClickListener(doLogin[0]);
         password.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_DONE) {
-                doLogin.onClick(login);
+                doLogin[0].onClick(login);
                 return true;
             }
             return false;
