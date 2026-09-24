@@ -2,7 +2,7 @@
 
 این پروژه نسخه **اندروید واقعی و قابل نصب** برای MEELANO است که برای تست شخصی با **اتصال مستقیم به SQL Server** آماده شده است.
 
-## ویژگی‌های نسخه 3.0.0-direct-sql
+## ویژگی‌های نسخه 3.0.1-direct-sql
 
 - اپلیکیشن نصب‌شدنی Android با UI کاملاً Native
 - بدون PWA، بدون HTML و بدون مرورگر داخلی
@@ -45,5 +45,5 @@ app/build/outputs/apk/release/app-release.apk
 نام فایل تحویلی این نسخه:
 
 ```text
-MEELANO-Android-DirectSQL-v3.0.0.apk
+MEELANO-Android-DirectSQL-v3.0.1.apk
 ```

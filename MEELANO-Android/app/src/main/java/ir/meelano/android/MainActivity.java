@@ -38,7 +38,8 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
-import java.sql.Statement;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -575,39 +576,87 @@ public class MainActivity extends Activity {
     }
 
     private UserSession authenticate(String atiranUser, String atiranPassword) throws Exception {
+        String user = cleanText(atiranUser);
+        String pass = atiranPassword == null ? "" : atiranPassword;
         try (Connection c = openConnection()) {
             String visitorSql = "SELECT TOP (1) v.vis_rdf, v.vis_name, v.UserID FROM dbo.visitors AS v " +
-                    "WHERE v.Username=? AND v.Password=? AND (v.active='1' OR v.active='Y' OR v.active='y') ORDER BY v.vis_rdf";
+                    "WHERE LTRIM(RTRIM(CONVERT(nvarchar(100),v.Username)))=? " +
+                    "AND (CONVERT(nvarchar(200),v.Password)=? OR LTRIM(RTRIM(CONVERT(nvarchar(200),v.Password)))=?) " +
+                    "AND (v.active='1' OR v.active='Y' OR v.active='y') ORDER BY v.vis_rdf";
             try (PreparedStatement ps = c.prepareStatement(visitorSql)) {
-                ps.setString(1, atiranUser);
-                ps.setString(2, atiranPassword);
+                ps.setString(1, user);
+                ps.setString(2, pass);
+                ps.setString(3, pass.trim());
                 try (ResultSet r = ps.executeQuery()) {
                     if (r.next()) {
                         Integer uid = r.getObject(3) == null ? null : r.getInt(3);
-                        return new UserSession(uid, r.getInt(1), stringOr(r.getString(2), atiranUser));
+                        return new UserSession(uid, r.getInt(1), stringOr(r.getString(2), user));
                     }
                 }
             }
 
-            String userSql = "SELECT TOP (1) u.user_id, u.user_name, sv.shvis FROM dbo.sys_users AS u " +
+            // Users created in Atiran's user-management screen are stored in sys_users.
+            // user_password may be VARBINARY encoded as ANSI bytes, Unicode bytes, or a text value.
+            // We fetch candidate rows by user name and compare the password locally in several
+            // compatible encodings instead of relying on one CONVERT(varchar, varbinary) shape.
+            String userSql = "SELECT TOP (5) u.user_id, u.user_name, u.user_password, sv.shvis FROM dbo.sys_users AS u " +
                     "LEFT JOIN dbo.sys_vis AS sv ON sv.UserID=u.user_id " +
-                    "LEFT JOIN dbo.visitors AS v ON v.vis_rdf=sv.shvis " +
-                    "WHERE u.user_name=? AND CONVERT(varchar(100),u.user_password)=? " +
-                    "AND ISNULL(u.active,1)=1 AND ISNULL(u.IsLocked,0)=0 " +
-                    "AND (v.active IS NULL OR v.active IN ('1','Y','y')) " +
-                    "ORDER BY CASE WHEN sv.shvis IS NULL THEN 1 ELSE 0 END, sv.SysID";
+                    "WHERE LOWER(LTRIM(RTRIM(CONVERT(nvarchar(100),u.user_name))))=LOWER(LTRIM(RTRIM(?))) " +
+                    "ORDER BY CASE WHEN sv.shvis IS NULL THEN 1 ELSE 0 END";
+            boolean foundUser = false;
             try (PreparedStatement ps = c.prepareStatement(userSql)) {
-                ps.setString(1, atiranUser);
-                ps.setString(2, atiranPassword);
+                ps.setString(1, user);
                 try (ResultSet r = ps.executeQuery()) {
-                    if (r.next()) {
-                        Integer visitor = r.getObject(3) == null ? null : r.getInt(3);
-                        return new UserSession(r.getInt(1), visitor, stringOr(r.getString(2), atiranUser));
+                    while (r.next()) {
+                        foundUser = true;
+                        byte[] rawPassword = r.getBytes(3);
+                        String textPassword = r.getString(3);
+                        if (passwordMatches(rawPassword, textPassword, pass)) {
+                            Integer visitor = r.getObject(4) == null ? null : r.getInt(4);
+                            return new UserSession(r.getInt(1), visitor, stringOr(r.getString(2), user));
+                        }
                     }
                 }
             }
+            if (foundUser) throw new DbException("رمز عبور Atiran برای این کاربر تطبیق پیدا نکرد.");
         }
         throw new DbException("نام کاربری یا رمز عبور Atiran معتبر نیست.");
+    }
+
+    private boolean passwordMatches(byte[] rawPassword, String textPassword, String enteredPassword) {
+        String entered = normalizePassword(enteredPassword);
+        if (entered.isEmpty() && (enteredPassword == null || enteredPassword.isEmpty())) return false;
+        if (textPassword != null && normalizePassword(textPassword).equals(entered)) return true;
+        if (rawPassword == null) return false;
+
+        if (bytesEqual(rawPassword, enteredPassword.getBytes(StandardCharsets.UTF_8))) return true;
+        if (bytesEqual(rawPassword, enteredPassword.getBytes(StandardCharsets.UTF_16LE))) return true;
+        if (bytesEqual(rawPassword, enteredPassword.getBytes(StandardCharsets.ISO_8859_1))) return true;
+        try {
+            if (bytesEqual(rawPassword, enteredPassword.getBytes(Charset.forName("windows-1256")))) return true;
+        } catch (Exception ignored) { }
+
+        if (normalizePassword(new String(rawPassword, StandardCharsets.UTF_8)).equals(entered)) return true;
+        if (normalizePassword(new String(rawPassword, StandardCharsets.UTF_16LE)).equals(entered)) return true;
+        if (normalizePassword(new String(rawPassword, StandardCharsets.ISO_8859_1)).equals(entered)) return true;
+        try {
+            if (normalizePassword(new String(rawPassword, Charset.forName("windows-1256"))).equals(entered)) return true;
+        } catch (Exception ignored) { }
+        return false;
+    }
+
+    private boolean bytesEqual(byte[] a, byte[] b) {
+        if (a == null || b == null || a.length != b.length) return false;
+        for (int i = 0; i < a.length; i++) if (a[i] != b[i]) return false;
+        return true;
+    }
+
+    private String normalizePassword(String value) {
+        return value == null ? "" : value.replace("\u0000", "").trim();
+    }
+
+    private String cleanText(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private void loadDashboard() {
