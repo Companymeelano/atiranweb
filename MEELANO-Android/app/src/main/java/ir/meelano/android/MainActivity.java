@@ -93,6 +93,7 @@ public class MainActivity extends Activity {
     private FrameLayout stage;
     private TextView status;
     private TextView subtitle;
+    private TextView connectionIndicator;
     private LinearLayout content;
     private LinearLayout navStrip;
     private String activePage = "login";
@@ -276,32 +277,39 @@ public class MainActivity extends Activity {
 
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
-        titles.setPadding(dp(10), 0, dp(10), 0);
+        titles.setPadding(dp(10), 0, dp(8), 0);
         TextView appTitle = text("Meelano Android", 16, TEXT, Typeface.BOLD);
-        status = text("اتصال مستقیم به سرور", 10.5f, MUTED, Typeface.NORMAL);
-        subtitle = text("ورود با حساب Meelano", 9.5f, alpha(TEXT, 155), Typeface.NORMAL);
+        subtitle = text("ورود با حساب Meelano", 10, alpha(TEXT, 175), Typeface.NORMAL);
+        status = text("", 1, Color.TRANSPARENT, Typeface.NORMAL);
         titles.addView(appTitle, new LinearLayout.LayoutParams(-1, 0, 1f));
-        titles.addView(status, new LinearLayout.LayoutParams(-1, 0, 1f));
         titles.addView(subtitle, new LinearLayout.LayoutParams(-1, 0, 1f));
-        header.addView(titles, new LinearLayout.LayoutParams(0, dp(50), 1f));
+        header.addView(titles, new LinearLayout.LayoutParams(0, dp(48), 1f));
 
         TextView refresh = iconButton("↻", "تلاش مجدد");
         refresh.setOnClickListener(v -> refreshActivePage());
-        header.addView(refresh, new LinearLayout.LayoutParams(dp(43), dp(43)));
+        header.addView(refresh, headerButtonLp(false));
+
+        connectionIndicator = iconButton("◌", "وضعیت اتصال");
+        connectionIndicator.setOnClickListener(v -> refreshActivePage());
+        header.addView(connectionIndicator, headerButtonLp(true));
 
         TextView theme = iconButton("◐", "انتخاب تم");
         theme.setOnClickListener(v -> showThemeChooser());
-        LinearLayout.LayoutParams themeLp = new LinearLayout.LayoutParams(dp(43), dp(43));
-        themeLp.setMargins(dp(6), 0, 0, 0);
-        header.addView(theme, themeLp);
+        header.addView(theme, headerButtonLp(true));
 
         TextView settings = iconButton("⚙", "تنظیمات");
         settings.setOnClickListener(v -> {
             if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings");
         });
-        LinearLayout.LayoutParams settingLp = new LinearLayout.LayoutParams(dp(43), dp(43));
-        settingLp.setMargins(dp(6), 0, 0, 0);
-        header.addView(settings, settingLp);
+        header.addView(settings, headerButtonLp(true));
+
+        TextView logout = iconButton("⎋", "خروج از حساب");
+        logout.setOnClickListener(v -> {
+            if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید.");
+            else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید.");
+        });
+        header.addView(logout, headerButtonLp(true));
+        setConnectionStatus(session == null ? "idle" : "connected");
 
         root.addView(header, new LinearLayout.LayoutParams(-1, dp(66)));
 
@@ -309,6 +317,29 @@ public class MainActivity extends Activity {
         stage.setBackgroundColor(NAVY);
         root.addView(stage, new LinearLayout.LayoutParams(-1, 0, 1f));
         setContentView(root);
+    }
+
+    private LinearLayout.LayoutParams headerButtonLp(boolean margin) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(40), dp(40));
+        if (margin) lp.setMargins(dp(5), 0, 0, 0);
+        return lp;
+    }
+
+    private void setConnectionStatus(String state) {
+        if (connectionIndicator == null) return;
+        String st = state == null ? "idle" : state;
+        int color = INFO;
+        String glyph = "◌";
+        String desc = "آماده اتصال";
+        if (st.contains("loading")) { color = GOLD_2; glyph = "⟳"; desc = "در حال ارتباط با سرور"; }
+        else if (st.contains("connected")) { color = SUCCESS; glyph = "●"; desc = "اتصال فعال"; }
+        else if (st.contains("offline")) { color = DANGER; glyph = "!"; desc = "عدم اتصال"; }
+        connectionIndicator.setText(glyph);
+        connectionIndicator.setTextColor(color);
+        connectionIndicator.setContentDescription(desc);
+        connectionIndicator.setBackground(gradient(new int[]{alpha(color, 82), alpha(GOLD, 22)}, GradientDrawable.Orientation.TL_BR, 14));
+        if (st.contains("loading")) connectionIndicator.animate().rotationBy(360f).setDuration(850).start();
+        else connectionIndicator.animate().rotation(0f).setDuration(120).start();
     }
 
     private TextView iconButton(String glyph, String description) {
@@ -445,7 +476,7 @@ public class MainActivity extends Activity {
     private void showLogin(String message) {
         activePage = "login";
         session = null;
-        status.setText("اتصال مستقیم به سرور");
+        setConnectionStatus("idle");
         subtitle.setText("ورود با حساب Meelano");
         stage.removeAllViews();
 
@@ -542,7 +573,7 @@ public class MainActivity extends Activity {
             if (p.isEmpty()) { password.setError("رمز عبور الزامی است"); return; }
             login.setEnabled(false);
             login.setText("در حال اتصال…");
-            status.setText("در حال اتصال به سرور…");
+            setConnectionStatus("loading");
             executor.execute(() -> {
                 try {
                     UserSession s = authenticate(u, p);
@@ -551,7 +582,7 @@ public class MainActivity extends Activity {
                         prefs.edit().putString(KEY_LAST_USER, u).apply();
                         login.setEnabled(true);
                         login.setText("اتصال و ورود");
-                        status.setText("اتصال برقرار شد");
+                        setConnectionStatus("connected");
                         Toast.makeText(this, "اتصال موفق بود", Toast.LENGTH_SHORT).show();
                         showApp("dashboard");
                     });
@@ -559,7 +590,7 @@ public class MainActivity extends Activity {
                     runOnUiThread(() -> {
                         login.setEnabled(true);
                         login.setText("اتصال و ورود");
-                        status.setText("عدم اتصال");
+                        setConnectionStatus("offline");
                         showLoginError(readableError(ex), () -> doLogin[0].onClick(login));
                     });
                 }
@@ -593,7 +624,7 @@ public class MainActivity extends Activity {
             return;
         }
         activePage = page;
-        status.setText("اتصال مستقیم فعال");
+        setConnectionStatus("connected");
         subtitle.setText(session.userName);
         stage.removeAllViews();
 
@@ -674,12 +705,11 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView img = new ImageView(this);
-        img.setImageResource(ir.meelano.android.R.drawable.meelano_3d);
-        img.setColorFilter(GOLD_2);
-        img.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        img.setPadding(dp(6), dp(6), dp(6), dp(6));
-        img.setBackground(gradient(new int[]{alpha(GOLD, 68), alpha(INFO, 34)}, GradientDrawable.Orientation.TL_BR, 18));
+        TextView img = text("M", 26, ON_PRIMARY, Typeface.BOLD);
+        img.setGravity(Gravity.CENTER);
+        img.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        img.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, 90));
+        img.setBackground(gradient(new int[]{GOLD_2, GOLD, alpha(INFO, 170)}, GradientDrawable.Orientation.TL_BR, 18));
         row.addView(img, new LinearLayout.LayoutParams(dp(58), dp(58)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
@@ -730,17 +760,17 @@ public class MainActivity extends Activity {
     private interface DbCallback { void ok(String body); void fail(Exception e); }
 
     private void runDb(DbJob job, DbCallback callback) {
-        status.setText("در حال ارتباط با سرور…");
+        setConnectionStatus("loading");
         executor.execute(() -> {
             try {
                 String body = job.run();
                 runOnUiThread(() -> {
-                    status.setText("اتصال مستقیم فعال");
+                    setConnectionStatus("connected");
                     callback.ok(body);
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    status.setText("عدم اتصال");
+                    setConnectionStatus("offline");
                     callback.fail(e);
                 });
             }
@@ -892,8 +922,8 @@ public class MainActivity extends Activity {
         if (today == null) return;
         addDailyFinanceDashboardBlock("sales", "فروش روز", "انتخاب تاریخ، مشاهده منحنی و ورود به فاکتورها/دریافتی‌ها", ir.meelano.android.R.drawable.icon_sales, today.optJSONObject("sales"), GOLD);
         addDailyFinanceDashboardBlock("purchase", "خرید روز", "انتخاب تاریخ، مشاهده منحنی و ورود به اسناد/پرداختی‌ها", ir.meelano.android.R.drawable.icon_products, today.optJSONObject("purchases"), INFO);
-        addCheckDashboardSection("چک‌های دریافتی", "تفکیک صندوق، بانک، خرج‌شده، استرداد و سایر وضعیت‌ها", true, today.optJSONObject("getChecks"), SUCCESS);
-        addCheckDashboardSection("چک‌های پرداختی", "تفکیک پاس‌شده، در راه و سایر وضعیت‌های پرداخت", false, today.optJSONObject("putChecks"), WARNING);
+        addCheckDashboardSection("چک‌های دریافتی", "تفکیک صندوق، بانک، خرج‌شده، استرداد و سایر دسته‌ها", true, today.optJSONObject("getChecks"), SUCCESS);
+        addCheckDashboardSection("چک‌های پرداختی", "تفکیک پاس‌شده، در راه، سفید/استفاده‌نشده و سایر دسته‌ها", false, today.optJSONObject("putChecks"), WARNING);
         addDashboardBankTable(today.optJSONArray("banks"));
         addDashboardInsightTable(today);
     }
@@ -1013,7 +1043,7 @@ public class MainActivity extends Activity {
             for (int i = 0; i < Math.min(rows.length(), 7); i++) {
                 JSONObject r = rows.optJSONObject(i);
                 String status = r.optString("status", "");
-                String label = r.optString("label", "وضعیت");
+                String label = r.optString("label", "دسته چک");
                 LinearLayout line = checkDashboardRow(label, r.opt("amount"), r.opt("count"), accent);
                 line.setOnClickListener(v -> showCheckList(incoming, status, label));
                 c.addView(line, compactRowLp());
@@ -1157,16 +1187,20 @@ public class MainActivity extends Activity {
     }
 
     private LinearLayout bankIconRow(int index, JSONObject b, int accent) {
+        String bankName = b == null ? "بانک" : b.optString("label", "بانک");
+        int brand = bankBrandColor(bankName, accent);
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(9), dp(8), dp(9), dp(8));
-        row.setBackground(roundedStroke(alpha(accent, 18), 16, alpha(accent, 76)));
-        row.setContentDescription(b == null ? "بانک" : b.optString("label", "بانک"));
-        TextView icon = text("🏦", 23, TEXT, Typeface.BOLD);
+        row.setBackground(roundedStroke(alpha(brand, 18), 16, alpha(brand, 82)));
+        row.setContentDescription(bankName);
+        TextView icon = text(bankIconText(bankName), 12.5f, Color.WHITE, Typeface.BOLD);
         icon.setGravity(Gravity.CENTER);
-        icon.setBackground(gradient(new int[]{alpha(accent, 120), alpha(GOLD_2, 80)}, GradientDrawable.Orientation.TL_BR, 18));
-        row.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        icon.setMaxLines(2);
+        icon.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, 120));
+        icon.setBackground(gradient(new int[]{alpha(brand, 235), alpha(GOLD_2, 125)}, GradientDrawable.Orientation.TL_BR, 18));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(54), dp(54)));
         LinearLayout values = new LinearLayout(this);
         values.setOrientation(LinearLayout.VERTICAL);
         values.setPadding(dp(9), 0, dp(9), 0);
@@ -1175,6 +1209,45 @@ public class MainActivity extends Activity {
         values.addView(bankValueLine("خروجی", money(b == null ? 0 : b.opt("outflow")), WARNING), new LinearLayout.LayoutParams(-1, -2));
         row.addView(values, new LinearLayout.LayoutParams(0, -2, 1f));
         return row;
+    }
+
+    private String bankIconText(String bankName) {
+        String n = bankName == null ? "" : bankName.replace("بانک", "").trim();
+        if (n.contains("ملی")) return "ملی";
+        if (n.contains("ملت")) return "ملت";
+        if (n.contains("صادرات")) return "صاد";
+        if (n.contains("تجارت")) return "تج";
+        if (n.contains("سپه")) return "سپه";
+        if (n.contains("پاسارگاد")) return "پاس";
+        if (n.contains("پارسیان")) return "پار";
+        if (n.contains("سامان")) return "سام";
+        if (n.contains("شهر")) return "شهر";
+        if (n.contains("رفاه")) return "رفاه";
+        if (n.contains("کشاورزی")) return "کش";
+        if (n.contains("مسکن")) return "مسکن";
+        if (n.contains("اقتصاد")) return "اقتصاد";
+        if (n.contains("رسالت")) return "رسالت";
+        if (n.contains("آینده") || n.contains("اينده")) return "آینده";
+        if (n.contains("دی")) return "دی";
+        if (n.length() <= 4 && !n.isEmpty()) return n;
+        return n.isEmpty() ? "بانک" : n.substring(0, Math.min(3, n.length()));
+    }
+
+    private int bankBrandColor(String bankName, int fallback) {
+        String n = bankName == null ? "" : bankName;
+        if (n.contains("ملی")) return Color.rgb(210, 36, 48);
+        if (n.contains("ملت")) return Color.rgb(196, 32, 45);
+        if (n.contains("صادرات")) return Color.rgb(42, 79, 170);
+        if (n.contains("تجارت")) return Color.rgb(38, 99, 183);
+        if (n.contains("سپه")) return Color.rgb(28, 111, 78);
+        if (n.contains("پاسارگاد")) return Color.rgb(193, 143, 48);
+        if (n.contains("پارسیان")) return Color.rgb(199, 132, 35);
+        if (n.contains("سامان")) return Color.rgb(0, 130, 198);
+        if (n.contains("شهر")) return Color.rgb(118, 64, 170);
+        if (n.contains("رفاه")) return Color.rgb(31, 154, 92);
+        if (n.contains("کشاورزی")) return Color.rgb(33, 144, 74);
+        if (n.contains("مسکن")) return Color.rgb(236, 104, 38);
+        return fallback;
     }
 
     private LinearLayout bankValueLine(String label, String value, int accent) {
@@ -1386,13 +1459,13 @@ public class MainActivity extends Activity {
         addHero(incoming ? "جزئیات چک‌های دریافتی" : "جزئیات چک‌های پرداختی", label == null ? "" : label);
         Button back = secondaryButton("بازگشت به داشبورد"); back.setOnClickListener(v -> showApp("dashboard"));
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(12)); content.addView(back, bp);
-        if (rows == null || rows.length() == 0) { addEmptyTo(content, "چکی برای این وضعیت پیدا نشد."); return; }
+        if (rows == null || rows.length() == 0) { addEmptyTo(content, "چکی برای این دسته پیدا نشد."); return; }
         for (int i = 0; i < rows.length(); i++) {
             JSONObject r = rows.optJSONObject(i);
             LinearLayout item = card(); item.setBackground(roundedStroke(SURFACE, 18, alpha(incoming ? SUCCESS : WARNING, 70)));
             item.addView(text("شماره چک: " + r.optString("number", "—") + "   |   " + r.optString("date", "—"), 13, incoming ? SUCCESS : WARNING, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
             item.addView(text("طرف حساب: " + r.optString("party", "—") + "   |   بانک: " + r.optString("bank", "—"), 11.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-            item.addView(text("مبلغ: " + money(r.opt("amount")) + "   |   وضعیت: " + r.optString("statusLabel", "—"), 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+            item.addView(text("مبلغ: " + money(r.opt("amount")) + "   |   دسته چک: " + r.optString("statusLabel", "—"), 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
             if (!r.optString("description", "").isEmpty()) item.addView(text("توضیحات: " + r.optString("description"), 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(10)); content.addView(item, lp);
         }
@@ -1412,14 +1485,17 @@ public class MainActivity extends Activity {
             String shmo = resolve(cols, "shmo", "SHMO");
             String desc = resolve(cols, "description", "Explain", "tozihat");
             String raw = status == null ? "CAST(NULL AS nvarchar(50))" : "TRY_CONVERT(nvarchar(50),x.[" + status + "])";
-            String statusExpr = status == null ? "N'نامشخص'" : (hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? "COALESCE(TRY_CONVERT(nvarchar(120),t.Desciption),N'وضعیت '+" + raw + ")" : "N'وضعیت '+" + raw);
+            String statusExpr = status == null ? "N'نامشخص'" : (hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? "COALESCE(TRY_CONVERT(nvarchar(120),t.Desciption),N'دسته '+" + raw + ")" : "N'دسته '+" + raw);
             String join = status != null && hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? " LEFT JOIN dbo.CheckTypes t ON TRY_CONVERT(nvarchar(50),t.ID)=" + raw : "";
             String bankExpr = "N'—'";
             if (bankRef != null && hasCol(bankCols, "RDF") && hasCol(bankCols, "BANKNAME")) { join += " LEFT JOIN dbo.BANK b ON TRY_CONVERT(nvarchar(100),b.RDF)=TRY_CONVERT(nvarchar(100),x.[" + bankRef + "])"; bankExpr = "COALESCE(TRY_CONVERT(nvarchar(200),b.BANKNAME),N'—')"; }
             String partyExpr = "N'—'";
             if (shmo != null && hasCol(cust, "SHMO") && hasCol(cust, "MONAME")) { join += " LEFT JOIN dbo.CUSTOMERS c ON TRY_CONVERT(nvarchar(100),c.SHMO)=TRY_CONVERT(nvarchar(100),x.[" + shmo + "])"; partyExpr = "COALESCE(TRY_CONVERT(nvarchar(250),c.MONAME),TRY_CONVERT(nvarchar(100),x.[" + shmo + "]),N'—')"; }
             String where = ""; List<Object> params = new ArrayList<>();
-            if (status != null && statusValue != null && !statusValue.trim().isEmpty()) { where = " WHERE " + raw + "=?"; params.add(statusValue.trim()); }
+            if (status != null && statusValue != null && !statusValue.trim().isEmpty()) {
+                if ("__blank__".equals(statusValue.trim())) where = " WHERE (" + raw + " IN (N'4',N'سفید',N'blank',N'unused')" + (hasCol(typeCols, "Desciption") ? " OR TRY_CONVERT(nvarchar(120),t.Desciption) LIKE N'%سفید%' OR TRY_CONVERT(nvarchar(120),t.Desciption) LIKE N'%استفاده%'" : "") + ")";
+                else { where = " WHERE " + raw + "=?"; params.add(statusValue.trim()); }
+            }
             String sql = "SELECT TOP (200) " + (date == null ? "CAST(NULL AS nvarchar(30))" : "TRY_CONVERT(nvarchar(30),x.[" + date + "])") + ", " + (number == null ? "CAST(NULL AS nvarchar(80))" : "TRY_CONVERT(nvarchar(80),x.[" + number + "])") + ", TRY_CONVERT(decimal(19,2),x.[" + amount + "]), " + raw + ", " + statusExpr + ", " + bankExpr + ", " + partyExpr + ", " + (desc == null ? "CAST(NULL AS nvarchar(500))" : "TRY_CONVERT(nvarchar(500),x.[" + desc + "])") + " FROM dbo.[" + table + "] x" + join + where + " ORDER BY 1 DESC";
             try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("date", stringOr(r.getString(1), "—")); o.put("number", stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("status", stringOr(r.getString(4), "")); o.put("statusLabel", friendlyCheckStatus(incoming, r.getString(4), r.getString(5))); o.put("bank", stringOr(r.getString(6), "—")); o.put("party", stringOr(r.getString(7), "—")); o.put("description", stringOr(r.getString(8), "")); arr.put(o); } } }
         }
@@ -1503,7 +1579,7 @@ public class MainActivity extends Activity {
             if (statusCol != null) {
                 Set<String> typeCols = columns(c, "CheckTypes");
                 String raw = "TRY_CONVERT(nvarchar(50),x.[" + statusCol + "])";
-                String label = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? "COALESCE(TRY_CONVERT(nvarchar(120),t.Desciption),N'وضعیت '+" + raw + ")" : "N'وضعیت '+" + raw;
+                String label = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? "COALESCE(TRY_CONVERT(nvarchar(120),t.Desciption),N'دسته '+" + raw + ")" : "N'دسته '+" + raw;
                 String join = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? " LEFT JOIN dbo.CheckTypes t ON TRY_CONVERT(nvarchar(50),t.ID)=" + raw : "";
                 String sql = "SELECT TOP (8) " + raw + ", " + label + ", COUNT_BIG(1), ISNULL(SUM(TRY_CONVERT(decimal(19,2),x.[" + amount + "])),0) FROM dbo.[" + table + "] x" + join + " GROUP BY " + raw + ", " + label + " ORDER BY 4 DESC";
                 try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
@@ -1523,6 +1599,7 @@ public class MainActivity extends Activity {
                 JSONObject o = new JSONObject(); o.put("status", ""); o.put("label", incoming ? "همه چک‌های دریافتی" : "همه چک‌های پرداختی"); o.put("count", count); o.put("amount", total); o.put("value", total); breakdown.put(o); chart.put(o);
             }
         }
+        if (!incoming) ensureBlankCheckCategory(breakdown, chart);
         addMetric(metrics, "تعداد چک", formatNumber(count));
         addMetric(metrics, "جمع مبلغ", money(total));
         addMetric(metrics, incoming ? "نوع" : "نوع", incoming ? "دریافتی" : "پرداختی");
@@ -1540,12 +1617,30 @@ public class MainActivity extends Activity {
             if (l.contains("وصول") || l.contains("پاس") || s.equals("1")) return "وصول / پاس‌شده";
             return stringOr(label, translateStatus(s));
         } else {
+            if (l.contains("سفید") || l.contains("استفاده") || l.contains("blank") || l.contains("unused") || s.equals("4")) return "سفید / استفاده‌نشده";
             if (l.contains("پاس") || l.contains("وصول") || s.equals("1")) return "پاس‌شده";
             if (l.contains("راه") || l.contains("جاری") || l.contains("ثبت") || s.equals("0")) return "در راه / جاری";
             if (l.contains("برگشت") || l.contains("رد") || s.equals("2")) return "برگشتی / رد شده";
             if (l.contains("خرج") || l.contains("انتقال") || s.equals("3")) return "انتقال‌یافته";
             return stringOr(label, translateStatus(s));
         }
+    }
+
+    private void ensureBlankCheckCategory(JSONArray breakdown, JSONArray chart) throws Exception {
+        if (breakdown == null) return;
+        for (int i = 0; i < breakdown.length(); i++) {
+            JSONObject o = breakdown.optJSONObject(i);
+            String l = o == null ? "" : o.optString("label", "");
+            if (l.contains("سفید") || l.contains("استفاده‌نشده")) return;
+        }
+        JSONObject blank = new JSONObject();
+        blank.put("status", "__blank__");
+        blank.put("label", "سفید / استفاده‌نشده");
+        blank.put("count", 0);
+        blank.put("amount", 0);
+        blank.put("value", 0);
+        breakdown.put(blank);
+        if (chart != null) chart.put(blank);
     }
 
     private JSONArray queryTopDebtors(Connection c) throws Exception {
@@ -1811,41 +1906,75 @@ public class MainActivity extends Activity {
         if (r == null) return;
         double balance = r.optDouble("مانده", 0);
         int accent = balance > 0 ? DANGER : (balance < 0 ? SUCCESS : INFO);
-        String status = balance > 0 ? "بدهکار" : (balance < 0 ? "بستانکار" : "تسویه");
+        String statusText = balance > 0 ? "بدهکار" : (balance < 0 ? "بستانکار" : "تسویه");
         LinearLayout c = card();
         c.setClickable(true);
-        c.setBackground(gradient(new int[]{alpha(accent, 36), SURFACE}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.setBackground(gradient(new int[]{alpha(accent, 44), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
         c.setOnClickListener(v -> showCustomerDetail(r, "all"));
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        TextView avatar = text(initials(r.optString("نام", "م")), 18, TEXT, Typeface.BOLD);
+        TextView avatar = text(initials(r.optString("نام", "م")), 17, Color.WHITE, Typeface.BOLD);
         avatar.setGravity(Gravity.CENTER);
-        avatar.setBackground(gradient(new int[]{alpha(accent, 160), alpha(GOLD, 80)}, GradientDrawable.Orientation.TL_BR, 18));
-        head.addView(avatar, new LinearLayout.LayoutParams(dp(54), dp(54)));
+        avatar.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, 100));
+        avatar.setBackground(gradient(new int[]{alpha(accent, 210), alpha(GOLD_2, 110)}, GradientDrawable.Orientation.TL_BR, 18));
+        head.addView(avatar, new LinearLayout.LayoutParams(dp(52), dp(52)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(10), 0, dp(10), 0);
         String name = r.optString("نام", "بدون نام");
-        copy.addView(text(name, 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        copy.addView(text("کد: " + r.optString("کد", "-") + "   |   " + status, 11.5f, accent, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(name, 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text("کد " + r.optString("کد", "-") + " • " + r.optString("همراه", "-"), 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView chip = text(statusText, 10.5f, TEXT, Typeface.BOLD);
+        chip.setGravity(Gravity.CENTER);
+        chip.setPadding(dp(10), dp(5), dp(10), dp(5));
+        chip.setBackground(roundedStroke(alpha(accent, 70), 999, alpha(accent, 130)));
+        head.addView(chip, new LinearLayout.LayoutParams(-2, -2));
         c.addView(head, new LinearLayout.LayoutParams(-1, -2));
-        c.addView(text("همراه: " + r.optString("همراه", "-") + "   |   تلفن: " + r.optString("تلفن", "-"), 11.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout metrics = new LinearLayout(this);
-        metrics.setOrientation(LinearLayout.HORIZONTAL);
-        metrics.addView(metric("مانده", money(r.opt("مانده"))), new LinearLayout.LayoutParams(0, -2, 1f));
-        metrics.addView(metric("فروش", money(r.opt("جمع_فروش"))), new LinearLayout.LayoutParams(0, -2, 1f));
-        metrics.addView(metric("فاکتور", formatNumber(r.opt("تعداد_فاکتور"))), new LinearLayout.LayoutParams(0, -2, 1f));
-        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.setMargins(0, dp(10), 0, 0); c.addView(metrics, mp);
-        c.addView(text("چک‌ها: " + money(r.opt("جمع_چک")) + "   |   اعتبار: " + money(r.opt("اعتبار")), 11, INFO, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
-        TextView address = text("نشانی: " + r.optString("نشانی", "-"), 11, alpha(TEXT, 190), Typeface.NORMAL);
+
+        LinearLayout row1 = new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL);
+        row1.addView(customerMiniMetric("مانده", money(r.opt("مانده")), accent), weightedMiniLp());
+        row1.addView(customerMiniMetric("فروش", money(r.opt("جمع_فروش")), GOLD), weightedMiniLp());
+        row1.addView(customerMiniMetric("فاکتور", formatNumber(r.opt("تعداد_فاکتور")), INFO), weightedMiniLp());
+        LinearLayout.LayoutParams r1p = new LinearLayout.LayoutParams(-1, -2); r1p.setMargins(0, dp(10), 0, 0); c.addView(row1, r1p);
+
+        LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
+        row2.addView(customerMiniMetric("چک", money(r.opt("جمع_چک")), WARNING), weightedMiniLp());
+        row2.addView(customerMiniMetric("اعتبار", money(r.opt("اعتبار")), SUCCESS), weightedMiniLp());
+        row2.addView(customerMiniMetric("تلفن", r.optString("تلفن", "-"), INFO), weightedMiniLp());
+        LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(7), 0, 0); c.addView(row2, r2p);
+
+        TextView address = text("نشانی: " + r.optString("نشانی", "-"), 10.5f, alpha(TEXT, 190), Typeface.NORMAL);
         address.setMaxLines(2);
-        c.addView(address, new LinearLayout.LayoutParams(-1, -2));
-        c.addView(text("برای مشاهده گردش کامل حساب لمس کنید", 10.5f, accent, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); c.addView(address, ap);
+        TextView action = text("مشاهده گردش حساب ←", 10.5f, accent, Typeface.BOLD);
+        action.setGravity(Gravity.CENTER);
+        action.setPadding(dp(8), dp(7), dp(8), dp(7));
+        action.setBackground(roundedStroke(alpha(accent, 24), 999, alpha(accent, 70)));
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(-1, -2); alp.setMargins(0, dp(8), 0, 0); c.addView(action, alp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, 0, 0, dp(10));
         parent.addView(c, lp);
+    }
+
+    private LinearLayout.LayoutParams weightedMiniLp() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+        lp.setMargins(dp(3), 0, dp(3), 0);
+        return lp;
+    }
+
+    private LinearLayout customerMiniMetric(String label, String value, int accent) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER);
+        box.setPadding(dp(5), dp(7), dp(5), dp(7));
+        box.setBackground(roundedStroke(alpha(accent, 18), 14, alpha(accent, 62)));
+        TextView l = text(label, 9.2f, MUTED, Typeface.BOLD); l.setGravity(Gravity.CENTER);
+        TextView v = text(value, 10.3f, TEXT, Typeface.BOLD); v.setGravity(Gravity.CENTER); v.setSingleLine(false); v.setMaxLines(2);
+        box.addView(l, new LinearLayout.LayoutParams(-1, -2));
+        box.addView(v, new LinearLayout.LayoutParams(-1, -2));
+        return box;
     }
 
     private void showCustomerDialog(JSONObject r) {
@@ -2630,7 +2759,7 @@ public class MainActivity extends Activity {
         Set<String> typeCols = columns(c, "CheckTypes");
         if (hasCol(getCols, "chk_satus") && hasCol(getCols, "getchkmab")) {
             String typeJoin = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? " LEFT JOIN dbo.CheckTypes t ON t.ID=g.chk_satus " : "";
-            String label = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? "N'دریافتی • ' + COALESCE(TRY_CONVERT(nvarchar(100),t.Desciption),N'وضعیت '+CONVERT(nvarchar(20),g.chk_satus))" : "N'دریافتی • وضعیت ' + CONVERT(nvarchar(20),g.chk_satus)";
+            String label = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? "N'دریافتی • ' + COALESCE(TRY_CONVERT(nvarchar(100),t.Desciption),N'دسته '+CONVERT(nvarchar(20),g.chk_satus))" : "N'دریافتی • دسته ' + CONVERT(nvarchar(20),g.chk_satus)";
             String where = ""; List<Object> params = new ArrayList<>();
             if (session != null && session.visitorId != null && hasCol(getCols, "vis_rdf")) { where = " WHERE TRY_CONVERT(int,g.vis_rdf)=?"; params.add(session.visitorId); }
             String sql = "SELECT " + label + ", COUNT_BIG(1), ISNULL(SUM(TRY_CONVERT(decimal(19,2),g.[getchkmab])),0) FROM dbo.getchk g " + typeJoin + where + " GROUP BY " + label;
@@ -2638,7 +2767,7 @@ public class MainActivity extends Activity {
         }
         if (hasCol(putCols, "putchk_status") && hasCol(putCols, "putchkmab")) {
             String typeJoin = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? " LEFT JOIN dbo.CheckTypes t ON t.ID=p.putchk_status " : "";
-            String label = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? "N'پرداختی • ' + COALESCE(TRY_CONVERT(nvarchar(100),t.Desciption),N'وضعیت '+CONVERT(nvarchar(20),p.putchk_status))" : "N'پرداختی • وضعیت ' + CONVERT(nvarchar(20),p.putchk_status)";
+            String label = hasCol(typeCols, "ID") && hasCol(typeCols, "Desciption") ? "N'پرداختی • ' + COALESCE(TRY_CONVERT(nvarchar(100),t.Desciption),N'دسته '+CONVERT(nvarchar(20),p.putchk_status))" : "N'پرداختی • دسته ' + CONVERT(nvarchar(20),p.putchk_status)";
             String sql = "SELECT " + label + ", COUNT_BIG(1), ISNULL(SUM(TRY_CONVERT(decimal(19,2),p.[putchkmab])),0) FROM dbo.putchk p " + typeJoin + " GROUP BY " + label;
             appendCheckPoints(out, c, sql, new ArrayList<>());
         }
@@ -2801,7 +2930,7 @@ public class MainActivity extends Activity {
             try (ResultSet r = ps.executeQuery()) {
                 while (r.next()) {
                     JSONObject o = new JSONObject();
-                    o.put("label", stringOr(r.getString(1), "وضعیت نامشخص"));
+                    o.put("label", stringOr(r.getString(1), "دسته نامشخص"));
                     o.put("count", r.getLong(2));
                     o.put("amount", r.getDouble(3));
                     o.put("value", r.getDouble(3));
@@ -2937,7 +3066,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.6.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.7.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
