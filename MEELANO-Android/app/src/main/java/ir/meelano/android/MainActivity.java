@@ -845,6 +845,8 @@ public class MainActivity extends Activity {
         return GOLD;
     }
 
+    private boolean getRtlMode() { return prefs == null || prefs.getBoolean("rtl_mode", true); }
+
     private void renderActivePage() {
         switch (activePage) {
             case "assistant": showAssistant(); break;
