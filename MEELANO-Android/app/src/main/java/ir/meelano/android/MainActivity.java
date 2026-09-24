@@ -3615,8 +3615,7 @@ public class MainActivity extends Activity {
         c.addView(text("وضعیت فعلی: " + prefs.getString(statusKey, "ثبت نشده") + " • یادآوری بعدی: " + prefs.getString(dateKey, "—"), 10.8f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         String hist = prefs.getString(historyKey, "");
         if (hist != null && !hist.trim().isEmpty()) {
-            TextView timeline = text("تاریخچه:
-" + limitText(hist, 420), 10.2f, alpha(TEXT, 205), Typeface.NORMAL);
+            TextView timeline = text("تاریخچه:\n" + limitText(hist, 420), 10.2f, alpha(TEXT, 205), Typeface.NORMAL);
             timeline.setLineSpacing(dp(2), 1.04f);
             timeline.setBackground(roundedStroke(alpha(INFO, 14), 14, alpha(INFO, 55)));
             timeline.setPadding(dp(8), dp(7), dp(8), dp(7));
