@@ -203,6 +203,42 @@ public class MainActivity extends Activity {
             HERO_START = Color.rgb(217, 248, 251);
             HERO_END = Color.rgb(242, 253, 255);
             ON_PRIMARY = Color.WHITE;
+        } else if ("azure_diamond".equals(id)) {
+            NAVY = Color.rgb(239, 247, 255);
+            SURFACE = Color.rgb(255, 255, 255);
+            SURFACE_2 = Color.rgb(224, 239, 255);
+            GOLD = Color.rgb(28, 101, 242);
+            GOLD_2 = Color.rgb(98, 196, 255);
+            SUCCESS = Color.rgb(18, 166, 139);
+            INFO = Color.rgb(0, 132, 255);
+            WARNING = Color.rgb(224, 144, 56);
+            DANGER = Color.rgb(214, 65, 101);
+            TEXT = Color.rgb(15, 35, 62);
+            MUTED = Color.rgb(75, 100, 128);
+            BORDER = Color.argb(56, 26, 96, 168);
+            HEADER_START = Color.rgb(231, 244, 255);
+            HEADER_END = Color.rgb(204, 226, 255);
+            HERO_START = Color.rgb(221, 240, 255);
+            HERO_END = Color.rgb(250, 253, 255);
+            ON_PRIMARY = Color.WHITE;
+        } else if ("noir_aurora".equals(id)) {
+            NAVY = Color.rgb(3, 5, 16);
+            SURFACE = Color.rgb(10, 14, 30);
+            SURFACE_2 = Color.rgb(16, 24, 45);
+            GOLD = Color.rgb(0, 210, 210);
+            GOLD_2 = Color.rgb(126, 87, 255);
+            SUCCESS = Color.rgb(50, 230, 174);
+            INFO = Color.rgb(69, 176, 255);
+            WARNING = Color.rgb(255, 195, 96);
+            DANGER = Color.rgb(255, 92, 130);
+            TEXT = Color.rgb(248, 252, 255);
+            MUTED = Color.rgb(158, 177, 207);
+            BORDER = Color.argb(60, 126, 220, 255);
+            HEADER_START = Color.rgb(2, 4, 14);
+            HEADER_END = Color.rgb(20, 15, 54);
+            HERO_START = Color.rgb(18, 17, 54);
+            HERO_END = Color.rgb(3, 9, 23);
+            ON_PRIMARY = Color.WHITE;
         } else {
             NAVY = Color.rgb(7, 9, 16);
             SURFACE = Color.rgb(18, 22, 31);
@@ -236,11 +272,21 @@ public class MainActivity extends Activity {
         if ("royal_amethyst".equals(id)) return "شب آمتیست سلطنتی";
         if ("ivory_sunrise".equals(id)) return "طلوع عاجی لوکس";
         if ("crystal_lagoon".equals(id)) return "لاگون کریستالی روشن";
+        if ("azure_diamond".equals(id)) return "الماس آبی روشن";
+        if ("noir_aurora".equals(id)) return "نوآر شفق لوکس";
         return "اونیکس طلایی Meelano";
     }
 
     private int alpha(int color, int amount) {
         return Color.argb(amount, Color.red(color), Color.green(color), Color.blue(color));
+    }
+
+    private int mix(int from, int to, float ratio) {
+        float r = Math.max(0f, Math.min(1f, ratio));
+        return Color.rgb(
+                Math.round(Color.red(from) + (Color.red(to) - Color.red(from)) * r),
+                Math.round(Color.green(from) + (Color.green(to) - Color.green(from)) * r),
+                Math.round(Color.blue(from) + (Color.blue(to) - Color.blue(from)) * r));
     }
 
     private GradientDrawable rounded(int color, float radius) {
@@ -374,6 +420,49 @@ public class MainActivity extends Activity {
         return b;
     }
 
+    private GradientDrawable scrollThumb(boolean horizontal) {
+        GradientDrawable d = gradient(new int[]{GOLD_2, GOLD, INFO}, horizontal ? GradientDrawable.Orientation.LEFT_RIGHT : GradientDrawable.Orientation.TOP_BOTTOM, 999);
+        d.setStroke(dp(1), alpha(Color.WHITE, 88));
+        d.setSize(horizontal ? dp(88) : dp(6), horizontal ? dp(6) : dp(88));
+        return d;
+    }
+
+    private GradientDrawable scrollTrack(boolean horizontal) {
+        GradientDrawable d = roundedStroke(alpha(SURFACE_2, 100), 999, alpha(GOLD, 28));
+        d.setSize(horizontal ? dp(88) : dp(6), horizontal ? dp(6) : dp(88));
+        return d;
+    }
+
+    private void styleVerticalScroll(ScrollView scroll) {
+        if (scroll == null) return;
+        scroll.setVerticalScrollBarEnabled(true);
+        scroll.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+        scroll.setScrollbarFadingEnabled(false);
+        scroll.setVerticalFadingEdgeEnabled(true);
+        scroll.setFadingEdgeLength(dp(22));
+        scroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        scroll.setScrollBarSize(dp(6));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            scroll.setVerticalScrollbarThumbDrawable(scrollThumb(false));
+            scroll.setVerticalScrollbarTrackDrawable(scrollTrack(false));
+        }
+    }
+
+    private void styleHorizontalScroll(HorizontalScrollView scroll) {
+        if (scroll == null) return;
+        scroll.setHorizontalScrollBarEnabled(true);
+        scroll.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+        scroll.setScrollbarFadingEnabled(false);
+        scroll.setHorizontalFadingEdgeEnabled(true);
+        scroll.setFadingEdgeLength(dp(20));
+        scroll.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
+        scroll.setScrollBarSize(dp(5));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            scroll.setHorizontalScrollbarThumbDrawable(scrollThumb(true));
+            scroll.setHorizontalScrollbarTrackDrawable(scrollTrack(true));
+        }
+    }
+
     private void showThemeChooser() {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -390,6 +479,8 @@ public class MainActivity extends Activity {
         addThemeOption(box, dialog, "royal_amethyst", "دارک ۲", "آمتیست", new int[]{Color.rgb(10, 8, 24), Color.rgb(184, 114, 255), Color.rgb(248, 113, 193)});
         addThemeOption(box, dialog, "ivory_sunrise", "روشن ۱", "عاجی", new int[]{Color.rgb(248, 241, 229), Color.rgb(213, 126, 55), Color.rgb(32, 158, 119)});
         addThemeOption(box, dialog, "crystal_lagoon", "روشن ۲", "کریستالی", new int[]{Color.rgb(235, 248, 250), Color.rgb(0, 151, 178), Color.rgb(42, 125, 225)});
+        addThemeOption(box, dialog, "azure_diamond", "روشن ۳", "الماس آبی", new int[]{Color.rgb(239, 247, 255), Color.rgb(28, 101, 242), Color.rgb(98, 196, 255)});
+        addThemeOption(box, dialog, "noir_aurora", "دارک ۳", "نوآر شفق", new int[]{Color.rgb(3, 5, 16), Color.rgb(0, 210, 210), Color.rgb(126, 87, 255)});
         dialog.show();
     }
 
@@ -521,6 +612,7 @@ public class MainActivity extends Activity {
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
+        styleVerticalScroll(scroll);
         LinearLayout outer = new LinearLayout(this);
         outer.setOrientation(LinearLayout.VERTICAL);
         outer.setGravity(Gravity.CENTER);
@@ -659,7 +751,7 @@ public class MainActivity extends Activity {
         }
 
         HorizontalScrollView navScroll = new HorizontalScrollView(this);
-        navScroll.setHorizontalScrollBarEnabled(false);
+        styleHorizontalScroll(navScroll);
         navStrip = new LinearLayout(this);
         navStrip.setOrientation(LinearLayout.HORIZONTAL);
         navStrip.setGravity(Gravity.CENTER_VERTICAL);
@@ -668,6 +760,7 @@ public class MainActivity extends Activity {
         shell.addView(navScroll, new LinearLayout.LayoutParams(-1, dp(62)));
 
         ScrollView scroll = new ScrollView(this);
+        styleVerticalScroll(scroll);
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(14), dp(8), dp(14), dp(28));
@@ -954,6 +1047,34 @@ public class MainActivity extends Activity {
         addDashboardInsightTable(today);
     }
 
+    private View themedDailyIcon(String type, int accent) {
+        boolean sales = "sales".equals(type);
+        LinearLayout badge = new LinearLayout(this);
+        badge.setOrientation(LinearLayout.VERTICAL);
+        badge.setGravity(Gravity.CENTER);
+        badge.setPadding(dp(6), dp(4), dp(6), dp(4));
+        int glow = sales ? SUCCESS : INFO;
+        int deep = mix(accent, Color.BLACK, 0.34f);
+        int shine = mix(GOLD_2, Color.WHITE, 0.18f);
+        badge.setBackground(gradient(new int[]{shine, accent, deep}, GradientDrawable.Orientation.TL_BR, 21));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) badge.setElevation(dp(10));
+        TextView spark = text(sales ? "فروش" : "خرید", 9.2f, Color.WHITE, Typeface.BOLD);
+        spark.setGravity(Gravity.CENTER);
+        spark.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, 140));
+        TextView glyph = text(sales ? "↗" : "↙", 31, Color.WHITE, Typeface.BOLD);
+        glyph.setGravity(Gravity.CENTER);
+        glyph.setShadowLayer(dp(5), 0, dp(2), alpha(Color.BLACK, 160));
+        glyph.setBackground(roundedStroke(alpha(glow, 42), 999, alpha(Color.WHITE, 72)));
+        TextView caption = text(sales ? "ریال" : "سند", 8.7f, alpha(Color.WHITE, 230), Typeface.BOLD);
+        caption.setGravity(Gravity.CENTER);
+        badge.addView(spark, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(dp(42), dp(32));
+        gp.setMargins(0, dp(1), 0, 0);
+        badge.addView(glyph, gp);
+        badge.addView(caption, new LinearLayout.LayoutParams(-1, -2));
+        return badge;
+    }
+
     private void addDailyFinanceDashboardBlock(String type, String title, String sub, int iconRes, JSONObject data, int accent) {
         if (data == null) return;
         String date = data.optString("date", "");
@@ -962,10 +1083,10 @@ public class MainActivity extends Activity {
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView icon = new ImageView(this);
-        icon.setImageResource(iconRes);
-        icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        head.addView(icon, new LinearLayout.LayoutParams(dp(50), dp(50)));
+        View icon = themedDailyIcon(type, accent);
+        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(68), dp(68));
+        iconLp.setMargins(0, 0, dp(2), 0);
+        head.addView(icon, iconLp);
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(10), 0, dp(10), 0);
@@ -3818,7 +3939,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.9.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.10.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
