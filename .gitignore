@@ -13,3 +13,6 @@ artifacts/
 .DS_Store
 .idea/
 *.iml
+
+# Deprecated/rejected PWA package artifacts
+*PWA*.zip

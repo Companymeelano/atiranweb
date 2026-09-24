@@ -76,6 +76,7 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     private static final String PREFS = "meelano_android_direct_sql";
+    private static final String DEFAULT_THEME = "azure_diamond";
     private static final String KEY_LAST_USER = "last_meelano_user";
     private static final String KEY_THEME = "meelano_theme_palette";
     private static final String KEY_FIRST_NAME = "assistant_first_name";
@@ -145,11 +146,10 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
-        applyTheme(prefs.getString(KEY_THEME, "onyx_gold"));
+        applyTheme(prefs.getString(KEY_THEME, DEFAULT_THEME));
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         initSpeechEngine();
         initNotificationChannel();
-        requestNotificationPermissionIfNeeded();
         buildFrame();
         showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید.");
     }
@@ -202,8 +202,15 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { }
     }
 
+    private String normalizeThemeId(String themeId) {
+        String id = themeId == null ? DEFAULT_THEME : themeId.trim();
+        if (id.isEmpty()) return DEFAULT_THEME;
+        if ("royal_amethyst".equals(id) || "ivory_sunrise".equals(id) || "crystal_lagoon".equals(id) || "azure_diamond".equals(id) || "noir_aurora".equals(id) || "onyx_gold".equals(id)) return id;
+        return DEFAULT_THEME;
+    }
+
     private void applyTheme(String themeId) {
-        String id = themeId == null ? "onyx_gold" : themeId;
+        String id = normalizeThemeId(themeId);
         if ("royal_amethyst".equals(id)) {
             NAVY = Color.rgb(10, 8, 24);
             SURFACE = Color.rgb(25, 20, 45);
@@ -294,7 +301,7 @@ public class MainActivity extends Activity {
             HERO_START = Color.rgb(18, 17, 54);
             HERO_END = Color.rgb(3, 9, 23);
             ON_PRIMARY = Color.WHITE;
-        } else {
+        } else if ("onyx_gold".equals(id)) {
             NAVY = Color.rgb(7, 9, 16);
             SURFACE = Color.rgb(18, 22, 31);
             SURFACE_2 = Color.rgb(24, 30, 42);
@@ -320,7 +327,7 @@ public class MainActivity extends Activity {
     }
 
     private String currentThemeId() {
-        return prefs == null ? "onyx_gold" : prefs.getString(KEY_THEME, "onyx_gold");
+        return normalizeThemeId(prefs == null ? DEFAULT_THEME : prefs.getString(KEY_THEME, DEFAULT_THEME));
     }
 
     private String themeName(String id) {
@@ -329,7 +336,8 @@ public class MainActivity extends Activity {
         if ("crystal_lagoon".equals(id)) return "لاگون کریستالی روشن";
         if ("azure_diamond".equals(id)) return "الماس آبی روشن";
         if ("noir_aurora".equals(id)) return "نوآر شفق لوکس";
-        return "اونیکس طلایی Meelano";
+        if ("onyx_gold".equals(id)) return "اونیکس طلایی Meelano";
+        return "الماس آبی روشن";
     }
 
     private int alpha(int color, int amount) {
@@ -1341,7 +1349,7 @@ public class MainActivity extends Activity {
         b.setLineSpacing(dp(2), 1.05f);
         c.addView(b, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(10));
-        content.addView(c, lp);
+        if (content != null && content.getChildCount() > 0) content.addView(c, 0, lp); else content.addView(c, lp);
     }
 
     private void addDashboardSmartAlerts(JSONObject today, boolean cached) {
@@ -1449,7 +1457,7 @@ public class MainActivity extends Activity {
         long day = System.currentTimeMillis() / 86400000L;
         if (prefs.getLong(KEY_LAST_ALERT_DAY, -1) == day) return;
         JSONObject first = alerts.optJSONObject(0);
-        showLocalNotification("هشدار Meelano", first == null ? "چند هشدار مدیریتی نیازمند بررسی است." : first.optString("title", "هشدار") + ": " + first.optString("body", ""));
+        showLocalNotification("هشدار Meelano", first == null ? "چند هشدار مدیریتی نیازمند بررسی است." : first.optString("title", "هشدار") + ": " + first.optString("body", ""), false);
         prefs.edit().putLong(KEY_LAST_ALERT_DAY, day).apply();
     }
 
@@ -4132,11 +4140,11 @@ public class MainActivity extends Activity {
             c.drawOval(new RectF(cx - dp(66) * sc, cy - dp(8) * sc, cx + dp(66) * sc, cy + dp(12) * sc), p);
         }
         private void drawPistachioBody(Canvas c, float cx, float cy, float sc, float t) {
-            float breathe = (float)Math.sin(t * 1.2f) * dp(1.4f) * sc;
-            int shell = mix(mix(GOLD_2, Color.WHITE, 0.33f), INFO, 0.10f);
-            int shellEdge = mix(GOLD, Color.BLACK, 0.10f);
-            int kernel = mix(SUCCESS, GOLD, 0.30f);
-            int kernelDark = mix(kernel, NAVY, 0.22f);
+            float breathe = (float)Math.sin(t * 1.05f) * dp(1.0f) * sc;
+            int shell = mix(mix(GOLD_2, Color.WHITE, 0.40f), INFO, 0.10f);
+            int shellEdge = mix(GOLD, Color.BLACK, 0.12f);
+            int kernel = mix(SUCCESS, GOLD, 0.28f);
+            int kernelDark = mix(kernel, NAVY, 0.25f);
             RectF shellOval = new RectF(cx - dp(82) * sc, cy - dp(112) * sc - breathe, cx + dp(82) * sc, cy + dp(104) * sc + breathe);
             p.setStyle(Paint.Style.FILL);
             p.setShadowLayer(dp(10) * sc, 0, dp(4) * sc, alpha(Color.BLACK, 115));
@@ -4147,52 +4155,96 @@ public class MainActivity extends Activity {
             c.drawOval(new RectF(shellOval.left + dp(6) * sc, shellOval.top + dp(5) * sc, shellOval.right - dp(6) * sc, shellOval.bottom - dp(5) * sc), p);
 
             Path split = new Path();
-            split.moveTo(cx, shellOval.top + dp(9) * sc);
-            split.cubicTo(cx - dp(44) * sc, cy - dp(60) * sc, cx - dp(46) * sc, cy + dp(36) * sc, cx - dp(7) * sc, shellOval.bottom - dp(14) * sc);
-            split.cubicTo(cx + dp(8) * sc, cy + dp(36) * sc, cx + dp(44) * sc, cy - dp(55) * sc, cx, shellOval.top + dp(9) * sc);
+            split.moveTo(cx, shellOval.top + dp(8) * sc);
+            split.cubicTo(cx - dp(45) * sc, cy - dp(66) * sc, cx - dp(47) * sc, cy + dp(34) * sc, cx - dp(8) * sc, shellOval.bottom - dp(14) * sc);
+            split.cubicTo(cx + dp(8) * sc, cy + dp(34) * sc, cx + dp(45) * sc, cy - dp(62) * sc, cx, shellOval.top + dp(8) * sc);
             p.setColor(kernelDark);
             c.drawPath(split, p);
-            RectF core = new RectF(cx - dp(45) * sc, cy - dp(74) * sc, cx + dp(45) * sc, cy + dp(70) * sc);
+            RectF core = new RectF(cx - dp(46) * sc, cy - dp(75) * sc, cx + dp(46) * sc, cy + dp(71) * sc);
             p.setColor(kernel);
             c.drawOval(core, p);
-            p.setColor(alpha(Color.WHITE, 60));
-            c.drawOval(new RectF(core.left + dp(10) * sc, core.top + dp(8) * sc, core.left + dp(34) * sc, core.top + dp(58) * sc), p);
+            p.setColor(mix(kernel, Color.WHITE, 0.22f));
+            c.drawOval(new RectF(core.left + dp(9) * sc, core.top + dp(8) * sc, core.left + dp(35) * sc, core.top + dp(58) * sc), p);
+            p.setColor(alpha(Color.WHITE, 38));
+            c.drawOval(new RectF(core.left + dp(26) * sc, core.top + dp(12) * sc, core.right - dp(8) * sc, core.bottom - dp(28) * sc), p);
 
             p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(dp(3.2f) * sc);
             p.setStrokeCap(Paint.Cap.ROUND);
-            p.setColor(alpha(GOLD, 190));
+            p.setStrokeWidth(dp(1.35f) * sc);
+            p.setColor(alpha(mix(shellEdge, Color.BLACK, 0.10f), 115));
+            for (int i = -2; i <= 2; i++) {
+                float off = i * dp(17) * sc;
+                Path grain = new Path();
+                grain.moveTo(cx + off, shellOval.top + dp(24) * sc);
+                grain.cubicTo(cx + off - dp(12) * sc, cy - dp(32) * sc, cx + off + dp(10) * sc, cy + dp(34) * sc, cx + off * 0.45f, shellOval.bottom - dp(28) * sc);
+                c.drawPath(grain, p);
+            }
+            p.setStrokeWidth(dp(2.5f) * sc);
+            p.setColor(alpha(GOLD, 185));
             c.drawArc(new RectF(cx - dp(72) * sc, cy + dp(42) * sc, cx + dp(72) * sc, cy + dp(108) * sc), 205, 130, false, p);
             p.setStyle(Paint.Style.FILL);
+            p.setColor(alpha(GOLD_2, 175));
+            c.drawCircle(cx - dp(46) * sc, cy + dp(60) * sc, dp(4.5f) * sc, p);
+            p.setColor(alpha(INFO, 150));
+            c.drawCircle(cx + dp(48) * sc, cy + dp(58) * sc, dp(4.2f) * sc, p);
         }
+
         private void drawPistachioFace(Canvas c, float cx, float cy, float sc, float t) {
-            float blinkPhase = t % 4.8f;
-            float blink = blinkPhase > 4.62f ? 0.18f : 1f;
-            float gaze = (float)Math.sin(t * 0.75f) * dp(2.4f) * sc;
-            drawFunnyEye(c, cx - dp(22) * sc, cy - dp(12) * sc, dp(10) * sc, blink, gaze, sc);
-            drawFunnyEye(c, cx + dp(22) * sc, cy - dp(12) * sc, dp(10) * sc, blink, gaze, sc);
+            float blinkPhase = t % 4.9f;
+            float blink = blinkPhase > 4.70f ? 0.18f : 1f;
+            float gaze = (float)Math.sin(t * 0.65f) * dp(2.0f) * sc;
             p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(dp(3.2f) * sc);
             p.setStrokeCap(Paint.Cap.ROUND);
-            p.setColor(mix(GOLD, NAVY, 0.18f));
-            c.drawArc(new RectF(cx - dp(28) * sc, cy + dp(5) * sc, cx + dp(28) * sc, cy + dp(40) * sc), 15, 150, false, p);
+            p.setStrokeWidth(dp(2.2f) * sc);
+            p.setColor(alpha(mix(NAVY, GOLD, 0.18f), 175));
+            c.drawLine(cx - dp(34) * sc, cy - dp(28) * sc, cx - dp(14) * sc, cy - dp(34) * sc, p);
+            c.drawLine(cx + dp(14) * sc, cy - dp(34) * sc, cx + dp(34) * sc, cy - dp(28) * sc, p);
+            drawFunnyEye(c, cx - dp(22) * sc, cy - dp(12) * sc, dp(10.5f) * sc, blink, gaze, sc);
+            drawFunnyEye(c, cx + dp(22) * sc, cy - dp(12) * sc, dp(10.5f) * sc, blink, gaze, sc);
+
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(alpha(mix(GOLD, NAVY, 0.28f), 155));
+            Path nose = new Path();
+            nose.moveTo(cx, cy - dp(1) * sc);
+            nose.lineTo(cx - dp(5) * sc, cy + dp(10) * sc);
+            nose.quadTo(cx, cy + dp(13) * sc, cx + dp(5) * sc, cy + dp(10) * sc);
+            nose.close();
+            c.drawPath(nose, p);
+
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(4.0f) * sc);
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setColor(mix(DANGER, GOLD, 0.45f));
+            RectF smile = new RectF(cx - dp(30) * sc, cy + dp(8) * sc, cx + dp(30) * sc, cy + dp(43) * sc);
+            c.drawArc(smile, 17, 146, false, p);
+            p.setStrokeWidth(dp(1.4f) * sc);
+            p.setColor(alpha(Color.WHITE, 205));
+            c.drawLine(cx - dp(10) * sc, cy + dp(29) * sc, cx + dp(10) * sc, cy + dp(29) * sc, p);
             p.setStyle(Paint.Style.FILL);
             p.setColor(Color.WHITE);
-            c.drawRoundRect(new RectF(cx - dp(7) * sc, cy + dp(23) * sc, cx + dp(7) * sc, cy + dp(34) * sc), dp(3) * sc, dp(3) * sc, p);
-            p.setColor(alpha(DANGER, 145));
-            c.drawCircle(cx + dp(30) * sc, cy + dp(12) * sc, dp(5) * sc, p);
+            c.drawRoundRect(new RectF(cx - dp(7) * sc, cy + dp(24) * sc, cx + dp(7) * sc, cy + dp(35) * sc), dp(3) * sc, dp(3) * sc, p);
+            p.setColor(alpha(DANGER, 112));
+            c.drawCircle(cx - dp(34) * sc, cy + dp(10) * sc, dp(5) * sc, p);
+            c.drawCircle(cx + dp(34) * sc, cy + dp(10) * sc, dp(5) * sc, p);
         }
+
         private void drawFunnyEye(Canvas c, float x, float y, float r, float blink, float gaze, float sc) {
             p.setStyle(Paint.Style.FILL);
-            p.setColor(Color.WHITE);
+            p.setColor(alpha(Color.WHITE, 245));
             c.drawOval(new RectF(x - r, y - r * blink, x + r, y + r * blink), p);
-            p.setColor(mix(INFO, GOLD, 0.42f));
-            c.drawCircle(x + gaze, y, Math.max(dp(2.2f) * sc, r * 0.42f * blink), p);
-            p.setColor(Color.rgb(20, 25, 28));
-            c.drawCircle(x + gaze, y, Math.max(dp(1.2f) * sc, r * 0.18f * blink), p);
-            p.setColor(alpha(Color.WHITE, 210));
-            c.drawCircle(x + gaze - r * 0.16f, y - r * 0.18f, Math.max(1.2f, r * 0.13f), p);
+            p.setColor(alpha(mix(INFO, GOLD, 0.35f), 235));
+            c.drawCircle(x + gaze, y, Math.max(dp(2.4f) * sc, r * 0.42f * blink), p);
+            p.setColor(Color.rgb(18, 24, 28));
+            c.drawCircle(x + gaze, y, Math.max(dp(1.3f) * sc, r * 0.19f * blink), p);
+            p.setColor(alpha(Color.WHITE, 225));
+            c.drawCircle(x + gaze - r * 0.17f, y - r * 0.20f, Math.max(1.2f, r * 0.14f), p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(1.3f) * sc);
+            p.setColor(alpha(mix(NAVY, GOLD, 0.16f), 130));
+            c.drawArc(new RectF(x - r * 1.1f, y - r * 1.06f, x + r * 1.1f, y + r * 0.96f), 200, 140, false, p);
+            p.setStyle(Paint.Style.FILL);
         }
+
         private void drawPistachioArms(Canvas c, float cx, float y, float sc, float t) {
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(dp(7) * sc);
@@ -4874,8 +4926,7 @@ public class MainActivity extends Activity {
         scan.setTextSize(10.5f); bt.setTextSize(10.5f);
         scan.setOnClickListener(v -> startBarcodeScan());
         bt.setOnClickListener(v -> openBluetoothSettings());
-        LinearLayout.LayoutParams b1 = new LinearLayout.LayoutParams(0, dp(46), 1f); b1.setMargins(dp(3), dp(12), dp(3), 0);
-        row1.addView(scan, b1); row1.addView(bt, b1);
+        row1.addView(scan, hardwareButtonLp()); row1.addView(bt, hardwareButtonLp());
         c.addView(row1, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
         Button share = secondaryButton("ارسال/چاپ خلاصه");
@@ -4883,7 +4934,7 @@ public class MainActivity extends Activity {
         share.setTextSize(10.5f); notify.setTextSize(10.5f);
         share.setOnClickListener(v -> shareOperationalSummary());
         notify.setOnClickListener(v -> showLocalNotification("یادآوری Meelano", "چک‌ها، مطالبات و گزارش روزانه را بررسی کن."));
-        row2.addView(share, b1); row2.addView(notify, b1);
+        row2.addView(share, hardwareButtonLp()); row2.addView(notify, hardwareButtonLp());
         c.addView(row2, new LinearLayout.LayoutParams(-1, -2));
         content.addView(c, cp);
     }
@@ -4899,10 +4950,16 @@ public class MainActivity extends Activity {
         content.addView(c, cp);
     }
 
+    private LinearLayout.LayoutParams hardwareButtonLp() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(46), 1f);
+        lp.setMargins(dp(3), dp(12), dp(3), 0);
+        return lp;
+    }
+
     private void startBarcodeScan() {
         try {
             Intent intent = new Intent("com.google.zxing.client.android.SCAN");
-            intent.putExtra("SCAN_MODE", "QR_CODE_MODE,PRODUCT_MODE");
+            intent.putExtra("SCAN_FORMATS", "QR_CODE,CODE_128,CODE_39,EAN_13,EAN_8,UPC_A,UPC_E");
             startActivityForResult(intent, REQ_BARCODE_SCAN);
         } catch (Exception ex) {
             Toast.makeText(this, "برای اسکن واقعی، یک Barcode Scanner نصب کنید؛ سپس دوباره تلاش کنید.", Toast.LENGTH_LONG).show();
@@ -4924,17 +4981,21 @@ public class MainActivity extends Activity {
         catch (Exception ex) { Toast.makeText(this, "برنامه‌ای برای ارسال/چاپ متن پیدا نشد.", Toast.LENGTH_SHORT).show(); }
     }
 
-    private void showLocalNotification(String title, String body) {
+    private void showLocalNotification(String title, String body) { showLocalNotification(title, body, true); }
+
+    private void showLocalNotification(String title, String body, boolean askPermission) {
         try {
             if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                requestNotificationPermissionIfNeeded();
-                Toast.makeText(this, "اجازه اعلان را فعال کنید تا یادآوری نمایش داده شود.", Toast.LENGTH_SHORT).show();
+                if (askPermission) {
+                    requestNotificationPermissionIfNeeded();
+                    Toast.makeText(this, "اجازه اعلان را فعال کنید تا یادآوری نمایش داده شود.", Toast.LENGTH_SHORT).show();
+                }
                 return;
             }
             Intent intent = new Intent(this, MainActivity.class);
             PendingIntent pi = PendingIntent.getActivity(this, 0, intent, Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE : 0);
             Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? new Notification.Builder(this, NOTIFY_CHANNEL) : new Notification.Builder(this);
-            b.setSmallIcon(ir.meelano.android.R.mipmap.ic_launcher)
+            b.setSmallIcon(android.R.drawable.ic_dialog_info)
                     .setContentTitle(title == null ? "Meelano" : title)
                     .setContentText(body == null ? "یادآوری مدیریتی" : body)
                     .setStyle(new Notification.BigTextStyle().bigText(body == null ? "یادآوری مدیریتی" : body))
@@ -4987,7 +5048,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.15.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.16.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);

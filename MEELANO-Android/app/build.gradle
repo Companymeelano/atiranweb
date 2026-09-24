@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.android'
         minSdk 24
         targetSdk 35
-        versionCode 20
-        versionName '3.15.0-direct-sql-pistachio-milo-smart-tools'
+        versionCode 21
+        versionName '3.16.0-direct-sql-final-audit-blue-pistachio'
     }
 
     compileOptions {
