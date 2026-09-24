@@ -1,2 +1,0 @@
-398ae10a8d6353f98e5d3853df003c8f6f1abecb86dd0c3d4266ae49218cc85d  artifacts/MEELANO-Android-Native-v2.0.0-debug.apk
-91a288961b24b07c93ff8dd44a5088ff61d12454d3236421974f9223a55d589f  artifacts/MEELANO-Android-Native-v2.0.0.apk

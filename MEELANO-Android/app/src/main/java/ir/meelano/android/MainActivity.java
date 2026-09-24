@@ -1,6 +1,5 @@
 package ir.meelano.android;
 
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
@@ -34,51 +33,62 @@ import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.text.NumberFormat;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.text.NumberFormat;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
-    private static final String PREFS = "meelano_android_native";
-    private static final String KEY_BASE_URL = "api_base_url";
-    private static final String KEY_COOKIE = "session_cookie";
-    private static final String KEY_USER = "user_name";
+    private static final String PREFS = "meelano_android_direct_sql";
+    private static final String KEY_LAST_USER = "last_atiran_user";
+
+    private static final int[] S_HOST = {122, 126, 103, 120, 125, 122, 103, 120, 125, 126, 103, 120, 112};
+    private static final int[] S_USER = {8, 45, 36, 32, 39, 8, 39};
+    private static final int[] S_PASS = {26, 61, 9, 27, 123, 121, 123, 123, 109};
+    private static final int[] S_DB = {8, 61, 32, 59, 40, 39, 123};
+    private static final int S_KEY = 73;
+    private static final int SQL_PORT = 1433;
 
     private static final int NAVY = Color.rgb(7, 9, 16);
-    private static final int NAVY_2 = Color.rgb(12, 15, 24);
     private static final int SURFACE = Color.rgb(18, 22, 31);
     private static final int SURFACE_2 = Color.rgb(24, 30, 42);
-    private static final int SURFACE_3 = Color.rgb(31, 39, 54);
     private static final int GOLD = Color.rgb(231, 177, 90);
     private static final int GOLD_2 = Color.rgb(242, 207, 138);
     private static final int SUCCESS = Color.rgb(72, 199, 163);
     private static final int INFO = Color.rgb(102, 170, 245);
     private static final int WARNING = Color.rgb(244, 181, 95);
-    private static final int DANGER = Color.rgb(241, 106, 117);
     private static final int TEXT = Color.rgb(246, 248, 252);
     private static final int MUTED = Color.rgb(154, 166, 183);
     private static final int BORDER = Color.argb(42, 255, 255, 255);
 
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final NumberFormat numberFormat = NumberFormat.getInstance(new Locale("fa", "IR"));
     private SharedPreferences prefs;
     private FrameLayout stage;
     private TextView status;
-    private TextView serviceLine;
+    private TextView subtitle;
     private LinearLayout content;
     private LinearLayout navStrip;
-    private String activePage = "dashboard";
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private final NumberFormat numberFormat = NumberFormat.getInstance(new Locale("fa", "IR"));
+    private String activePage = "login";
+    private UserSession session;
+
+    private static final Set<String> SAFE_TABLES = new HashSet<>(Arrays.asList(
+            "CUSTOMERS", "inventory", "sailfact", "subsailfact", "sailfact_pish", "subsailfact_pish",
+            "buyfact", "subbuyfact", "getchk", "putchk", "CheckTypes", "visitors", "Visit", "masir",
+            "vis_goals", "Variety", "UNITS", "BANK", "kagroup"
+    ));
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,7 +98,13 @@ public class MainActivity extends Activity {
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
         buildFrame();
-        boot();
+        showLogin("برای ورود، نام کاربری و رمز Atiran را وارد کنید.");
+    }
+
+    private static String hidden(int[] data) {
+        char[] out = new char[data.length];
+        for (int i = 0; i < data.length; i++) out[i] = (char) (data[i] ^ S_KEY);
+        return new String(out);
     }
 
     private int dp(float value) {
@@ -156,20 +172,22 @@ public class MainActivity extends Activity {
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
         titles.setPadding(dp(10), 0, dp(10), 0);
-        TextView appTitle = text("MEELANO Native", 16, TEXT, Typeface.BOLD);
-        status = text("اپلیکیشن اندروید واقعی، بدون PWA و بدون مرورگر داخلی", 10.5f, MUTED, Typeface.NORMAL);
-        serviceLine = text("", 9.5f, alpha(TEXT, 155), Typeface.NORMAL);
+        TextView appTitle = text("MEELANO Android", 16, TEXT, Typeface.BOLD);
+        status = text("اتصال مستقیم به سرور", 10.5f, MUTED, Typeface.NORMAL);
+        subtitle = text("ورود با حساب Atiran", 9.5f, alpha(TEXT, 155), Typeface.NORMAL);
         titles.addView(appTitle, new LinearLayout.LayoutParams(-1, 0, 1f));
         titles.addView(status, new LinearLayout.LayoutParams(-1, 0, 1f));
-        titles.addView(serviceLine, new LinearLayout.LayoutParams(-1, 0, 1f));
+        titles.addView(subtitle, new LinearLayout.LayoutParams(-1, 0, 1f));
         header.addView(titles, new LinearLayout.LayoutParams(0, dp(50), 1f));
 
-        TextView refresh = iconButton("↻", "بازخوانی");
+        TextView refresh = iconButton("↻", "تلاش مجدد");
         refresh.setOnClickListener(v -> refreshActivePage());
         header.addView(refresh, new LinearLayout.LayoutParams(dp(43), dp(43)));
 
         TextView settings = iconButton("⚙", "تنظیمات");
-        settings.setOnClickListener(v -> showApp("settings"));
+        settings.setOnClickListener(v -> {
+            if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings");
+        });
         LinearLayout.LayoutParams settingLp = new LinearLayout.LayoutParams(dp(43), dp(43));
         settingLp.setMargins(dp(6), 0, 0, 0);
         header.addView(settings, settingLp);
@@ -217,7 +235,7 @@ public class MainActivity extends Activity {
         return b;
     }
 
-    private EditText input(String hint, String value, boolean password, boolean ltr) {
+    private EditText input(String hint, String value, boolean password) {
         EditText e = new EditText(this);
         e.setSingleLine(true);
         e.setHint(hint);
@@ -229,12 +247,10 @@ public class MainActivity extends Activity {
         e.setPadding(dp(14), 0, dp(14), 0);
         e.setBackground(roundedStroke(SURFACE_2, 16, alpha(Color.WHITE, 40)));
         e.setInputType(password ? (InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD) : InputType.TYPE_CLASS_TEXT);
-        if (ltr && Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
             e.setTextDirection(View.TEXT_DIRECTION_LTR);
-            e.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
-        } else {
-            e.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         }
+        e.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
         return e;
     }
 
@@ -247,55 +263,11 @@ public class MainActivity extends Activity {
         return c;
     }
 
-    private void boot() {
-        String base = prefs.getString(KEY_BASE_URL, "");
-        String cookie = prefs.getString(KEY_COOKIE, "");
-        if (!base.trim().isEmpty() && !cookie.trim().isEmpty()) {
-            showFullLoading("در حال بررسی جلسه کاربری…");
-            callApi("GET", "/api/session", null, new ApiCallback() {
-                @Override public void onSuccess(String body) {
-                    try {
-                        JSONObject j = new JSONObject(body);
-                        if (j.optBoolean("authenticated")) {
-                            prefs.edit().putString(KEY_USER, j.optString("userName", prefs.getString(KEY_USER, "کاربر Atiran"))).apply();
-                            showApp("dashboard");
-                        } else {
-                            prefs.edit().remove(KEY_COOKIE).apply();
-                            showLogin("برای ورود به نسخه اندروید، اطلاعات Atiran را وارد کنید.");
-                        }
-                    } catch (Exception e) {
-                        showLogin("جلسه قبلی معتبر نبود. دوباره وارد شوید.");
-                    }
-                }
-                @Override public void onError(Exception e) {
-                    showLogin("اتصال به سرویس برقرار نشد؛ آدرس و اینترنت را بررسی کنید.");
-                }
-            });
-        } else {
-            showLogin("نسخه اندروید واقعی MEELANO آماده است؛ برای شروع آدرس API و حساب Atiran را وارد کنید.");
-        }
-    }
-
-    private void showFullLoading(String message) {
-        stage.removeAllViews();
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setGravity(Gravity.CENTER);
-        box.setPadding(dp(24), dp(24), dp(24), dp(24));
-        ProgressBar p = new ProgressBar(this);
-        box.addView(p, new LinearLayout.LayoutParams(dp(58), dp(58)));
-        TextView m = text(message, 13, MUTED, Typeface.NORMAL);
-        m.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2);
-        mp.setMargins(0, dp(18), 0, 0);
-        box.addView(m, mp);
-        stage.addView(box, new FrameLayout.LayoutParams(-1, -1));
-    }
-
     private void showLogin(String message) {
         activePage = "login";
-        serviceLine.setText("ورود مستقیم به API");
-        status.setText("اپلیکیشن اندروید واقعی، بدون PWA و بدون مرورگر داخلی");
+        session = null;
+        status.setText("اتصال مستقیم به سرور");
+        subtitle.setText("ورود با حساب Atiran");
         stage.removeAllViews();
 
         FrameLayout backdrop = new FrameLayout(this);
@@ -338,11 +310,11 @@ public class MainActivity extends Activity {
         logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
         loginCard.addView(logo, new LinearLayout.LayoutParams(dp(124), dp(124)));
 
-        TextView h = text("MEELANO Android Native", 23, TEXT, Typeface.BOLD);
+        TextView h = text("MEELANO Android", 23, TEXT, Typeface.BOLD);
         h.setGravity(Gravity.CENTER);
         loginCard.addView(h, new LinearLayout.LayoutParams(-1, -2));
 
-        TextView sub = text("بدون PWA، بدون مرورگر داخلی؛ رابط کاملاً Native و اتصال مستقیم به API امن MEELANO", 12.5f, MUTED, Typeface.NORMAL);
+        TextView sub = text("نسخه اندروید با اتصال مستقیم؛ فقط نام کاربری و رمز Atiran را وارد کنید.", 12.5f, MUTED, Typeface.NORMAL);
         sub.setGravity(Gravity.CENTER);
         sub.setLineSpacing(dp(2), 1.05f);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2);
@@ -359,71 +331,57 @@ public class MainActivity extends Activity {
             loginCard.addView(msg, mp);
         }
 
-        TextView serviceLabel = text("آدرس API / سرور MEELANO", 12, MUTED, Typeface.BOLD);
-        loginCard.addView(serviceLabel, new LinearLayout.LayoutParams(-1, -2));
-        EditText baseUrl = input("https://meelano.example.com", prefs.getString(KEY_BASE_URL, ""), false, true);
-        baseUrl.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(-1, dp(54));
-        ip.setMargins(0, dp(6), 0, dp(12));
-        loginCard.addView(baseUrl, ip);
-
         TextView userLabel = text("نام کاربری Atiran", 12, MUTED, Typeface.BOLD);
         loginCard.addView(userLabel, new LinearLayout.LayoutParams(-1, -2));
-        EditText username = input("username", "", false, true);
+        EditText username = input("username", prefs.getString(KEY_LAST_USER, ""), false);
         LinearLayout.LayoutParams up = new LinearLayout.LayoutParams(-1, dp(54));
         up.setMargins(0, dp(6), 0, dp(12));
         loginCard.addView(username, up);
 
         TextView passLabel = text("رمز عبور Atiran", 12, MUTED, Typeface.BOLD);
         loginCard.addView(passLabel, new LinearLayout.LayoutParams(-1, -2));
-        EditText password = input("password", "", true, true);
+        EditText password = input("password", "", true);
         password.setImeOptions(EditorInfo.IME_ACTION_DONE);
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, dp(54));
         pp.setMargins(0, dp(6), 0, dp(16));
         loginCard.addView(password, pp);
 
-        Button login = primaryButton("ورود به اپلیکیشن اندروید");
+        Button login = primaryButton("اتصال و ورود");
         loginCard.addView(login, new LinearLayout.LayoutParams(-1, dp(54)));
 
-        TextView safe = text("اطلاعات دیتابیس داخل APK قرار ندارد. اپ فقط با API منتشرشده شما صحبت می‌کند و Session امن سرور را نگه می‌دارد.", 10.5f, MUTED, Typeface.NORMAL);
-        safe.setGravity(Gravity.CENTER);
-        safe.setLineSpacing(dp(2), 1.05f);
-        LinearLayout.LayoutParams safeLp = new LinearLayout.LayoutParams(-1, -2);
-        safeLp.setMargins(0, dp(14), 0, 0);
-        loginCard.addView(safe, safeLp);
+        TextView note = text("در صورت عدم اتصال، فقط پیام خطای اتصال و گزینه تلاش مجدد نمایش داده می‌شود.", 10.5f, MUTED, Typeface.NORMAL);
+        note.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams noteLp = new LinearLayout.LayoutParams(-1, -2);
+        noteLp.setMargins(0, dp(14), 0, 0);
+        loginCard.addView(note, noteLp);
 
         View.OnClickListener doLogin = v -> {
-            String url = normalizeBase(baseUrl.getText().toString());
             String u = username.getText().toString().trim();
             String p = password.getText().toString();
-            if (url.length() < 10) { baseUrl.setError("آدرس معتبر وارد کنید"); return; }
             if (u.isEmpty()) { username.setError("نام کاربری الزامی است"); return; }
             if (p.isEmpty()) { password.setError("رمز عبور الزامی است"); return; }
-            prefs.edit().putString(KEY_BASE_URL, url).remove(KEY_COOKIE).apply();
             login.setEnabled(false);
-            login.setText("در حال ورود…");
-            JSONObject payload = new JSONObject();
-            try {
-                payload.put("username", u);
-                payload.put("password", p);
-            } catch (Exception ignored) { }
-            callApi("POST", "/api/login", payload, new ApiCallback() {
-                @Override public void onSuccess(String body) {
-                    login.setEnabled(true);
-                    login.setText("ورود به اپلیکیشن اندروید");
-                    try {
-                        JSONObject j = new JSONObject(body);
-                        prefs.edit().putString(KEY_USER, j.optString("userName", u)).apply();
-                    } catch (Exception ignored) {
-                        prefs.edit().putString(KEY_USER, u).apply();
-                    }
-                    Toast.makeText(MainActivity.this, "ورود موفق بود", Toast.LENGTH_SHORT).show();
-                    showApp("dashboard");
-                }
-                @Override public void onError(Exception e) {
-                    login.setEnabled(true);
-                    login.setText("ورود به اپلیکیشن اندروید");
-                    Toast.makeText(MainActivity.this, readableError(e), Toast.LENGTH_LONG).show();
+            login.setText("در حال اتصال…");
+            status.setText("در حال اتصال به سرور…");
+            executor.execute(() -> {
+                try {
+                    UserSession s = authenticate(u, p);
+                    runOnUiThread(() -> {
+                        session = s;
+                        prefs.edit().putString(KEY_LAST_USER, u).apply();
+                        login.setEnabled(true);
+                        login.setText("اتصال و ورود");
+                        status.setText("اتصال برقرار شد");
+                        Toast.makeText(this, "اتصال موفق بود", Toast.LENGTH_SHORT).show();
+                        showApp("dashboard");
+                    });
+                } catch (Exception ex) {
+                    runOnUiThread(() -> {
+                        login.setEnabled(true);
+                        login.setText("اتصال و ورود");
+                        status.setText("عدم اتصال");
+                        showLoginError(readableError(ex), () -> doLogin.onClick(login));
+                    });
                 }
             });
         };
@@ -440,10 +398,23 @@ public class MainActivity extends Activity {
         stage.addView(backdrop, new FrameLayout.LayoutParams(-1, -1));
     }
 
+    private void showLoginError(String message, Runnable retry) {
+        new AlertDialog.Builder(this)
+                .setTitle("عدم اتصال")
+                .setMessage(message + "\n\nبرای اتصال مجدد تلاش کنید.")
+                .setNegativeButton("بستن", null)
+                .setPositiveButton("تلاش مجدد", (d, w) -> retry.run())
+                .show();
+    }
+
     private void showApp(String page) {
+        if (session == null) {
+            showLogin("ابتدا وارد شوید.");
+            return;
+        }
         activePage = page;
-        serviceLine.setText(shortHost(prefs.getString(KEY_BASE_URL, "")));
-        status.setText("اتصال Native به API");
+        status.setText("اتصال مستقیم فعال");
+        subtitle.setText(session.userName);
         stage.removeAllViews();
 
         LinearLayout shell = new LinearLayout(this);
@@ -452,7 +423,6 @@ public class MainActivity extends Activity {
 
         HorizontalScrollView navScroll = new HorizontalScrollView(this);
         navScroll.setHorizontalScrollBarEnabled(false);
-        navScroll.setFillViewport(false);
         navStrip = new LinearLayout(this);
         navStrip.setOrientation(LinearLayout.HORIZONTAL);
         navStrip.setGravity(Gravity.CENTER_VERTICAL);
@@ -461,7 +431,6 @@ public class MainActivity extends Activity {
         shell.addView(navScroll, new LinearLayout.LayoutParams(-1, dp(62)));
 
         ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(false);
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(14), dp(8), dp(14), dp(28));
@@ -499,12 +468,11 @@ public class MainActivity extends Activity {
     }
 
     private void renderActivePage() {
-        if (content == null) return;
         switch (activePage) {
             case "customers": loadCustomers(""); break;
             case "products": loadProducts(""); break;
-            case "sales": loadTable("فروش و اسناد", "نمای Native از جدول اسناد فروش Atiran", "sailfact"); break;
-            case "checks": loadTable("چک‌ها و وصول", "نمای Native از چک‌های دریافتی", "getchk"); break;
+            case "sales": loadTable("فروش و اسناد", "نمای مستقیم از جدول فروش", "sailfact", ""); break;
+            case "checks": loadTable("چک‌ها و وصول", "نمای مستقیم از چک‌های دریافتی", "getchk", ""); break;
             case "reports": loadReports(); break;
             case "settings": renderSettings(); break;
             case "dashboard":
@@ -513,19 +481,13 @@ public class MainActivity extends Activity {
     }
 
     private void refreshActivePage() {
-        if ("login".equals(activePage)) {
-            boot();
-        } else {
-            showApp(activePage);
-        }
+        if ("login".equals(activePage)) showLogin("برای اتصال مجدد، اطلاعات Atiran را وارد کنید.");
+        else showApp(activePage);
     }
 
-    private void addHero(String title, String subtitle) {
+    private void addHero(String title, String text) {
         LinearLayout hero = card();
         hero.setBackground(gradient(new int[]{Color.rgb(26, 32, 45), Color.rgb(15, 19, 28)}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
-        TextView h = text(title, 22, TEXT, Typeface.BOLD);
-        TextView s = text(subtitle, 12, MUTED, Typeface.NORMAL);
-        s.setLineSpacing(dp(2), 1.05f);
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -536,6 +498,9 @@ public class MainActivity extends Activity {
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(10), 0, dp(10), 0);
+        TextView h = this.text(title, 22, TEXT, Typeface.BOLD);
+        TextView s = this.text(text, 12, MUTED, Typeface.NORMAL);
+        s.setLineSpacing(dp(2), 1.05f);
         copy.addView(h, new LinearLayout.LayoutParams(-1, -2));
         copy.addView(s, new LinearLayout.LayoutParams(-1, -2));
         row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -560,57 +525,163 @@ public class MainActivity extends Activity {
 
     private void showPageError(String title, Exception error, Runnable retry) {
         content.removeAllViews();
-        addHero(title, "خطا در دریافت اطلاعات از API");
+        addHero(title, "عدم اتصال به سرور");
         LinearLayout c = card();
-        TextView h = text("ارتباط برقرار نشد", 17, TEXT, Typeface.BOLD);
-        TextView m = text(readableError(error), 12, MUTED, Typeface.NORMAL);
+        TextView h = text("عدم اتصال", 17, TEXT, Typeface.BOLD);
+        TextView m = text(readableError(error) + "\n\nبرای اتصال مجدد تلاش کنید.", 12, MUTED, Typeface.NORMAL);
         m.setLineSpacing(dp(3), 1.05f);
         c.addView(h, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2);
         mp.setMargins(0, dp(8), 0, dp(14));
         c.addView(m, mp);
-        Button b = primaryButton("تلاش دوباره");
+        Button b = primaryButton("تلاش مجدد");
         b.setOnClickListener(v -> retry.run());
         c.addView(b, new LinearLayout.LayoutParams(-1, dp(50)));
-        if (error instanceof ApiException && ((ApiException) error).code == 401) {
-            prefs.edit().remove(KEY_COOKIE).apply();
-            Button login = secondaryButton("ورود دوباره");
-            login.setOnClickListener(v -> showLogin("جلسه کاربری منقضی شده است."));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(50));
-            lp.setMargins(0, dp(10), 0, 0);
-            c.addView(login, lp);
-        }
         content.addView(c, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private interface DbJob { String run() throws Exception; }
+    private interface DbCallback { void ok(String body); void fail(Exception e); }
+
+    private void runDb(DbJob job, DbCallback callback) {
+        status.setText("در حال ارتباط با سرور…");
+        executor.execute(() -> {
+            try {
+                String body = job.run();
+                runOnUiThread(() -> {
+                    status.setText("اتصال مستقیم فعال");
+                    callback.ok(body);
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    status.setText("عدم اتصال");
+                    callback.fail(e);
+                });
+            }
+        });
+    }
+
+    private Connection openConnection() throws Exception {
+        Class.forName("net.sourceforge.jtds.jdbc.Driver");
+        String url = "jdbc:jtds:sqlserver://" + hidden(S_HOST) + ":" + SQL_PORT + "/" + hidden(S_DB)
+                + ";loginTimeout=10;socketTimeout=30;appName=MEELANOAndroid;";
+        Properties props = new Properties();
+        props.setProperty("user", hidden(S_USER));
+        props.setProperty("password", hidden(S_PASS));
+        props.setProperty("charset", "UTF-8");
+        props.setProperty("sendStringParametersAsUnicode", "true");
+        return DriverManager.getConnection(url, props);
+    }
+
+    private UserSession authenticate(String atiranUser, String atiranPassword) throws Exception {
+        try (Connection c = openConnection()) {
+            String visitorSql = "SELECT TOP (1) v.vis_rdf, v.vis_name, v.UserID FROM dbo.visitors AS v " +
+                    "WHERE v.Username=? AND v.Password=? AND (v.active='1' OR v.active='Y' OR v.active='y') ORDER BY v.vis_rdf";
+            try (PreparedStatement ps = c.prepareStatement(visitorSql)) {
+                ps.setString(1, atiranUser);
+                ps.setString(2, atiranPassword);
+                try (ResultSet r = ps.executeQuery()) {
+                    if (r.next()) {
+                        Integer uid = r.getObject(3) == null ? null : r.getInt(3);
+                        return new UserSession(uid, r.getInt(1), stringOr(r.getString(2), atiranUser));
+                    }
+                }
+            }
+
+            String userSql = "SELECT TOP (1) u.user_id, u.user_name, sv.shvis FROM dbo.sys_users AS u " +
+                    "LEFT JOIN dbo.sys_vis AS sv ON sv.UserID=u.user_id " +
+                    "LEFT JOIN dbo.visitors AS v ON v.vis_rdf=sv.shvis " +
+                    "WHERE u.user_name=? AND CONVERT(varchar(100),u.user_password)=? " +
+                    "AND ISNULL(u.active,1)=1 AND ISNULL(u.IsLocked,0)=0 " +
+                    "AND (v.active IS NULL OR v.active IN ('1','Y','y')) " +
+                    "ORDER BY CASE WHEN sv.shvis IS NULL THEN 1 ELSE 0 END, sv.SysID";
+            try (PreparedStatement ps = c.prepareStatement(userSql)) {
+                ps.setString(1, atiranUser);
+                ps.setString(2, atiranPassword);
+                try (ResultSet r = ps.executeQuery()) {
+                    if (r.next()) {
+                        Integer visitor = r.getObject(3) == null ? null : r.getInt(3);
+                        return new UserSession(r.getInt(1), visitor, stringOr(r.getString(2), atiranUser));
+                    }
+                }
+            }
+        }
+        throw new DbException("نام کاربری یا رمز عبور Atiran معتبر نیست.");
     }
 
     private void loadDashboard() {
         content.removeAllViews();
-        addHero("مرکز فرماندهی", "KPIها و نمودارهای واقعی Atiran در رابط Native اندروید");
+        addHero("مرکز فرماندهی", "KPIها و نمودارها با اتصال مستقیم به داده‌های Atiran");
         addLoading(content, "در حال دریافت داشبورد…");
-        callApi("GET", "/api/dashboard", null, new ApiCallback() {
-            @Override public void onSuccess(String body) {
+        runDb(this::queryDashboard, new DbCallback() {
+            @Override public void ok(String body) {
                 try {
                     JSONObject j = new JSONObject(body);
                     content.removeAllViews();
-                    addHero("مرکز فرماندهی", "KPIها و نمودارهای واقعی Atiran در رابط Native اندروید");
+                    addHero("مرکز فرماندهی", "KPIها و نمودارها با اتصال مستقیم به داده‌های Atiran");
                     addKpis(j.optJSONArray("kpis"));
                     JSONObject a = j.optJSONObject("analytics");
                     if (a != null) {
-                        addChartCard("روند فروش هفتگی", "بر پایه فروش واقعی", new LineChartView(MainActivity.this, a.optJSONArray("weeklySales"), GOLD));
-                        addChartCard("مشتریان برتر", "TOP مشتریان از API", new BarChartView(MainActivity.this, a.optJSONArray("topCustomers"), SUCCESS));
-                        addChartCard("سن مطالبات", "تحلیل بدهی و وصول", new BarChartView(MainActivity.this, a.optJSONArray("debtAging"), WARNING));
+                        addChartCard("روند فروش", "جمع فروش ماهانه/هفتگی", new LineChartView(MainActivity.this, a.optJSONArray("weeklySales"), GOLD));
+                        addChartCard("مشتریان برتر", "بر اساس مبلغ فروش", new BarChartView(MainActivity.this, a.optJSONArray("topCustomers"), SUCCESS));
+                        addChartCard("مانده مشتریان", "تحلیل مانده حساب", new BarChartView(MainActivity.this, a.optJSONArray("debtAging"), WARNING));
                     }
-                } catch (Exception e) {
-                    showPageError("داشبورد", e, () -> showApp("dashboard"));
-                }
+                } catch (Exception e) { showPageError("داشبورد", e, () -> showApp("dashboard")); }
             }
-            @Override public void onError(Exception e) { showPageError("داشبورد", e, () -> showApp("dashboard")); }
+            @Override public void fail(Exception e) { showPageError("داشبورد", e, () -> showApp("dashboard")); }
         });
+    }
+
+    private String queryDashboard() throws Exception {
+        try (Connection c = openConnection()) {
+            JSONObject out = new JSONObject();
+            JSONArray kpis = new JSONArray();
+            String[][] targets = {
+                    {"مشتریان", "CUSTOMERS"}, {"کالاها", "inventory"}, {"فروش", "sailfact"},
+                    {"پیش‌فاکتور", "sailfact_pish"}, {"چک دریافتی", "getchk"}, {"چک پرداختی", "putchk"},
+                    {"ویزیتورها", "visitors"}, {"اهداف", "vis_goals"}
+            };
+            for (String[] target : targets) {
+                JSONObject item = new JSONObject();
+                item.put("title", target[0]);
+                try {
+                    item.put("value", countTable(c, target[1]));
+                    item.put("available", true);
+                } catch (Exception ex) {
+                    item.put("value", 0);
+                    item.put("available", false);
+                }
+                kpis.put(item);
+            }
+            JSONObject a = new JSONObject();
+            a.put("weeklySales", loadMonthlySales(c));
+            a.put("topCustomers", loadTopCustomers(c));
+            a.put("debtAging", loadDebtAging(c));
+            a.put("categoryShare", loadCategoryShare(c));
+            a.put("monthlyProfit", loadMonthlySales(c));
+            out.put("kpis", kpis);
+            out.put("analytics", a);
+            return out.toString();
+        }
+    }
+
+    private long countTable(Connection c, String table) throws Exception {
+        if (!SAFE_TABLES.contains(table)) throw new DbException("جدول مجاز نیست.");
+        Set<String> cols = columns(c, table);
+        String where = "";
+        if (session != null && session.visitorId != null && cols.contains("vis_rdf") &&
+                (table.equalsIgnoreCase("CUSTOMERS") || table.equalsIgnoreCase("sailfact") || table.equalsIgnoreCase("vis_goals"))) {
+            where = " WHERE TRY_CONVERT(int,[vis_rdf])=?";
+        }
+        try (PreparedStatement ps = c.prepareStatement("SELECT COUNT_BIG(1) FROM dbo.[" + table + "]" + where)) {
+            if (!where.isEmpty()) ps.setInt(1, session.visitorId);
+            try (ResultSet r = ps.executeQuery()) { return r.next() ? r.getLong(1) : 0; }
+        }
     }
 
     private void addKpis(JSONArray kpis) {
         if (kpis == null || kpis.length() == 0) {
-            addEmpty("KPI قابل نمایش وجود ندارد.");
+            addEmptyTo(content, "KPI قابل نمایش وجود ندارد.");
             return;
         }
         LinearLayout row = null;
@@ -626,10 +697,9 @@ public class MainActivity extends Activity {
             LinearLayout c = card();
             c.setBackground(gradient(new int[]{Color.rgb(20, 25, 36), Color.rgb(30, 36, 50)}, GradientDrawable.Orientation.TOP_BOTTOM, 20));
             TextView icon = text(i % 3 == 0 ? "◈" : (i % 3 == 1 ? "◆" : "●"), 24, GOLD_2, Typeface.BOLD);
-            icon.setGravity(Gravity.RIGHT);
             TextView title = text(item == null ? "شاخص" : item.optString("title", "شاخص"), 11.5f, MUTED, Typeface.NORMAL);
             TextView value = text(formatNumber(item == null ? 0 : item.opt("value")), 21, TEXT, Typeface.BOLD);
-            TextView live = text("داده واقعی API", 10, SUCCESS, Typeface.NORMAL);
+            TextView live = text("داده مستقیم", 10, SUCCESS, Typeface.NORMAL);
             c.addView(icon, new LinearLayout.LayoutParams(-1, -2));
             c.addView(title, new LinearLayout.LayoutParams(-1, -2));
             c.addView(value, new LinearLayout.LayoutParams(-1, -2));
@@ -638,40 +708,70 @@ public class MainActivity extends Activity {
             cp.setMargins(dp(4), 0, dp(4), 0);
             if (row != null) row.addView(c, cp);
         }
-        if (kpis.length() % 2 == 1 && content.getChildAt(content.getChildCount() - 1) instanceof LinearLayout) {
-            LinearLayout last = (LinearLayout) content.getChildAt(content.getChildCount() - 1);
-            Space s = new Space(this);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, 1, 1f);
-            lp.setMargins(dp(4), 0, dp(4), 0);
-            last.addView(s, lp);
-        }
     }
 
     private void loadCustomers(String query) {
         content.removeAllViews();
-        addHero("مشتریان", "جستجو، مانده حساب و Customer 360 در UI Native");
+        addHero("مشتریان", "جستجو و Customer 360 با اتصال مستقیم");
         addSearchBox("جستجوی مشتری…", query, q -> loadCustomers(q));
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         content.addView(list, new LinearLayout.LayoutParams(-1, -2));
         addLoading(list, "در حال دریافت مشتریان…");
-        callApi("GET", "/api/customers?search=" + enc(query), null, new ApiCallback() {
-            @Override public void onSuccess(String body) {
+        runDb(() -> queryCustomers(query), new DbCallback() {
+            @Override public void ok(String body) {
                 try {
                     JSONArray rows = new JSONArray(body);
                     list.removeAllViews();
-                    if (rows.length() == 0) {
-                        addEmptyTo(list, "مشتری مطابق جستجو پیدا نشد.");
-                        return;
-                    }
-                    for (int i = 0; i < Math.min(rows.length(), 70); i++) addCustomerCard(list, rows.optJSONObject(i));
-                    if (rows.length() > 70) addEmptyTo(list, "برای سرعت بیشتر فقط ۷۰ رکورد اول نمایش داده شد. جستجو را دقیق‌تر کنید.");
-                } catch (Exception e) {
-                    showPageError("مشتریان", e, () -> loadCustomers(query));
-                }
+                    if (rows.length() == 0) { addEmptyTo(list, "مشتری مطابق جستجو پیدا نشد."); return; }
+                    for (int i = 0; i < rows.length(); i++) addCustomerCard(list, rows.optJSONObject(i));
+                } catch (Exception e) { showPageError("مشتریان", e, () -> loadCustomers(query)); }
             }
-            @Override public void onError(Exception e) { showPageError("مشتریان", e, () -> loadCustomers(query)); }
+            @Override public void fail(Exception e) { showPageError("مشتریان", e, () -> loadCustomers(query)); }
         });
+    }
+
+    private String queryCustomers(String search) throws Exception {
+        try (Connection c = openConnection()) {
+            Set<String> cols = columns(c, "CUSTOMERS");
+            String shmo = resolve(cols, "SHMO");
+            if (shmo == null) throw new DbException("ستون مشتری یافت نشد.");
+            String name = resolve(cols, "MONAME", "Name", "CusName");
+            String phone = resolve(cols, "cell", "tell1", "tell2");
+            String phone2 = resolve(cols, "tell1", "tell2");
+            String address = resolve(cols, "address", "Address", "adr", "addr", "manzel");
+            String balance = resolve(cols, "man", "Balance", "Mandeh");
+            String vis = resolve(cols, "vis_rdf", "VisitorID", "visid");
+
+            List<String> select = new ArrayList<>();
+            select.add("[" + shmo + "] AS shmo");
+            select.add(name == null ? "CAST(NULL AS nvarchar(250)) AS name" : "TRY_CONVERT(nvarchar(250),[" + name + "]) AS name");
+            select.add(phone == null ? "CAST(NULL AS nvarchar(100)) AS phone" : "TRY_CONVERT(nvarchar(100),[" + phone + "]) AS phone");
+            select.add(phone2 == null ? "CAST(NULL AS nvarchar(100)) AS phone2" : "TRY_CONVERT(nvarchar(100),[" + phone2 + "]) AS phone2");
+            select.add(address == null ? "CAST(NULL AS nvarchar(500)) AS address" : "TRY_CONVERT(nvarchar(500),[" + address + "]) AS address");
+            select.add(balance == null ? "CAST(0 AS decimal(19,2)) AS balance" : "TRY_CONVERT(decimal(19,2),[" + balance + "]) AS balance");
+            select.add(vis == null ? "CAST(NULL AS int) AS visitorId" : "TRY_CONVERT(int,[" + vis + "]) AS visitorId");
+
+            List<String> where = new ArrayList<>();
+            List<Object> params = new ArrayList<>();
+            if (search != null && !search.trim().isEmpty()) {
+                List<String> parts = new ArrayList<>();
+                for (String col : new String[]{name, phone, phone2, address, shmo}) {
+                    if (col != null) { parts.add("TRY_CONVERT(nvarchar(500),[" + col + "]) LIKE N'%' + ? + N'%'"); params.add(search.trim()); }
+                }
+                where.add("(" + join(parts, " OR ") + ")");
+            }
+            if (session != null && session.visitorId != null && vis != null) {
+                where.add("TRY_CONVERT(int,[" + vis + "])=?");
+                params.add(session.visitorId);
+            }
+            String sql = "SELECT TOP (120) " + join(select, ",") + " FROM dbo.[CUSTOMERS]" +
+                    (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + " ORDER BY name, shmo";
+            try (PreparedStatement ps = c.prepareStatement(sql)) {
+                setParams(ps, params);
+                try (ResultSet r = ps.executeQuery()) { return rowsToJson(r).toString(); }
+            }
+        }
     }
 
     private void addCustomerCard(LinearLayout parent, JSONObject r) {
@@ -679,14 +779,11 @@ public class MainActivity extends Activity {
         LinearLayout c = card();
         c.setClickable(true);
         c.setOnClickListener(v -> showCustomerDialog(r));
-        TextView name = text(r.optString("name", "بدون نام"), 16, TEXT, Typeface.BOLD);
-        TextView code = text("کد: " + r.optString("shmo", "-") + "   |   همراه: " + r.optString("phone", "-"), 11.5f, MUTED, Typeface.NORMAL);
-        TextView balance = text("مانده: " + money(r.opt("balance")), 13, r.optDouble("balance", 0) > 0 ? WARNING : SUCCESS, Typeface.BOLD);
+        c.addView(text(r.optString("name", "بدون نام"), 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("کد: " + r.optString("shmo", "-") + "   |   همراه: " + r.optString("phone", "-"), 11.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("مانده: " + money(r.opt("balance")), 13, r.optDouble("balance", 0) > 0 ? WARNING : SUCCESS, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         TextView address = text(r.optString("address", "-"), 11, alpha(TEXT, 190), Typeface.NORMAL);
         address.setMaxLines(2);
-        c.addView(name, new LinearLayout.LayoutParams(-1, -2));
-        c.addView(code, new LinearLayout.LayoutParams(-1, -2));
-        c.addView(balance, new LinearLayout.LayoutParams(-1, -2));
         c.addView(address, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, 0, 0, dp(10));
@@ -700,52 +797,72 @@ public class MainActivity extends Activity {
                 + "مانده: " + money(r.opt("balance")) + "\n"
                 + "ویزیتور: " + r.optString("visitorId", "-") + "\n\n"
                 + "نشانی: " + r.optString("address", "-");
-        new AlertDialog.Builder(this)
-                .setTitle(r.optString("name", "Customer 360"))
-                .setMessage(message)
-                .setPositiveButton("بستن", null)
-                .show();
+        new AlertDialog.Builder(this).setTitle(r.optString("name", "Customer 360")).setMessage(message).setPositiveButton("بستن", null).show();
     }
 
     private void loadProducts(String query) {
         content.removeAllViews();
-        addHero("کالا و انبار", "Product Intelligence در رابط Native اندروید");
+        addHero("کالا و انبار", "Product Intelligence با اتصال مستقیم");
         addSearchBox("جستجوی کالا…", query, q -> loadProducts(q));
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         content.addView(list, new LinearLayout.LayoutParams(-1, -2));
         addLoading(list, "در حال دریافت کالاها…");
-        callApi("GET", "/api/products?search=" + enc(query), null, new ApiCallback() {
-            @Override public void onSuccess(String body) {
+        runDb(() -> queryProducts(query), new DbCallback() {
+            @Override public void ok(String body) {
                 try {
                     JSONArray rows = new JSONArray(body);
                     list.removeAllViews();
-                    if (rows.length() == 0) {
-                        addEmptyTo(list, "کالایی مطابق جستجو پیدا نشد.");
-                        return;
-                    }
-                    for (int i = 0; i < Math.min(rows.length(), 70); i++) addProductCard(list, rows.optJSONObject(i));
-                    if (rows.length() > 70) addEmptyTo(list, "برای سرعت بیشتر فقط ۷۰ رکورد اول نمایش داده شد. جستجو را دقیق‌تر کنید.");
-                } catch (Exception e) {
-                    showPageError("کالا", e, () -> loadProducts(query));
-                }
+                    if (rows.length() == 0) { addEmptyTo(list, "کالایی مطابق جستجو پیدا نشد."); return; }
+                    for (int i = 0; i < rows.length(); i++) addProductCard(list, rows.optJSONObject(i));
+                } catch (Exception e) { showPageError("کالا", e, () -> loadProducts(query)); }
             }
-            @Override public void onError(Exception e) { showPageError("کالا", e, () -> loadProducts(query)); }
+            @Override public void fail(Exception e) { showPageError("کالا", e, () -> loadProducts(query)); }
         });
+    }
+
+    private String queryProducts(String search) throws Exception {
+        try (Connection c = openConnection()) {
+            Set<String> cols = columns(c, "inventory");
+            String shka = resolve(cols, "shka", "SHKA");
+            if (shka == null) throw new DbException("ستون کالا یافت نشد.");
+            String name = resolve(cols, "naka", "Name", "KalaName");
+            String code = resolve(cols, "StuffCode", "Code", "Barcode", "KalaCode");
+            String price = resolve(cols, "FinalSalePrice", "SalePrice", "Price");
+            String stock = resolve(cols, "Mojoodi", "mojoodi", "Stock", "Qty", "tedad", "Tedad");
+            List<String> select = new ArrayList<>();
+            select.add("[" + shka + "] AS shka");
+            select.add(name == null ? "CAST(NULL AS nvarchar(250)) AS name" : "TRY_CONVERT(nvarchar(250),[" + name + "]) AS name");
+            select.add(code == null ? "CAST(NULL AS nvarchar(100)) AS code" : "TRY_CONVERT(nvarchar(100),[" + code + "]) AS code");
+            select.add(price == null ? "CAST(0 AS decimal(19,2)) AS price" : "TRY_CONVERT(decimal(19,2),[" + price + "]) AS price");
+            select.add(stock == null ? "CAST(0 AS decimal(19,3)) AS stock" : "TRY_CONVERT(decimal(19,3),[" + stock + "]) AS stock");
+            List<String> where = new ArrayList<>();
+            List<Object> params = new ArrayList<>();
+            if (search != null && !search.trim().isEmpty()) {
+                List<String> parts = new ArrayList<>();
+                for (String col : new String[]{name, code, shka}) {
+                    if (col != null) { parts.add("TRY_CONVERT(nvarchar(500),[" + col + "]) LIKE N'%' + ? + N'%'"); params.add(search.trim()); }
+                }
+                where.add("(" + join(parts, " OR ") + ")");
+            }
+            String sql = "SELECT TOP (120) " + join(select, ",") + " FROM dbo.[inventory]" +
+                    (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + " ORDER BY name, shka";
+            try (PreparedStatement ps = c.prepareStatement(sql)) {
+                setParams(ps, params);
+                try (ResultSet r = ps.executeQuery()) { return rowsToJson(r).toString(); }
+            }
+        }
     }
 
     private void addProductCard(LinearLayout parent, JSONObject r) {
         if (r == null) return;
         LinearLayout c = card();
-        TextView name = text(r.optString("name", "بدون نام"), 16, TEXT, Typeface.BOLD);
-        TextView code = text("کد: " + firstNonEmpty(r.optString("code", ""), r.optString("shka", "-")), 11.5f, MUTED, Typeface.NORMAL);
+        c.addView(text(r.optString("name", "بدون نام"), 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("کد: " + firstNonEmpty(r.optString("code", ""), r.optString("shka", "-")), 11.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout metrics = new LinearLayout(this);
         metrics.setOrientation(LinearLayout.HORIZONTAL);
         metrics.addView(metric("قیمت", money(r.opt("price"))), new LinearLayout.LayoutParams(0, -2, 1f));
         metrics.addView(metric("موجودی", formatNumber(r.opt("stock"))), new LinearLayout.LayoutParams(0, -2, 1f));
-        metrics.addView(metric("فروش", money(r.opt("salesAmount"))), new LinearLayout.LayoutParams(0, -2, 1f));
-        c.addView(name, new LinearLayout.LayoutParams(-1, -2));
-        c.addView(code, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2);
         mp.setMargins(0, dp(10), 0, 0);
         c.addView(metrics, mp);
@@ -775,7 +892,7 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
         box.setPadding(0, 0, 0, dp(12));
-        EditText q = input(hint, query, false, false);
+        EditText q = input(hint, query, false);
         q.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         Button b = secondaryButton("جستجو");
         box.addView(q, new LinearLayout.LayoutParams(0, dp(50), 1f));
@@ -784,51 +901,83 @@ public class MainActivity extends Activity {
         box.addView(b, bp);
         b.setOnClickListener(v -> action.run(q.getText().toString().trim()));
         q.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                action.run(q.getText().toString().trim());
-                return true;
-            }
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) { action.run(q.getText().toString().trim()); return true; }
             return false;
         });
         content.addView(box, new LinearLayout.LayoutParams(-1, -2));
     }
 
-    private void loadTable(String title, String subtitle, String table) {
+    private void loadTable(String title, String sub, String table, String query) {
         content.removeAllViews();
-        addHero(title, subtitle);
-        addSearchBox("جستجو در جدول…", "", q -> loadTableWithQuery(title, subtitle, table, q));
-        loadTableWithQuery(title, subtitle, table, "");
-    }
-
-    private void loadTableWithQuery(String title, String subtitle, String table, String query) {
-        content.removeAllViews();
-        addHero(title, subtitle);
-        addSearchBox("جستجو در جدول…", query, q -> loadTableWithQuery(title, subtitle, table, q));
+        addHero(title, sub);
+        addSearchBox("جستجو در جدول…", query, q -> loadTable(title, sub, table, q));
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         content.addView(list, new LinearLayout.LayoutParams(-1, -2));
         addLoading(list, "در حال دریافت داده…");
-        callApi("GET", "/api/table/" + table + "?q=" + enc(query) + "&pageSize=80", null, new ApiCallback() {
-            @Override public void onSuccess(String body) {
+        runDb(() -> queryTable(table, query), new DbCallback() {
+            @Override public void ok(String body) {
                 try {
                     JSONObject j = new JSONObject(body);
                     JSONArray cols = j.optJSONArray("columns");
                     JSONArray rows = j.optJSONArray("rows");
                     list.removeAllViews();
-                    if (rows == null || rows.length() == 0) {
-                        addEmptyTo(list, "رکوردی برای نمایش وجود ندارد.");
-                        return;
-                    }
+                    if (rows == null || rows.length() == 0) { addEmptyTo(list, "رکوردی برای نمایش وجود ندارد."); return; }
                     for (int i = 0; i < rows.length(); i++) addGenericRow(list, cols, rows.optJSONObject(i));
                     TextView total = text("مجموع رکوردها: " + formatNumber(j.opt("total")), 11, MUTED, Typeface.NORMAL);
                     total.setGravity(Gravity.CENTER);
                     list.addView(total, new LinearLayout.LayoutParams(-1, -2));
-                } catch (Exception e) {
-                    showPageError(title, e, () -> loadTableWithQuery(title, subtitle, table, query));
+                } catch (Exception e) { showPageError(title, e, () -> loadTable(title, sub, table, query)); }
+            }
+            @Override public void fail(Exception e) { showPageError(title, e, () -> loadTable(title, sub, table, query)); }
+        });
+    }
+
+    private String queryTable(String table, String query) throws Exception {
+        if (!SAFE_TABLES.contains(table)) throw new DbException("این جدول برای نمایش مجاز نیست.");
+        try (Connection c = openConnection()) {
+            List<String> cols = new ArrayList<>(columns(c, table));
+            if (cols.isEmpty()) throw new DbException("ستون‌های جدول یافت نشد.");
+            List<String> safeCols = new ArrayList<>();
+            for (String col : cols) if (!isSensitiveColumn(col)) safeCols.add(col);
+            List<String> showCols = safeCols.subList(0, Math.min(10, safeCols.size()));
+            List<String> where = new ArrayList<>();
+            List<Object> params = new ArrayList<>();
+            if (query != null && !query.trim().isEmpty()) {
+                List<String> parts = new ArrayList<>();
+                for (String col : showCols) {
+                    String l = col.toLowerCase(Locale.US);
+                    if (l.contains("name") || l.contains("code") || l.contains("shmo") || l.contains("date") || l.contains("num")) {
+                        parts.add("TRY_CONVERT(nvarchar(500),[" + col + "]) LIKE N'%' + ? + N'%'");
+                        params.add(query.trim());
+                    }
+                }
+                if (!parts.isEmpty()) where.add("(" + join(parts, " OR ") + ")");
+            }
+            String whereSql = where.isEmpty() ? "" : " WHERE " + join(where, " AND ");
+            long total;
+            try (PreparedStatement count = c.prepareStatement("SELECT COUNT_BIG(1) FROM dbo.[" + table + "]" + whereSql)) {
+                setParams(count, params);
+                try (ResultSet r = count.executeQuery()) { total = r.next() ? r.getLong(1) : 0; }
+            }
+            StringBuilder select = new StringBuilder();
+            for (int i = 0; i < showCols.size(); i++) {
+                if (i > 0) select.append(',');
+                select.append('[').append(showCols.get(i)).append(']');
+            }
+            try (PreparedStatement ps = c.prepareStatement("SELECT TOP (80) " + select + " FROM dbo.[" + table + "]" + whereSql)) {
+                setParams(ps, params);
+                try (ResultSet r = ps.executeQuery()) {
+                    JSONObject out = new JSONObject();
+                    JSONArray colJson = new JSONArray();
+                    for (String col : showCols) colJson.put(col);
+                    out.put("columns", colJson);
+                    out.put("total", total);
+                    out.put("rows", rowsToJson(r));
+                    return out.toString();
                 }
             }
-            @Override public void onError(Exception e) { showPageError(title, e, () -> loadTableWithQuery(title, subtitle, table, query)); }
-        });
+        }
     }
 
     private void addGenericRow(LinearLayout parent, JSONArray cols, JSONObject row) {
@@ -838,7 +987,6 @@ public class MainActivity extends Activity {
         if (cols != null) {
             for (int i = 0; i < cols.length() && shown < 6; i++) {
                 String col = cols.optString(i, "");
-                if (col.trim().isEmpty()) continue;
                 Object val = row.opt(col);
                 TextView cell = text(col + ": " + (val == null || JSONObject.NULL.equals(val) ? "-" : String.valueOf(val)), shown == 0 ? 13 : 11.5f, shown == 0 ? TEXT : MUTED, shown == 0 ? Typeface.BOLD : Typeface.NORMAL);
                 c.addView(cell, new LinearLayout.LayoutParams(-1, -2));
@@ -852,33 +1000,130 @@ public class MainActivity extends Activity {
 
     private void loadReports() {
         content.removeAllViews();
-        addHero("گزارش‌های مدیریتی", "نمودارهای Native اندروید، بدون HTML و بدون PWA");
+        addHero("گزارش‌های مدیریتی", "نمودارهای مستقیم از SQL Server");
         addLoading(content, "در حال دریافت گزارش‌ها…");
-        callApi("GET", "/api/analytics", null, new ApiCallback() {
-            @Override public void onSuccess(String body) {
+        runDb(this::queryAnalytics, new DbCallback() {
+            @Override public void ok(String body) {
                 try {
                     JSONObject a = new JSONObject(body);
                     content.removeAllViews();
-                    addHero("گزارش‌های مدیریتی", "نمودارهای Native اندروید، بدون HTML و بدون PWA");
-                    addChartCard("فروش هفتگی", "روند فروش", new LineChartView(MainActivity.this, a.optJSONArray("weeklySales"), GOLD));
-                    addChartCard("سود خالص ۱۲ ماه", "تحلیل سود", new LineChartView(MainActivity.this, a.optJSONArray("monthlyProfit"), SUCCESS));
+                    addHero("گزارش‌های مدیریتی", "نمودارهای مستقیم از SQL Server");
+                    addChartCard("فروش", "روند فروش", new LineChartView(MainActivity.this, a.optJSONArray("weeklySales"), GOLD));
                     addChartCard("مشتریان برتر", "خریداران اصلی", new BarChartView(MainActivity.this, a.optJSONArray("topCustomers"), INFO));
                     addChartCard("سهم دسته‌های کالا", "گروه‌های پرفروش", new BarChartView(MainActivity.this, a.optJSONArray("categoryShare"), GOLD));
-                    addChartCard("سن مطالبات", "بدهی مشتریان", new BarChartView(MainActivity.this, a.optJSONArray("debtAging"), WARNING));
-                } catch (Exception e) {
-                    showPageError("گزارش‌ها", e, () -> showApp("reports"));
-                }
+                    addChartCard("مانده مشتریان", "تحلیل مانده", new BarChartView(MainActivity.this, a.optJSONArray("debtAging"), WARNING));
+                } catch (Exception e) { showPageError("گزارش‌ها", e, () -> showApp("reports")); }
             }
-            @Override public void onError(Exception e) { showPageError("گزارش‌ها", e, () -> showApp("reports")); }
+            @Override public void fail(Exception e) { showPageError("گزارش‌ها", e, () -> showApp("reports")); }
         });
     }
 
-    private void addChartCard(String title, String subtitle, View chart) {
+    private String queryAnalytics() throws Exception {
+        try (Connection c = openConnection()) {
+            JSONObject a = new JSONObject();
+            a.put("weeklySales", loadMonthlySales(c));
+            a.put("topCustomers", loadTopCustomers(c));
+            a.put("categoryShare", loadCategoryShare(c));
+            a.put("debtAging", loadDebtAging(c));
+            return a.toString();
+        }
+    }
+
+    private JSONArray loadMonthlySales(Connection c) throws Exception {
+        Set<String> cols = columns(c, "sailfact");
+        if (!cols.contains("date") || !cols.contains("all")) return new JSONArray();
+        String where = activeWhere(cols, "s");
+        List<Object> params = new ArrayList<>();
+        if (session != null && session.visitorId != null && cols.contains("vis_rdf")) {
+            where = appendWhere(where, "TRY_CONVERT(int,s.[vis_rdf])=?");
+            params.add(session.visitorId);
+        }
+        String sql = "SELECT TOP (12) LEFT(s.[date],7) AS label, ISNULL(SUM(TRY_CONVERT(decimal(19,2),s.[all])),0) AS value " +
+                "FROM dbo.sailfact s " + where + " GROUP BY LEFT(s.[date],7) ORDER BY LEFT(s.[date],7) DESC";
+        return reverse(readPoints(c, sql, params));
+    }
+
+    private JSONArray loadTopCustomers(Connection c) throws Exception {
+        Set<String> sail = columns(c, "sailfact");
+        Set<String> cust = columns(c, "CUSTOMERS");
+        if (!sail.contains("shmo") || !sail.contains("all") || !cust.contains("SHMO")) return new JSONArray();
+        String nameExpr = cust.contains("MONAME") ? "TRY_CONVERT(nvarchar(250),c.MONAME)" : "TRY_CONVERT(nvarchar(100),c.SHMO)";
+        String where = activeWhere(sail, "s");
+        List<Object> params = new ArrayList<>();
+        if (session != null && session.visitorId != null && sail.contains("vis_rdf")) {
+            where = appendWhere(where, "TRY_CONVERT(int,s.[vis_rdf])=?");
+            params.add(session.visitorId);
+        }
+        String sql = "SELECT TOP (10) " + nameExpr + " AS label, ISNULL(SUM(TRY_CONVERT(decimal(19,2),s.[all])),0) AS value " +
+                "FROM dbo.CUSTOMERS c JOIN dbo.sailfact s ON s.shmo=c.SHMO " + where +
+                " GROUP BY c.SHMO," + nameExpr + " ORDER BY value DESC";
+        return readPoints(c, sql, params);
+    }
+
+    private JSONArray loadDebtAging(Connection c) throws Exception {
+        Set<String> cols = columns(c, "CUSTOMERS");
+        String balance = resolve(cols, "man", "Balance", "Mandeh");
+        if (balance == null) return new JSONArray();
+        String vis = resolve(cols, "vis_rdf", "VisitorID", "visid");
+        String where = "WHERE TRY_CONVERT(decimal(19,2),[" + balance + "]) > 0";
+        List<Object> params = new ArrayList<>();
+        if (session != null && session.visitorId != null && vis != null) {
+            where += " AND TRY_CONVERT(int,[" + vis + "])=?";
+            params.add(session.visitorId);
+        }
+        String amount = "TRY_CONVERT(decimal(19,2),[" + balance + "])";
+        String bucket = "CASE WHEN " + amount + " < 10000000 THEN N'کمتر از ۱۰M' " +
+                "WHEN " + amount + " < 50000000 THEN N'۱۰ تا ۵۰M' " +
+                "WHEN " + amount + " < 200000000 THEN N'۵۰ تا ۲۰۰M' ELSE N'بیش از ۲۰۰M' END";
+        String sql = "SELECT " + bucket + " AS label, SUM(" + amount + ") AS value FROM dbo.CUSTOMERS " + where + " GROUP BY " + bucket;
+        return readPoints(c, sql, params);
+    }
+
+    private JSONArray loadCategoryShare(Connection c) throws Exception {
+        Set<String> inv = columns(c, "inventory");
+        Set<String> grp = columns(c, "kagroup");
+        String groupId = resolve(inv, "GroupID", "group_rdf", "VarietyID", "variety_rdf");
+        String productName = resolve(inv, "naka", "Name", "KalaName");
+        if (groupId == null) return new JSONArray();
+        String groupName = resolve(grp, "name", "Name", "GroupName", "nagr", "gname");
+        String groupKey = resolve(grp, "ID", "GroupID", "rdf", "code");
+        if (groupName != null && groupKey != null) {
+            String sql = "SELECT TOP (10) TRY_CONVERT(nvarchar(250),g.[" + groupName + "]) AS label, COUNT_BIG(1) AS value " +
+                    "FROM dbo.inventory i LEFT JOIN dbo.kagroup g ON TRY_CONVERT(nvarchar(100),g.[" + groupKey + "])=TRY_CONVERT(nvarchar(100),i.[" + groupId + "]) " +
+                    "GROUP BY TRY_CONVERT(nvarchar(250),g.[" + groupName + "]) ORDER BY value DESC";
+            return readPoints(c, sql, new ArrayList<>());
+        }
+        String label = productName == null ? "N'کالا'" : "TRY_CONVERT(nvarchar(250),[" + productName + "])";
+        String sql = "SELECT TOP (10) " + label + " AS label, COUNT_BIG(1) AS value FROM dbo.inventory GROUP BY " + label + " ORDER BY value DESC";
+        return readPoints(c, sql, new ArrayList<>());
+    }
+
+    private JSONArray readPoints(Connection c, String sql, List<Object> params) throws Exception {
+        JSONArray arr = new JSONArray();
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            setParams(ps, params);
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) {
+                    JSONObject p = new JSONObject();
+                    p.put("label", stringOr(r.getString(1), "-"));
+                    p.put("value", r.getDouble(2));
+                    arr.put(p);
+                }
+            }
+        }
+        return arr;
+    }
+
+    private JSONArray reverse(JSONArray in) throws Exception {
+        JSONArray out = new JSONArray();
+        for (int i = in.length() - 1; i >= 0; i--) out.put(in.get(i));
+        return out;
+    }
+
+    private void addChartCard(String title, String sub, View chart) {
         LinearLayout c = card();
-        TextView h = text(title, 16, TEXT, Typeface.BOLD);
-        TextView s = text(subtitle, 11, MUTED, Typeface.NORMAL);
-        c.addView(h, new LinearLayout.LayoutParams(-1, -2));
-        c.addView(s, new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text(title, 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text(sub, 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, dp(230));
         cp.setMargins(0, dp(12), 0, 0);
         c.addView(chart, cp);
@@ -889,81 +1134,92 @@ public class MainActivity extends Activity {
 
     private void renderSettings() {
         content.removeAllViews();
-        addHero("تنظیمات", "مدیریت اتصال، Session و اطلاعات نسخه Native");
-
+        addHero("تنظیمات", "مدیریت اتصال و خروج امن");
         LinearLayout connection = card();
-        connection.addView(text("اتصال فعلی", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        connection.addView(text(prefs.getString(KEY_BASE_URL, "تنظیم نشده"), 12, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
-        connection.addView(text("کاربر: " + prefs.getString(KEY_USER, "-"), 12, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
-        Button change = secondaryButton("تغییر آدرس یا ورود با کاربر دیگر");
-        change.setOnClickListener(v -> showLogin("آدرس API یا حساب کاربری را تغییر دهید."));
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, dp(50));
-        cp.setMargins(0, dp(14), 0, 0);
-        connection.addView(change, cp);
-        Button logout = primaryButton("خروج امن");
-        logout.setOnClickListener(v -> logout());
+        connection.addView(text("وضعیت", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        connection.addView(text("اتصال مستقیم آماده است.", 12, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        connection.addView(text("کاربر: " + (session == null ? "-" : session.userName), 12, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        Button retry = secondaryButton("تست اتصال مجدد");
+        retry.setOnClickListener(v -> refreshActivePage());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, dp(50));
+        rp.setMargins(0, dp(14), 0, 0);
+        connection.addView(retry, rp);
+        Button logout = primaryButton("خروج");
+        logout.setOnClickListener(v -> showLogin("برای ورود مجدد اطلاعات Atiran را وارد کنید."));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(50));
         lp.setMargins(0, dp(10), 0, 0);
         connection.addView(logout, lp);
-        LinearLayout.LayoutParams outer = new LinearLayout.LayoutParams(-1, -2);
-        outer.setMargins(0, 0, 0, dp(12));
-        content.addView(connection, outer);
+        content.addView(connection, new LinearLayout.LayoutParams(-1, -2));
 
         LinearLayout about = card();
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
+        ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("MEELANO Android Native v2.0.0\nاین نسخه PWA یا مرورگر داخلی نیست؛ تمام صفحات، کارت‌ها، لیست‌ها و نمودارها با کامپوننت‌های Native اندروید ساخته شده‌اند و فقط داده‌ها از API امن MEELANO دریافت می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("MEELANO Android Direct SQL v3.0.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Atiran وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
-        content.addView(about, new LinearLayout.LayoutParams(-1, -2));
+        content.addView(about, ap);
     }
 
-    private void logout() {
-        callApi("POST", "/api/logout", new JSONObject(), new ApiCallback() {
-            @Override public void onSuccess(String body) {
-                prefs.edit().remove(KEY_COOKIE).remove(KEY_USER).apply();
-                showLogin("با موفقیت خارج شدید.");
-            }
-            @Override public void onError(Exception e) {
-                prefs.edit().remove(KEY_COOKIE).remove(KEY_USER).apply();
-                showLogin("Session محلی پاک شد.");
-            }
-        });
-    }
-
-    private void addEmpty(String message) {
-        addEmptyTo(content, message);
-    }
-
-    private void addEmptyTo(LinearLayout parent, String message) {
-        LinearLayout c = card();
-        TextView t = text(message, 12.5f, MUTED, Typeface.NORMAL);
-        t.setGravity(Gravity.CENTER);
-        c.addView(t, new LinearLayout.LayoutParams(-1, -2));
-        parent.addView(c, new LinearLayout.LayoutParams(-1, -2));
-    }
-
-    private String normalizeBase(String raw) {
-        String url = raw == null ? "" : raw.trim();
-        if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
-        while (url.endsWith("/")) url = url.substring(0, url.length() - 1);
-        return url;
-    }
-
-    private String shortHost(String url) {
-        try {
-            URL u = new URL(url);
-            return u.getHost();
-        } catch (Exception ignored) {
-            return url == null ? "" : url;
+    private Set<String> columns(Connection c, String table) throws Exception {
+        Set<String> set = new HashSet<>();
+        try (PreparedStatement ps = c.prepareStatement("SELECT c.name FROM sys.columns c JOIN sys.tables t ON t.object_id=c.object_id JOIN sys.schemas s ON s.schema_id=t.schema_id WHERE s.name=N'dbo' AND t.name=? ORDER BY c.column_id")) {
+            ps.setString(1, table);
+            try (ResultSet r = ps.executeQuery()) { while (r.next()) set.add(r.getString(1)); }
         }
+        return set;
     }
 
-    private String enc(String value) {
-        try {
-            return URLEncoder.encode(value == null ? "" : value, "UTF-8");
-        } catch (Exception ignored) {
-            return "";
+    private String resolve(Set<String> cols, String... candidates) {
+        for (String c : candidates) if (cols.contains(c)) return c;
+        return null;
+    }
+
+    private String activeWhere(Set<String> cols, String alias) {
+        if (cols.contains("active")) return "WHERE (" + alias + ".[active]='t' OR " + alias + ".[active]='1' OR " + alias + ".[active]='Y')";
+        return "";
+    }
+
+    private String appendWhere(String where, String clause) {
+        if (where == null || where.trim().isEmpty()) return "WHERE " + clause;
+        return where + " AND " + clause;
+    }
+
+    private JSONArray rowsToJson(ResultSet r) throws Exception {
+        JSONArray arr = new JSONArray();
+        ResultSetMetaData md = r.getMetaData();
+        int n = md.getColumnCount();
+        while (r.next()) {
+            JSONObject o = new JSONObject();
+            for (int i = 1; i <= n; i++) {
+                Object v = r.getObject(i);
+                o.put(md.getColumnLabel(i), v == null ? JSONObject.NULL : String.valueOf(v));
+            }
+            arr.put(o);
         }
+        return arr;
+    }
+
+    private void setParams(PreparedStatement ps, List<Object> params) throws Exception {
+        for (int i = 0; i < params.size(); i++) ps.setObject(i + 1, params.get(i));
+    }
+
+    private boolean isSensitiveColumn(String col) {
+        String s = col == null ? "" : col.toLowerCase(Locale.US);
+        return s.contains("password") || s.contains("pass") || s.contains("token") || s.contains("secret") || s.contains("hash");
+    }
+
+    private String join(List<String> list, String sep) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < list.size(); i++) {
+            if (i > 0) sb.append(sep);
+            sb.append(list.get(i));
+        }
+        return sb.toString();
+    }
+
+    private String stringOr(String value, String fallback) {
+        return value == null || value.trim().isEmpty() ? fallback : value;
     }
 
     private String firstNonEmpty(String a, String b) {
@@ -984,116 +1240,38 @@ public class MainActivity extends Activity {
         return formatNumber(value) + " ریال";
     }
 
-    private void callApi(String method, String path, JSONObject payload, ApiCallback callback) {
-        status.setText("در حال ارتباط با API…");
-        executor.execute(() -> {
-            try {
-                String body = request(method, path, payload);
-                runOnUiThread(() -> {
-                    status.setText("اتصال Native فعال");
-                    callback.onSuccess(body);
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> {
-                    status.setText("خطا در اتصال API");
-                    callback.onError(e);
-                });
-            }
-        });
-    }
-
-    private String request(String method, String path, JSONObject payload) throws Exception {
-        String base = normalizeBase(prefs.getString(KEY_BASE_URL, ""));
-        if (base.length() < 10) throw new ApiException(0, "آدرس API تنظیم نشده است.");
-        String cleanPath = path.startsWith("/") ? path : "/" + path;
-        URL url = new URL(base + cleanPath);
-        HttpURLConnection c = (HttpURLConnection) url.openConnection();
-        c.setRequestMethod(method);
-        c.setConnectTimeout(15000);
-        c.setReadTimeout(30000);
-        c.setRequestProperty("Accept", "application/json");
-        c.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-        String cookie = prefs.getString(KEY_COOKIE, "");
-        if (!cookie.trim().isEmpty()) c.setRequestProperty("Cookie", cookie);
-        if (payload != null) {
-            c.setDoOutput(true);
-            byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
-            c.setFixedLengthStreamingMode(bytes.length);
-            try (OutputStream out = c.getOutputStream()) { out.write(bytes); }
-        }
-        int code = c.getResponseCode();
-        captureCookies(c);
-        InputStream stream = code >= 400 ? c.getErrorStream() : c.getInputStream();
-        String body = readAll(stream);
-        c.disconnect();
-        if (code < 200 || code >= 300) {
-            String msg = extractMessage(body);
-            if (code == 401 && msg.trim().isEmpty()) msg = "نام کاربری/رمز عبور معتبر نیست یا جلسه منقضی شده است.";
-            if (msg.trim().isEmpty()) msg = "خطای سرویس: " + code;
-            throw new ApiException(code, msg);
-        }
-        return body;
-    }
-
-    private String readAll(InputStream stream) throws Exception {
-        if (stream == null) return "";
-        StringBuilder sb = new StringBuilder();
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = br.readLine()) != null) sb.append(line);
-        }
-        return sb.toString();
-    }
-
-    private void captureCookies(HttpURLConnection c) {
-        Map<String, List<String>> headers = c.getHeaderFields();
-        if (headers == null) return;
-        StringBuilder cookies = new StringBuilder();
-        for (Map.Entry<String, List<String>> e : headers.entrySet()) {
-            if (e.getKey() != null && "Set-Cookie".equalsIgnoreCase(e.getKey())) {
-                for (String raw : e.getValue()) {
-                    if (raw == null) continue;
-                    String first = raw.split(";", 2)[0].trim();
-                    if (first.length() > 0) {
-                        if (cookies.length() > 0) cookies.append("; ");
-                        cookies.append(first);
-                    }
-                }
-            }
-        }
-        if (cookies.length() > 0) prefs.edit().putString(KEY_COOKIE, cookies.toString()).apply();
-    }
-
-    private String extractMessage(String body) {
-        try {
-            JSONObject j = new JSONObject(body == null ? "" : body);
-            return j.optString("message", j.optString("title", body));
-        } catch (Exception ignored) {
-            return body == null ? "" : body;
-        }
-    }
-
     private String readableError(Exception e) {
-        if (e instanceof ApiException) return e.getMessage();
+        if (e instanceof DbException) return e.getMessage();
         String m = e == null ? "" : e.getMessage();
-        if (m == null || m.trim().isEmpty()) return "خطای ناشناخته در اتصال.";
-        if (m.contains("Failed to connect") || m.contains("timed out") || m.contains("Unable to resolve")) {
-            return "اتصال به سرور برقرار نشد. آدرس API، اینترنت، VPN یا روشن بودن سرور را بررسی کنید.";
+        if (m == null || m.trim().isEmpty()) return "اتصال برقرار نشد.";
+        String lower = m.toLowerCase(Locale.US);
+        if (lower.contains("network") || lower.contains("timed out") || lower.contains("connect") || lower.contains("login failed") || lower.contains("unknownhost")) {
+            return "اتصال به سرور برقرار نشد. اینترنت، VPN، دسترسی شبکه یا روشن بودن سرور را بررسی کنید.";
         }
         return m;
     }
 
-    private interface ApiCallback {
-        void onSuccess(String body);
-        void onError(Exception e);
+    private void addEmptyTo(LinearLayout parent, String message) {
+        LinearLayout c = card();
+        TextView t = text(message, 12.5f, MUTED, Typeface.NORMAL);
+        t.setGravity(Gravity.CENTER);
+        c.addView(t, new LinearLayout.LayoutParams(-1, -2));
+        parent.addView(c, new LinearLayout.LayoutParams(-1, -2));
     }
 
-    private static class ApiException extends Exception {
-        final int code;
-        ApiException(int code, String message) {
-            super(message);
-            this.code = code;
+    private static class UserSession {
+        final Integer userId;
+        final Integer visitorId;
+        final String userName;
+        UserSession(Integer userId, Integer visitorId, String userName) {
+            this.userId = userId;
+            this.visitorId = visitorId;
+            this.userName = userName;
         }
+    }
+
+    private static class DbException extends Exception {
+        DbException(String message) { super(message); }
     }
 
     private class LineChartView extends View {
@@ -1106,7 +1284,6 @@ public class MainActivity extends Activity {
             this.data = data;
             this.color = color;
             setBackground(roundedStroke(SURFACE_2, 18, alpha(Color.WHITE, 25)));
-            setPadding(dp(10), dp(10), dp(10), dp(10));
         }
 
         @Override protected void onDraw(Canvas canvas) {
@@ -1122,7 +1299,7 @@ public class MainActivity extends Activity {
                 canvas.drawLine(left, y, w - right, y, paint);
             }
             if (data == null || data.length() == 0) {
-                drawCentered(canvas, getWidth(), getHeight(), "داده‌ای برای نمودار وجود ندارد.");
+                drawCentered(canvas, w, h, "داده‌ای برای نمودار وجود ندارد.");
                 return;
             }
             double max = 1;
@@ -1134,14 +1311,8 @@ public class MainActivity extends Activity {
                 double v = valueOf(data.optJSONObject(i));
                 float x = left + (w - left - right) * (n == 1 ? 0.5f : i / (float) (n - 1));
                 float y = (float) (h - bottom - (v / max) * (h - top - bottom));
-                if (i == 0) {
-                    line.moveTo(x, y);
-                    area.moveTo(x, h - bottom);
-                    area.lineTo(x, y);
-                } else {
-                    line.lineTo(x, y);
-                    area.lineTo(x, y);
-                }
+                if (i == 0) { line.moveTo(x, y); area.moveTo(x, h - bottom); area.lineTo(x, y); }
+                else { line.lineTo(x, y); area.lineTo(x, y); }
             }
             float lastX = left + (w - left - right);
             area.lineTo(lastX, h - bottom);
@@ -1165,10 +1336,8 @@ public class MainActivity extends Activity {
             paint.setColor(MUTED);
             paint.setTextSize(dp(10));
             paint.setTextAlign(Paint.Align.CENTER);
-            String first = data.optJSONObject(0).optString("label", "");
-            String last = data.optJSONObject(n - 1).optString("label", "");
-            canvas.drawText(first, left + dp(18), h - dp(12), paint);
-            canvas.drawText(last, w - right - dp(28), h - dp(12), paint);
+            canvas.drawText(data.optJSONObject(0).optString("label", ""), left + dp(22), h - dp(12), paint);
+            canvas.drawText(data.optJSONObject(n - 1).optString("label", ""), w - right - dp(28), h - dp(12), paint);
         }
     }
 
@@ -1182,7 +1351,6 @@ public class MainActivity extends Activity {
             this.data = data;
             this.color = color;
             setBackground(roundedStroke(SURFACE_2, 18, alpha(Color.WHITE, 25)));
-            setPadding(dp(10), dp(10), dp(10), dp(10));
         }
 
         @Override protected void onDraw(Canvas canvas) {
@@ -1191,7 +1359,7 @@ public class MainActivity extends Activity {
             int h = getHeight();
             int left = dp(18), right = dp(18), top = dp(20), bottom = dp(40);
             if (data == null || data.length() == 0) {
-                drawCentered(canvas, getWidth(), getHeight(), "داده‌ای برای نمودار وجود ندارد.");
+                drawCentered(canvas, w, h, "داده‌ای برای نمودار وجود ندارد.");
                 return;
             }
             int n = Math.min(data.length(), 8);
@@ -1238,7 +1406,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (!"dashboard".equals(activePage) && !"login".equals(activePage)) {
+        if (session != null && !"dashboard".equals(activePage)) {
             showApp("dashboard");
             return;
         }

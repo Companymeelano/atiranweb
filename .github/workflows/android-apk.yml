@@ -1,4 +1,4 @@
-name: Build MEELANO Native Android APK
+name: Build MEELANO Direct SQL Android APK
 
 on:
   workflow_dispatch:
@@ -38,40 +38,40 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager 'platforms;android-35' 'build-tools;35.0.0' || true
 
-      - name: Verify this is native Android, not PWA/WebView
+      - name: Verify this is native Android, not PWA wrapper
         run: |
-          if grep -R "android.webkit\|WebView\|loadUrl" -n MEELANO-Android/app/src/main/java; then
-            echo "WebView/PWA wrapper code detected; native build refused."
+          if grep -R "android.webkit\|loadUrl" -n MEELANO-Android/app/src/main/java; then
+            echo "Browser wrapper code detected; direct native build refused."
             exit 1
           fi
 
-      - name: Build installable native APKs
+      - name: Build installable direct SQL APKs
         working-directory: MEELANO-Android
         run: gradle :app:assembleRelease :app:assembleDebug --stacktrace
 
       - name: Collect APK files
         run: |
           mkdir -p artifacts
-          cp MEELANO-Android/app/build/outputs/apk/release/app-release.apk artifacts/MEELANO-Android-Native-v2.0.0.apk
-          cp MEELANO-Android/app/build/outputs/apk/debug/app-debug.apk artifacts/MEELANO-Android-Native-v2.0.0-debug.apk
+          cp MEELANO-Android/app/build/outputs/apk/release/app-release.apk artifacts/MEELANO-Android-DirectSQL-v3.0.0.apk
+          cp MEELANO-Android/app/build/outputs/apk/debug/app-debug.apk artifacts/MEELANO-Android-DirectSQL-v3.0.0-debug.apk
           sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
 
-      - name: Commit installable native APK to this branch
+      - name: Commit installable direct SQL APK to this branch
         if: github.event_name == 'push'
         run: |
-          rm -f MEELANO-Android-v1.1.0.apk MEELANO-Android-v1.1.0-SHA256SUMS.txt
-          cp artifacts/MEELANO-Android-Native-v2.0.0.apk MEELANO-Android-Native-v2.0.0.apk
-          cp artifacts/SHA256SUMS.txt MEELANO-Android-Native-v2.0.0-SHA256SUMS.txt
+          rm -f MEELANO-Android-Native-v2.0.0.apk MEELANO-Android-Native-v2.0.0-SHA256SUMS.txt
+          cp artifacts/MEELANO-Android-DirectSQL-v3.0.0.apk MEELANO-Android-DirectSQL-v3.0.0.apk
+          cp artifacts/SHA256SUMS.txt MEELANO-Android-DirectSQL-v3.0.0-SHA256SUMS.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git add -f MEELANO-Android-Native-v2.0.0.apk MEELANO-Android-Native-v2.0.0-SHA256SUMS.txt
-          git commit -m "Add native Android installable APK [skip ci]" || exit 0
+          git add -f MEELANO-Android-DirectSQL-v3.0.0.apk MEELANO-Android-DirectSQL-v3.0.0-SHA256SUMS.txt
+          git commit -m "Add direct SQL Android installable APK [skip ci]" || exit 0
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
-      - name: Upload native APK artifact
+      - name: Upload direct SQL APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MEELANO-Native-Android-installable-apk
+          name: MEELANO-DirectSQL-Android-installable-apk
           path: artifacts/
           if-no-files-found: error
