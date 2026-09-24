@@ -322,6 +322,84 @@ public class MainActivity extends Activity {
         return t;
     }
 
+    private View liveMeelanoLogo(boolean compact) {
+        LiveMeelanoLogoView logo = new LiveMeelanoLogoView(this, compact);
+        logo.setContentDescription("لوگوی زنده Meelano");
+        logo.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        return logo;
+    }
+
+    private class LiveMeelanoLogoView extends View {
+        private final boolean compact;
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private long startMs;
+        LiveMeelanoLogoView(Context context, boolean compact) {
+            super(context);
+            this.compact = compact;
+            setWillNotDraw(false);
+        }
+        @Override protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            startMs = System.currentTimeMillis();
+            invalidate();
+        }
+        @Override protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int w = getWidth(), h = getHeight();
+            if (w <= 0 || h <= 0) return;
+            float t = (System.currentTimeMillis() - startMs) / 1000f;
+            float s = Math.min(w, h);
+            float cx = w / 2f, cy = h / 2f;
+            float pulse = (float) Math.sin(t * 2.4f);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(alpha(GOLD_2, compact ? 24 : 35));
+            canvas.drawCircle(cx, cy, s * (0.56f + pulse * 0.025f), p);
+            p.setColor(alpha(INFO, compact ? 26 : 36));
+            canvas.drawCircle(cx - s * 0.16f, cy + s * 0.14f, s * (0.44f - pulse * 0.02f), p);
+
+            RectF outer = new RectF(s * 0.07f, s * 0.07f, w - s * 0.07f, h - s * 0.07f);
+            p.setShadowLayer(s * 0.07f, 0, s * 0.025f, alpha(Color.BLACK, 120));
+            p.setColor(mix(HEADER_START, GOLD, 0.08f));
+            canvas.drawRoundRect(outer, s * 0.23f, s * 0.23f, p);
+            p.clearShadowLayer();
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(2f, s * 0.035f));
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setColor(alpha(GOLD_2, 190));
+            RectF ring = new RectF(s * 0.14f, s * 0.14f, w - s * 0.14f, h - s * 0.14f);
+            canvas.drawArc(ring, t * 75f, 230, false, p);
+            p.setColor(alpha(INFO, 165));
+            canvas.drawArc(ring, 210 + t * 58f, 90, false, p);
+
+            canvas.save();
+            canvas.rotate(pulse * 2.6f, cx, cy);
+            p.setStyle(Paint.Style.FILL);
+            p.setTextAlign(Paint.Align.CENTER);
+            p.setTypeface(Typeface.DEFAULT_BOLD);
+            p.setTextSize(s * (compact ? 0.53f : 0.55f));
+            p.setColor(GOLD);
+            p.setShadowLayer(s * 0.05f, 0, s * 0.018f, alpha(Color.BLACK, 155));
+            canvas.drawText("M", cx, cy + s * 0.20f, p);
+            p.clearShadowLayer();
+            p.setTextSize(s * 0.39f);
+            p.setColor(alpha(Color.WHITE, compact ? 62 : 74));
+            canvas.drawText("Λ", cx + s * 0.075f, cy + s * 0.17f, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(1.5f, s * 0.018f));
+            p.setColor(alpha(Color.WHITE, 82));
+            canvas.drawLine(cx - s * 0.25f, cy + s * 0.28f, cx + s * 0.26f, cy + s * 0.28f + pulse * s * 0.018f, p);
+            canvas.restore();
+
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(alpha(Color.WHITE, 205));
+            float dotAngle = t * 2.1f;
+            canvas.drawCircle(cx + (float)Math.cos(dotAngle) * s * 0.34f, cy + (float)Math.sin(dotAngle) * s * 0.34f, Math.max(2f, s * 0.04f), p);
+            p.setColor(alpha(GOLD_2, 210));
+            canvas.drawCircle(cx + (float)Math.cos(dotAngle + 2.2f) * s * 0.32f, cy + (float)Math.sin(dotAngle + 2.2f) * s * 0.32f, Math.max(2f, s * 0.028f), p);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) postInvalidateOnAnimation(); else postInvalidateDelayed(16);
+        }
+    }
+
     private void buildFrame() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -336,11 +414,7 @@ public class MainActivity extends Activity {
         header.setPadding(dp(10), dp(7), dp(10), dp(7));
         header.setBackground(gradient(new int[]{HEADER_START, HEADER_END}, GradientDrawable.Orientation.LEFT_RIGHT, 0));
 
-        ImageView logo = new ImageView(this);
-        logo.setImageResource(ir.meelano.android.R.drawable.meelano_3d);
-        logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        logo.setPadding(dp(3), dp(3), dp(3), dp(3));
-        logo.setBackground(roundedStroke(alpha(GOLD, 18), 16, alpha(GOLD, 72)));
+        View logo = liveMeelanoLogo(true);
         header.addView(logo, new LinearLayout.LayoutParams(dp(48), dp(48)));
 
         LinearLayout titles = new LinearLayout(this);
@@ -642,11 +716,8 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) loginCard.setElevation(dp(12));
         outer.addView(loginCard, new LinearLayout.LayoutParams(-1, -2));
 
-        TextView logo = text("M", 44, ON_PRIMARY, Typeface.BOLD);
-        logo.setGravity(Gravity.CENTER);
-        logo.setShadowLayer(dp(5), 0, dp(2), alpha(Color.BLACK, 120));
-        logo.setBackground(gradient(new int[]{GOLD_2, GOLD, alpha(INFO, 180)}, GradientDrawable.Orientation.TL_BR, 32));
-        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(dp(112), dp(112));
+        View logo = liveMeelanoLogo(false);
+        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(dp(118), dp(118));
         logoLp.setMargins(0, 0, 0, dp(8));
         loginCard.addView(logo, logoLp);
 
@@ -2853,29 +2924,146 @@ public class MainActivity extends Activity {
 
     private void renderAnalytics(JSONObject a) {
         content.removeAllViews();
-        addHero("گزارشات کاربردی مدیریت", "خلاصه‌های عملیاتی بدون نمودار شلوغ؛ آماده تصمیم‌گیری");
+        addHero("اتاق فرمان زنده گزارشات", "گزارشات کامل‌تر، دسته‌بندی‌شده و بدون نمودار؛ مخصوص تصمیم مدیریت");
         addReportCommandCenter(a);
+        addReportHealthGrid(a);
+        addReportActionPlan(a);
 
-        addReportCategory("فروش، سود و روند درآمد", "برای کنترل رشد، افت فروش و کیفیت سودآوری", "↗", GOLD);
-        addReportRowsSection("فروش هفتگی", "بهترین بازه‌های فروش برای بررسی عملکرد", "weeklySales", a.optJSONArray("weeklySales"), GOLD, 5, 0);
-        addDualReportRowsSection("خرید در برابر فروش", "مقایسه ماهانه برای کنترل موجودی و نقدینگی", a.optJSONArray("monthlyPurchaseSales"));
-        addReportRowsSection("سود ماهانه", "ماه‌هایی که بیشترین اثر روی نتیجه مالی دارند", "monthlyProfit", a.optJSONArray("monthlyProfit"), SUCCESS, 5, 0);
-        addReportRowsSection("حاشیه سود", "درصد سود به فروش؛ افت آن هشدار قیمت‌گذاری است", "netMargin", a.optJSONArray("netMargin"), GOLD_2, 5, 2);
+        addReportCategory("۱) درآمد، فروش و جریان سفارش", "اول بفهمیم فروش کجا رشد کرده، کجا افت کرده و خرید چقدر با فروش هم‌خوان است", "↗", GOLD);
+        addReportRowsSection("فروش هفتگی", "ردیابی بازه‌های قوی/ضعیف فروش برای واکنش سریع", "weeklySales", a.optJSONArray("weeklySales"), GOLD, 6, 0);
+        addDualReportRowsSection("تعادل خرید و فروش", "اگر خرید از فروش جلو بزند، موجودی و نقدینگی زودتر باید کنترل شود", a.optJSONArray("monthlyPurchaseSales"));
+        addReportRowsSection("مشتریان درآمدساز", "۵ مشتری که بیشترین اثر را روی فروش دارند", "topCustomers", a.optJSONArray("topCustomers"), SUCCESS, 5, 0);
 
-        addReportCategory("وصول، چک و ریسک نقدینگی", "اولویت با نقدینگی سالم، نه فقط فروش قشنگ روی کاغذ", "✓", WARNING);
-        addReportRowsSection("وضعیت چک‌ها", "دسته‌هایی که باید پیگیری شوند", "checkStatuses", a.optJSONArray("checkStatuses"), WARNING, 6, 4);
+        addReportCategory("۲) سودآوری، قیمت‌گذاری و کالا", "تمرکز روی سود واقعی، حاشیه سود و گروه‌هایی که باید برایشان تصمیم قیمت/موجودی گرفت", "◆", GOLD_2);
+        addReportRowsSection("سود ماهانه", "ماه‌های سودساز برای بررسی تخفیف، بهای تمام‌شده و سیاست فروش", "monthlyProfit", a.optJSONArray("monthlyProfit"), SUCCESS, 6, 0);
+        addReportRowsSection("حاشیه سود", "درصد سود به فروش؛ افت آن هشدار تخفیف یا قیمت‌گذاری اشتباه است", "netMargin", a.optJSONArray("netMargin"), GOLD_2, 6, 2);
+        addReportRowsSection("گروه‌های کالایی پرفروش", "گروه‌های اثرگذار برای تامین، تبلیغ و افزایش/اصلاح قیمت", "categoryShare", a.optJSONArray("categoryShare"), INFO, 6, 0);
+
+        addReportCategory("۳) وصول، مطالبات و کنترل چک", "نقدینگی واقعی از همین بخش می‌آید؛ بدهی سن‌دار و چک باید اولویت‌بندی شود", "✓", WARNING);
+        addReportRowsSection("مطالبات سن‌دار", "باکت‌های سنی بدهی برای برنامه تماس و وصول", "debtAging", a.optJSONArray("debtAging"), WARNING, 6, 0);
+        addReportRowsSection("فاکتورهای معوق", "اسناد معوق با نام مشتری، سررسید و ویزیتور برای پیگیری مستقیم", "overdueInvoices", a.optJSONArray("overdueInvoices"), DANGER, 5, 0);
+        addReportRowsSection("وضعیت چک‌ها", "تفکیک چک دریافتی/پرداختی بر اساس دسته‌های واقعی", "checkStatuses", a.optJSONArray("checkStatuses"), WARNING, 7, 4);
         addBankNamesOnlySection(a.optJSONArray("banks"));
 
-        addReportCategory("مشتریان و مطالبات", "مشتریان مهم، بدهی‌های سن‌دار و رشد مشتری فعال", "👥", SUCCESS);
-        addReportRowsSection("مشتریان برتر", "حفظ مشتریان ارزشمند و جلوگیری از تمرکز ریسکی", "topCustomers", a.optJSONArray("topCustomers"), SUCCESS, 5, 0);
-        addReportRowsSection("سن مطالبات", "بدهی‌های قدیمی‌تر اولویت تماس دارند", "debtAging", a.optJSONArray("debtAging"), WARNING, 6, 0);
-        addReportRowsSection("رشد مشتری فعال", "پایش رشد یا افت مشتریان خریدکننده", "customerGrowth", a.optJSONArray("customerGrowth"), INFO, 5, 1);
+        addReportCategory("۴) مشتری، وفاداری و بازار", "مشتریان فعال، بدهکاران مهم و مشتریان خاموش را جدا ببینید", "👥", SUCCESS);
+        addReportRowsSection("رشد مشتریان فعال", "تعداد مشتریان خریدکننده در دوره‌های اخیر", "customerGrowth", a.optJSONArray("customerGrowth"), INFO, 6, 1);
+        addReportRowsSection("بدهکاران اولویت‌دار", "اولویت تماس و مذاکره وصول بر اساس مانده", "topDebtors", a.optJSONArray("topDebtors"), DANGER, 5, 0);
+        addReportRowsSection("مشتریان بدون خرید", "لیست بازفعال‌سازی؛ تماس کوتاه، پیشنهاد هوشمند، پیگیری سریع", "inactiveCustomers", a.optJSONArray("inactiveCustomers"), INFO, 5, 3);
 
-        addReportCategory("کالا، بازار و قیمت‌گذاری", "شناخت گروه‌های پرفروش برای تصمیم موجودی و قیمت", "◼", INFO);
-        addReportRowsSection("گروه‌های پرفروش", "مناسب برای برنامه خرید، تبلیغ و اصلاح قیمت", "categoryShare", a.optJSONArray("categoryShare"), GOLD, 6, 0);
-
-        addReportCategory("اسناد روزانه", "مسیر فروش و خرید روزانه اینجا نگه داشته شده تا نوار اصلی خلوت بماند", "⇄", GOLD_2);
+        addReportCategory("۵) عملیات روزانه و کنترل اسناد", "ورود سریع به گزارش‌های روزانه فروش و خرید با تاریخ دلخواه", "⇄", GOLD_2);
         addDailyReportLaunchers(a.optString("latestSalesDate", ""), a.optString("latestPurchaseDate", ""));
+    }
+
+    private void addReportHealthGrid(JSONObject a) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(INFO, 28), alpha(GOLD, 20), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.addView(text("تابلوی سلامت مدیریت", 16.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView sub = text("شش شاخص سریع برای اینکه قبل از ورود به جزئیات، وضعیت کسب‌وکار را حس کنید.", 10.8f, MUTED, Typeface.NORMAL);
+        sub.setLineSpacing(dp(2), 1.05f);
+        c.addView(sub, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout row = null;
+        String salesTrend = trendSummary(a.optJSONArray("weeklySales"), false);
+        String profitTrend = trendSummary(a.optJSONArray("monthlyProfit"), false);
+        String margin = latestValueText(a.optJSONArray("netMargin"), true);
+        String customerGrowth = latestValueText(a.optJSONArray("customerGrowth"), false);
+        String debt = moneyValue(strongestPoint(a.optJSONArray("debtAging")), "value");
+        String checks = checkStatusSummary(a.optJSONArray("checkStatuses"));
+        String[][] cells = {
+                {"فروش", salesTrend, "↗"}, {"سود", profitTrend, "◆"}, {"حاشیه سود", margin, "%"},
+                {"مشتری فعال", customerGrowth, "👥"}, {"ریسک مطالبات", debt, "!"}, {"چک‌ها", checks, "✓"}
+        };
+        int[] colors = {GOLD, SUCCESS, GOLD_2, INFO, DANGER, WARNING};
+        for (int i = 0; i < cells.length; i++) {
+            if (i % 2 == 0) { row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(9), 0, 0); c.addView(row, rp); }
+            addHealthCell(row, cells[i][0], cells[i][1], cells[i][2], colors[i]);
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addHealthCell(LinearLayout row, String title, String value, String glyph, int accent) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.HORIZONTAL);
+        box.setGravity(Gravity.CENTER_VERTICAL);
+        box.setPadding(dp(8), dp(8), dp(8), dp(8));
+        box.setBackground(roundedStroke(alpha(accent, 18), 18, alpha(accent, 62)));
+        TextView icon = report3dIcon(glyph, accent);
+        box.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(8), 0, dp(8), 0);
+        copy.addView(text(title, 10.5f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView v = text(value, 11.3f, TEXT, Typeface.BOLD);
+        v.setMaxLines(2);
+        copy.addView(v, new LinearLayout.LayoutParams(-1, -2));
+        box.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f); lp.setMargins(dp(3), 0, dp(3), 0);
+        if (row != null) row.addView(box, lp);
+    }
+
+    private void addReportActionPlan(JSONObject a) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(WARNING, 28), alpha(SURFACE, 248)}, GradientDrawable.Orientation.TL_BR, 24));
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(report3dIcon("!", WARNING), new LinearLayout.LayoutParams(dp(48), dp(48)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(10), 0, dp(8), 0);
+        copy.addView(text("اقدامات پیشنهادی امروز", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text("این بخش عددها را به کار عملی تبدیل می‌کند؛ گزارش فقط برای تماشا نیست.", 10.8f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        c.addView(head, new LinearLayout.LayoutParams(-1, -2));
+        addActionItem(c, "وصول", "اول با " + labelOf(strongestPoint(a.optJSONArray("topDebtors")), "party", labelOf(strongestPoint(a.optJSONArray("debtAging")), "label", "بدهکاران مهم")) + " تماس بگیر و وضعیت تسویه را روشن کن.", DANGER);
+        addActionItem(c, "قیمت‌گذاری", "حاشیه سود آخرین دوره: " + latestValueText(a.optJSONArray("netMargin"), true) + "; تخفیف و بهای تمام‌شده را بازبینی کن.", GOLD_2);
+        addActionItem(c, "موجودی", "گروه داغ: " + labelOf(strongestPoint(a.optJSONArray("categoryShare")), "label", "نامشخص") + "; تامین و قیمت این گروه را جلوتر کنترل کن.", INFO);
+        addActionItem(c, "چک", "وضعیت‌های پرتکرار چک را از کارت «وضعیت چک‌ها» پیگیری کن؛ تاریخ سررسید را عقب نینداز.", WARNING);
+        addActionItem(c, "وفاداری", "برای " + labelOf(strongestPoint(a.optJSONArray("topCustomers")), "label", "مشتری اول") + " پیشنهاد نگهداشت بده؛ وابستگی فروش به یک مشتری هم ریسک است.", SUCCESS);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addActionItem(LinearLayout parent, String tag, String body, int accent) {
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.HORIZONTAL);
+        item.setGravity(Gravity.CENTER_VERTICAL);
+        item.setPadding(dp(10), dp(9), dp(10), dp(9));
+        item.setBackground(roundedStroke(alpha(accent, 15), 16, alpha(accent, 58)));
+        TextView badge = text(tag, 10.4f, accent, Typeface.BOLD);
+        badge.setGravity(Gravity.CENTER);
+        badge.setSingleLine(true);
+        badge.setBackground(roundedStroke(alpha(accent, 28), 999, alpha(accent, 82)));
+        item.addView(badge, new LinearLayout.LayoutParams(dp(72), dp(34)));
+        TextView b = text(body, 10.9f, TEXT, Typeface.NORMAL);
+        b.setLineSpacing(dp(2), 1.05f);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, -2, 1f); bp.setMargins(dp(8), 0, dp(8), 0);
+        item.addView(b, bp);
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(-1, -2); ip.setMargins(0, dp(8), 0, 0); parent.addView(item, ip);
+    }
+
+    private String trendSummary(JSONArray rows, boolean percent) {
+        if (rows == null || rows.length() == 0) return "داده کافی نیست";
+        JSONObject last = rows.optJSONObject(rows.length() - 1);
+        JSONObject prev = rows.length() > 1 ? rows.optJSONObject(rows.length() - 2) : null;
+        double v = valueOf(last), p0 = valueOf(prev);
+        String base = percent ? formatNumber(v) + "٪" : compactMoney(v);
+        if (prev == null || Math.abs(p0) < 0.0001) return base;
+        double change = ((v - p0) / Math.abs(p0)) * 100.0;
+        return base + " • " + (change >= 0 ? "+" : "") + formatNumber(change) + "٪";
+    }
+
+    private String latestValueText(JSONArray rows, boolean percent) {
+        if (rows == null || rows.length() == 0) return "داده کافی نیست";
+        JSONObject last = rows.optJSONObject(rows.length() - 1);
+        double v = valueOf(last);
+        return percent ? formatNumber(v) + "٪" : formatNumber(v);
+    }
+
+    private String checkStatusSummary(JSONArray rows) {
+        if (rows == null || rows.length() == 0) return "داده کافی نیست";
+        long count = 0;
+        for (int i = 0; i < rows.length(); i++) count += rows.optJSONObject(i) == null ? 0 : rows.optJSONObject(i).optLong("count", 0);
+        return formatNumber(count) + " فقره";
     }
 
     private void addReportRowsSection(String title, String sub, String key, JSONArray rows, int accent, int limit, int valueMode) {
@@ -2900,12 +3088,12 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, dp(58)); ep.setMargins(0, dp(10), 0, 0);
             c.addView(empty, ep);
         } else {
-            for (int i = 0; i < Math.min(limit, rows.length()); i++) addReportDataRow(c, rows.optJSONObject(i), i + 1, accent, valueMode);
+            for (int i = 0; i < Math.min(limit, rows.length()); i++) addReportDataRow(c, rows.optJSONObject(i), i + 1, accent, valueMode, key);
         }
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
 
-    private void addReportDataRow(LinearLayout parent, JSONObject row, int index, int accent, int valueMode) {
+    private void addReportDataRow(LinearLayout parent, JSONObject row, int index, int accent, int valueMode, String key) {
         if (row == null) return;
         LinearLayout item = new LinearLayout(this);
         item.setOrientation(LinearLayout.HORIZONTAL);
@@ -2921,8 +3109,7 @@ public class MainActivity extends Activity {
         copy.setPadding(dp(9), 0, dp(9), 0);
         String label = labelOf(row, "label", labelOf(row, "party", labelOf(row, "item", "—")));
         copy.addView(text(label, 11.6f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        String hint = row.optString("hint", "");
-        if (hint == null || hint.trim().isEmpty()) hint = valueMode == 2 ? "درصد" : "گزارش مدیریتی";
+        String hint = reportHint(key, row, valueMode);
         copy.addView(text(hint, 9.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         item.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         TextView value = text(reportValue(row, valueMode), 10.4f, accent, Typeface.BOLD);
@@ -2936,8 +3123,28 @@ public class MainActivity extends Activity {
         if (row == null) return "—";
         if (mode == 1) return formatNumber(row.opt("value"));
         if (mode == 2) return formatNumber(row.opt("value")) + "٪";
+        if (mode == 3) return "پیگیری";
         if (mode == 4) return "تعداد " + formatNumber(row.opt("count")) + "\n" + compactMoney(row.opt("amount"));
         return compactMoney(row.opt("value"));
+    }
+
+    private String reportHint(String key, JSONObject row, int mode) {
+        String hint = row == null ? "" : row.optString("hint", "");
+        if (hint != null && !hint.trim().isEmpty()) return hint;
+        String k = key == null ? "" : key;
+        if ("weeklySales".equals(k)) return "فروش ثبت‌شده این بازه";
+        if ("monthlyPurchaseSales".equals(k)) return "مقایسه جریان خرید و فروش";
+        if ("monthlyProfit".equals(k)) return "سود تخمینی بر اساس بهای ثبت‌شده";
+        if ("netMargin".equals(k)) return "درصد سود به فروش";
+        if ("checkStatuses".equals(k)) return "نیازمند کنترل تاریخ و وضعیت";
+        if ("topCustomers".equals(k)) return "حفظ رابطه و کنترل سقف اعتبار";
+        if ("topDebtors".equals(k)) return "اولویت تماس وصول";
+        if ("overdueInvoices".equals(k)) return "فاکتور معوق؛ پیگیری با ویزیتور";
+        if ("inactiveCustomers".equals(k)) return "بازفعال‌سازی با پیشنهاد هدفمند";
+        if ("customerGrowth".equals(k)) return "تعداد مشتریان فعال";
+        if ("categoryShare".equals(k)) return "تصمیم تامین و قیمت‌گذاری";
+        if ("debtAging".equals(k)) return "اولویت‌بندی وصول";
+        return mode == 2 ? "درصد" : "گزارش مدیریتی";
     }
 
     private void addDualReportRowsSection(String title, String sub, JSONArray rows) {
@@ -3213,6 +3420,9 @@ public class MainActivity extends Activity {
             a.put("categoryShare", loadCategoryShare(c));
             a.put("customerGrowth", loadCustomerGrowth(c));
             a.put("netMargin", loadNetMargin(profit, monthly));
+            a.put("topDebtors", queryTopDebtors(c));
+            a.put("overdueInvoices", queryOverdueInvoices(c));
+            a.put("inactiveCustomers", queryInactiveCustomers(c));
             a.put("latestSalesDate", latestDate(c, "sailfact", "date"));
             a.put("latestPurchaseDate", latestDate(c, "buyfact", "DATE"));
             return a.toString();
@@ -3584,8 +3794,6 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, dp(156));
         pp.setMargins(0, 0, 0, dp(10));
         box.addView(portrait, pp);
-        animateFloat(portrait, 70);
-
         TextView title = text("میلو چطور صدایت کند؟", 18, TEXT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         box.addView(title, new LinearLayout.LayoutParams(-1, -2));
@@ -3627,17 +3835,182 @@ public class MainActivity extends Activity {
     private FrameLayout miloPortrait(int heightPx) {
         FrameLayout frame = new FrameLayout(this);
         frame.setPadding(dp(6), dp(6), dp(6), dp(6));
-        frame.setBackground(gradient(new int[]{alpha(GOLD, 34), alpha(INFO, 20), alpha(SURFACE_2, 230)}, GradientDrawable.Orientation.TL_BR, 24));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) frame.setElevation(dp(8));
-        ImageView img = new ImageView(this);
-        img.setImageResource(ir.meelano.android.R.drawable.milo_assistant);
-        img.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        img.setAdjustViewBounds(true);
-        frame.addView(img, new FrameLayout.LayoutParams(-1, heightPx <= 0 ? dp(210) : heightPx, Gravity.CENTER));
-        View shine = new View(this);
-        shine.setBackground(roundedStroke(alpha(Color.WHITE, 12), 22, alpha(GOLD_2, 50)));
-        frame.addView(shine, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+        frame.setBackground(gradient(new int[]{alpha(GOLD, 34), alpha(INFO, 22), alpha(SURFACE_2, 232)}, GradientDrawable.Orientation.TL_BR, 24));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) frame.setElevation(dp(10));
+        LivingMiloView live = new LivingMiloView(this);
+        live.setContentDescription("میلو، موجود زنده و متحرک دستیار هوشمند Meelano");
+        live.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        frame.addView(live, new FrameLayout.LayoutParams(-1, heightPx <= 0 ? dp(230) : heightPx, Gravity.CENTER));
+        View glass = new View(this);
+        glass.setBackground(roundedStroke(alpha(Color.WHITE, 10), 22, alpha(GOLD_2, 50)));
+        frame.addView(glass, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
         return frame;
+    }
+
+    private class LivingMiloView extends View {
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private long startMs;
+        LivingMiloView(Context context) {
+            super(context);
+            setWillNotDraw(false);
+        }
+        @Override protected void onAttachedToWindow() {
+            super.onAttachedToWindow();
+            startMs = System.currentTimeMillis();
+            invalidate();
+        }
+        @Override protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int w = getWidth(), h = getHeight();
+            if (w <= 0 || h <= 0) return;
+            float t = (System.currentTimeMillis() - startMs) / 1000f;
+            float cx = w / 2f;
+            float ground = h * 0.82f;
+            float sc = Math.min(w / 360f, h / 310f);
+            float breath = (float)Math.sin(t * 2.2f);
+            float hover = (float)Math.sin(t * 1.35f) * dp(4);
+            drawMiloAura(canvas, w, h, t, sc);
+
+            canvas.save();
+            canvas.translate(0, hover);
+            canvas.rotate((float)Math.sin(t * 1.15f) * 1.8f, cx, h * 0.46f);
+            drawMiloBody(canvas, cx, ground, sc, breath, t);
+            drawMiloHead(canvas, cx, h * 0.34f, sc, breath, t);
+            drawMiloArms(canvas, cx, h * 0.56f, sc, t);
+            canvas.restore();
+            drawMiloHolograms(canvas, w, h, t, sc);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) postInvalidateOnAnimation(); else postInvalidateDelayed(16);
+        }
+        private void drawMiloAura(Canvas c, int w, int h, float t, float sc) {
+            float cx = w / 2f, cy = h * 0.48f;
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(alpha(GOLD_2, 28));
+            c.drawCircle(cx, cy, dp(118) * sc + (float)Math.sin(t * 2.1f) * dp(5), p);
+            p.setColor(alpha(INFO, 30));
+            c.drawCircle(cx - dp(42) * sc, cy + dp(25) * sc, dp(92) * sc, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeWidth(dp(2.2f) * sc);
+            RectF orbit = new RectF(cx - dp(132) * sc, cy - dp(88) * sc, cx + dp(132) * sc, cy + dp(88) * sc);
+            p.setColor(alpha(GOLD, 155));
+            c.drawArc(orbit, t * 62f, 190, false, p);
+            p.setColor(alpha(INFO, 150));
+            c.drawArc(orbit, 180 + t * 74f, 112, false, p);
+            p.setStyle(Paint.Style.FILL);
+            for (int i = 0; i < 7; i++) {
+                float a = t * (0.8f + i * 0.07f) + i * 0.92f;
+                float rx = dp(130 - i * 5) * sc;
+                float ry = dp(82 + (i % 2) * 18) * sc;
+                p.setColor(alpha(i % 2 == 0 ? GOLD_2 : INFO, 118 + i * 12));
+                c.drawCircle(cx + (float)Math.cos(a) * rx, cy + (float)Math.sin(a) * ry, dp(3.2f + (i % 3)) * sc, p);
+            }
+        }
+        private void drawMiloBody(Canvas c, float cx, float ground, float sc, float breath, float t) {
+            p.setStyle(Paint.Style.FILL);
+            p.setShadowLayer(dp(10) * sc, 0, dp(4) * sc, alpha(Color.BLACK, 130));
+            p.setColor(alpha(Color.BLACK, 55));
+            c.drawOval(new RectF(cx - dp(78) * sc, ground - dp(17) * sc, cx + dp(78) * sc, ground + dp(16) * sc), p);
+            p.clearShadowLayer();
+            RectF body = new RectF(cx - dp(62) * sc, ground - dp(142) * sc - breath * dp(2), cx + dp(62) * sc, ground - dp(24) * sc + breath * dp(2));
+            p.setColor(mix(INFO, HEADER_START, 0.42f));
+            c.drawRoundRect(body, dp(34) * sc, dp(34) * sc, p);
+            p.setColor(alpha(GOLD_2, 230));
+            c.drawRoundRect(new RectF(body.left + dp(14) * sc, body.top + dp(18) * sc, body.right - dp(14) * sc, body.top + dp(58) * sc), dp(18) * sc, dp(18) * sc, p);
+            p.setColor(alpha(Color.WHITE, 185));
+            p.setTextAlign(Paint.Align.CENTER);
+            p.setTypeface(Typeface.DEFAULT_BOLD);
+            p.setTextSize(dp(17) * sc);
+            c.drawText("Milo", cx, body.top + dp(45) * sc, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3) * sc);
+            p.setColor(alpha(Color.WHITE, 75));
+            c.drawLine(cx - dp(38) * sc, body.top + dp(75) * sc, cx + dp(38) * sc, body.top + dp(75) * sc, p);
+            p.setStyle(Paint.Style.FILL);
+            for (int i = 0; i < 3; i++) {
+                p.setColor(alpha(i == 1 ? SUCCESS : GOLD, 190));
+                c.drawCircle(cx + (i - 1) * dp(24) * sc, body.top + dp(96) * sc + (float)Math.sin(t * 4 + i) * dp(2) * sc, dp(5) * sc, p);
+            }
+        }
+        private void drawMiloHead(Canvas c, float cx, float cy, float sc, float breath, float t) {
+            float blinkPhase = t % 4.2f;
+            float blink = blinkPhase > 3.93f ? 0.12f : 1f;
+            RectF head = new RectF(cx - dp(76) * sc, cy - dp(70) * sc, cx + dp(76) * sc, cy + dp(70) * sc);
+            p.setStyle(Paint.Style.FILL);
+            p.setShadowLayer(dp(9) * sc, 0, dp(3) * sc, alpha(Color.BLACK, 135));
+            p.setColor(mix(HEADER_START, Color.WHITE, 0.10f));
+            c.drawRoundRect(head, dp(42) * sc, dp(42) * sc, p);
+            p.clearShadowLayer();
+            p.setColor(alpha(GOLD, 150));
+            c.drawRoundRect(new RectF(head.left + dp(6) * sc, head.top + dp(6) * sc, head.right - dp(6) * sc, head.bottom - dp(6) * sc), dp(36) * sc, dp(36) * sc, p);
+            p.setColor(mix(INFO, NAVY, 0.28f));
+            RectF face = new RectF(head.left + dp(16) * sc, head.top + dp(20) * sc, head.right - dp(16) * sc, head.bottom - dp(18) * sc);
+            c.drawRoundRect(face, dp(28) * sc, dp(28) * sc, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(2.2f) * sc);
+            p.setColor(alpha(Color.WHITE, 75));
+            c.drawRoundRect(face, dp(28) * sc, dp(28) * sc, p);
+
+            p.setStyle(Paint.Style.FILL);
+            drawEye(c, cx - dp(28) * sc, cy - dp(8) * sc, dp(13) * sc, blink, t, sc);
+            drawEye(c, cx + dp(28) * sc, cy - dp(8) * sc, dp(13) * sc, blink, t + 0.2f, sc);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(4) * sc);
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setColor(alpha(GOLD_2, 215));
+            RectF smile = new RectF(cx - dp(26) * sc, cy + dp(15) * sc, cx + dp(26) * sc, cy + dp(42) * sc);
+            c.drawArc(smile, 18, 144, false, p);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(alpha(SUCCESS, 190));
+            c.drawCircle(cx + (float)Math.sin(t * 2.8f) * dp(20) * sc, cy + dp(43) * sc, dp(4) * sc, p);
+
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(4) * sc);
+            p.setColor(alpha(GOLD, 210));
+            c.drawLine(cx, head.top - dp(2) * sc, cx + (float)Math.sin(t * 2f) * dp(10) * sc, head.top - dp(28) * sc, p);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(alpha(GOLD_2, 235));
+            c.drawCircle(cx + (float)Math.sin(t * 2f) * dp(10) * sc, head.top - dp(31) * sc, dp(8) * sc + breath * dp(1.2f) * sc, p);
+        }
+        private void drawEye(Canvas c, float x, float y, float r, float blink, float t, float sc) {
+            p.setColor(alpha(Color.WHITE, 235));
+            RectF eye = new RectF(x - r, y - r * blink, x + r, y + r * blink);
+            c.drawOval(eye, p);
+            p.setColor(mix(INFO, GOLD, 0.35f));
+            c.drawCircle(x + (float)Math.sin(t * 1.6f) * r * 0.18f, y, Math.max(dp(2) * sc, r * 0.40f * blink), p);
+            p.setColor(alpha(Color.BLACK, 205));
+            c.drawCircle(x + (float)Math.sin(t * 1.6f) * r * 0.18f, y, Math.max(dp(1.2f) * sc, r * 0.17f * blink), p);
+        }
+        private void drawMiloArms(Canvas c, float cx, float y, float sc, float t) {
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeWidth(dp(11) * sc);
+            p.setColor(mix(INFO, HEADER_START, 0.34f));
+            float wave = (float)Math.sin(t * 4.4f);
+            c.drawLine(cx - dp(58) * sc, y - dp(18) * sc, cx - dp(100) * sc, y + dp(8) * sc + wave * dp(5) * sc, p);
+            c.drawLine(cx + dp(58) * sc, y - dp(18) * sc, cx + dp(100) * sc, y - dp(2) * sc - wave * dp(10) * sc, p);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(GOLD_2);
+            c.drawCircle(cx - dp(104) * sc, y + dp(9) * sc + wave * dp(5) * sc, dp(12) * sc, p);
+            p.setColor(GOLD);
+            c.drawCircle(cx + dp(104) * sc, y - dp(2) * sc - wave * dp(10) * sc, dp(12) * sc, p);
+        }
+        private void drawMiloHolograms(Canvas c, int w, int h, float t, float sc) {
+            p.setStyle(Paint.Style.FILL);
+            p.setTypeface(Typeface.DEFAULT_BOLD);
+            p.setTextAlign(Paint.Align.CENTER);
+            String[] labels = {"SQL", "فروش", "ریسک"};
+            int[] colors = {INFO, GOLD, WARNING};
+            for (int i = 0; i < labels.length; i++) {
+                float x = w * (0.18f + i * 0.32f) + (float)Math.sin(t * 1.7f + i) * dp(5) * sc;
+                float y = h * (0.16f + (i % 2) * 0.60f) + (float)Math.cos(t * 1.4f + i) * dp(6) * sc;
+                RectF panel = new RectF(x - dp(34) * sc, y - dp(16) * sc, x + dp(34) * sc, y + dp(16) * sc);
+                p.setColor(alpha(colors[i], 44));
+                c.drawRoundRect(panel, dp(12) * sc, dp(12) * sc, p);
+                p.setColor(alpha(colors[i], 220));
+                p.setTextSize(dp(10.5f) * sc);
+                c.drawText(labels[i], x, y + dp(4) * sc, p);
+            }
+        }
     }
 
     private void addAssistantBusinessElements(LinearLayout parent) {
@@ -3678,7 +4051,7 @@ public class MainActivity extends Activity {
 
     private void showAssistant() {
         content.removeAllViews();
-        addHero("میلو، دستیار هوشمند", "تحلیل کوتاه فروش، مشتری، کالا، چک و ریسک");
+        addHero("میلو، دستیار زنده هوشمند", "تحلیل کوتاه فروش، مشتری، کالا، چک و ریسک");
         if (!prefs.getBoolean(KEY_NAME_ASKED, false)) maybeAskFirstName(false);
 
         LinearLayout intro = card();
@@ -3686,8 +4059,7 @@ public class MainActivity extends Activity {
         intro.setBackground(gradient(new int[]{alpha(INFO, 30), alpha(GOLD, 24), alpha(SURFACE, 248)}, GradientDrawable.Orientation.LEFT_RIGHT, 26));
         FrameLayout portrait = miloPortrait(dp(230));
         intro.addView(portrait, new LinearLayout.LayoutParams(-1, dp(230)));
-        animateFloat(portrait, 80);
-        TextView title = text("میلو آماده تحلیل است", 16.5f, TEXT, Typeface.BOLD);
+        TextView title = text("میلو زنده است و آماده تحلیل", 16.5f, TEXT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
         tp.setMargins(0, dp(10), 0, 0);
@@ -4294,7 +4666,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.12.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.13.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);

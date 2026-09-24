@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.android'
         minSdk 24
         targetSdk 35
-        versionCode 17
-        versionName '3.12.0-direct-sql-milo-reports-icon'
+        versionCode 18
+        versionName '3.13.0-direct-sql-live-milo-command-reports'
     }
 
     compileOptions {
