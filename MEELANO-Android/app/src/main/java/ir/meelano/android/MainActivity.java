@@ -326,27 +326,59 @@ public class MainActivity extends Activity {
     }
 
     private void showThemeChooser() {
-        final String[] ids = {"onyx_gold", "royal_amethyst", "ivory_sunrise", "crystal_lagoon"};
-        final String[] names = {
-                "دارک ۱ • اونیکس طلایی Meelano",
-                "دارک ۲ • شب آمتیست سلطنتی",
-                "روشن ۱ • طلوع عاجی لوکس",
-                "روشن ۲ • لاگون کریستالی روشن"
-        };
-        int checked = 0;
-        String current = currentThemeId();
-        for (int i = 0; i < ids.length; i++) if (ids[i].equals(current)) checked = i;
-        new AlertDialog.Builder(this)
-                .setTitle("انتخاب تم لوکس Meelano")
-                .setSingleChoiceItems(names, checked, (dialog, which) -> {
-                    prefs.edit().putString(KEY_THEME, ids[which]).apply();
-                    applyTheme(ids[which]);
-                    dialog.dismiss();
-                    Toast.makeText(this, "تم «" + themeName(ids[which]) + "» اعمال شد", Toast.LENGTH_SHORT).show();
-                    rebuildUiAfterThemeChange();
-                })
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(8), dp(8), dp(8), dp(4));
+        TextView hint = text("یک پالت را لمس کنید؛ همه کارت‌ها، دکمه‌ها و نمودارها هماهنگ تغییر می‌کنند.", 11, MUTED, Typeface.NORMAL);
+        hint.setGravity(Gravity.CENTER);
+        box.addView(hint, new LinearLayout.LayoutParams(-1, -2));
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("تم‌های Meelano")
+                .setView(box)
                 .setNegativeButton("بستن", null)
-                .show();
+                .create();
+        addThemeOption(box, dialog, "onyx_gold", "دارک ۱", "اونیکس طلایی", new int[]{Color.rgb(7, 9, 16), Color.rgb(231, 177, 90), Color.rgb(102, 170, 245)});
+        addThemeOption(box, dialog, "royal_amethyst", "دارک ۲", "آمتیست", new int[]{Color.rgb(10, 8, 24), Color.rgb(184, 114, 255), Color.rgb(248, 113, 193)});
+        addThemeOption(box, dialog, "ivory_sunrise", "روشن ۱", "عاجی", new int[]{Color.rgb(248, 241, 229), Color.rgb(213, 126, 55), Color.rgb(32, 158, 119)});
+        addThemeOption(box, dialog, "crystal_lagoon", "روشن ۲", "کریستالی", new int[]{Color.rgb(235, 248, 250), Color.rgb(0, 151, 178), Color.rgb(42, 125, 225)});
+        dialog.show();
+    }
+
+    private void addThemeOption(LinearLayout parent, AlertDialog dialog, String id, String title, String subtitle, int[] palette) {
+        boolean selected = id.equals(currentThemeId());
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(10), dp(9), dp(10), dp(9));
+        card.setClickable(true);
+        card.setBackground(gradient(new int[]{alpha(palette[1], selected ? 78 : 32), SURFACE}, GradientDrawable.Orientation.LEFT_RIGHT, 18));
+        LinearLayout swatches = new LinearLayout(this);
+        swatches.setOrientation(LinearLayout.HORIZONTAL);
+        for (int color : palette) {
+            TextView dot = new TextView(this);
+            dot.setText("●");
+            dot.setTextSize(25);
+            dot.setGravity(Gravity.CENTER);
+            dot.setTextColor(color);
+            swatches.addView(dot, new LinearLayout.LayoutParams(dp(26), dp(34)));
+        }
+        card.addView(swatches, new LinearLayout.LayoutParams(-2, -2));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(12), 0, dp(12), 0);
+        copy.addView(text(title + (selected ? "  ✓" : ""), 15, selected ? palette[1] : TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(subtitle, 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        card.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        card.setOnClickListener(v -> {
+            prefs.edit().putString(KEY_THEME, id).apply();
+            applyTheme(id);
+            if (dialog != null) dialog.dismiss();
+            Toast.makeText(this, "تم «" + themeName(id) + "» اعمال شد", Toast.LENGTH_SHORT).show();
+            rebuildUiAfterThemeChange();
+        });
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, dp(8), 0, 0);
+        parent.addView(card, lp);
     }
 
     private void rebuildUiAfterThemeChange() {
@@ -644,7 +676,10 @@ public class MainActivity extends Activity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         ImageView img = new ImageView(this);
         img.setImageResource(ir.meelano.android.R.drawable.meelano_3d);
+        img.setColorFilter(GOLD_2);
         img.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        img.setPadding(dp(6), dp(6), dp(6), dp(6));
+        img.setBackground(gradient(new int[]{alpha(GOLD, 68), alpha(INFO, 34)}, GradientDrawable.Orientation.TL_BR, 18));
         row.addView(img, new LinearLayout.LayoutParams(dp(58), dp(58)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
@@ -820,12 +855,6 @@ public class MainActivity extends Activity {
                     addHero("داشبورد هوشمند Meelano", "نمای هوشمند فروش، خرید، چک‌ها، مشتریان و کالاها با داده‌های زنده Meelano");
                     addDashboardKpiTable(j.optJSONArray("kpis"));
                     renderDashboardToday(j.optJSONObject("today"));
-                    JSONObject a = j.optJSONObject("analytics");
-                    if (a != null) {
-                        addChartCard("روند فروش", "جمع فروش ماهانه/هفتگی", new LineChartView(MainActivity.this, a.optJSONArray("weeklySales"), GOLD));
-                        addChartCard("مشتریان برتر", "بر اساس مبلغ فروش", new BarChartView(MainActivity.this, a.optJSONArray("topCustomers"), SUCCESS));
-                        addChartCard("مانده مشتریان", "تحلیل مانده حساب", new BarChartView(MainActivity.this, a.optJSONArray("debtAging"), WARNING));
-                    }
                 } catch (Exception e) { showPageError("داشبورد", e, () -> showApp("dashboard")); }
             }
             @Override public void fail(Exception e) { showPageError("داشبورد", e, () -> showApp("dashboard")); }
@@ -853,14 +882,7 @@ public class MainActivity extends Activity {
                 }
                 kpis.put(item);
             }
-            JSONObject a = new JSONObject();
-            a.put("weeklySales", loadWeeklySales(c));
-            a.put("topCustomers", loadTopCustomers(c));
-            a.put("debtAging", loadDebtAging(c));
-            a.put("categoryShare", loadCategoryShare(c));
-            a.put("monthlyProfit", loadMonthlyProfit(c));
             out.put("kpis", kpis);
-            out.put("analytics", a);
             out.put("today", queryTodayDashboard(c));
             return out.toString();
         }
@@ -872,8 +894,8 @@ public class MainActivity extends Activity {
         addDailyFinanceDashboardBlock("purchase", "خرید روز", "انتخاب تاریخ، مشاهده منحنی و ورود به اسناد/پرداختی‌ها", ir.meelano.android.R.drawable.icon_products, today.optJSONObject("purchases"), INFO);
         addCheckDashboardSection("چک‌های دریافتی", "تفکیک صندوق، بانک، خرج‌شده، استرداد و سایر وضعیت‌ها", true, today.optJSONObject("getChecks"), SUCCESS);
         addCheckDashboardSection("چک‌های پرداختی", "تفکیک پاس‌شده، در راه و سایر وضعیت‌های پرداخت", false, today.optJSONObject("putChecks"), WARNING);
-        addDashboardInsightTable(today);
         addDashboardBankTable(today.optJSONArray("banks"));
+        addDashboardInsightTable(today);
     }
 
     private void addDailyFinanceDashboardBlock(String type, String title, String sub, int iconRes, JSONObject data, int accent) {
@@ -958,19 +980,21 @@ public class MainActivity extends Activity {
     private void addCheckDashboardSection(String title, String sub, boolean incoming, JSONObject data, int accent) {
         if (data == null) return;
         LinearLayout c = card();
-        c.setBackground(roundedStroke(SURFACE, 22, alpha(accent, 70)));
+        c.setBackground(gradient(new int[]{alpha(accent, 34), SURFACE}, GradientDrawable.Orientation.LEFT_RIGHT, 22));
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
         ImageView icon = new ImageView(this);
         icon.setImageResource(ir.meelano.android.R.drawable.icon_checks);
         icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        head.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
+        icon.setPadding(dp(5), dp(5), dp(5), dp(5));
+        icon.setBackground(roundedStroke(alpha(accent, 42), 16, alpha(accent, 100)));
+        head.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(10), 0, dp(10), 0);
         copy.addView(text(title, 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        copy.addView(text(sub + " • " + data.optString("date", "—"), 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(sub + " • " + data.optString("date", "—"), 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         c.addView(head, new LinearLayout.LayoutParams(-1, -2));
         JSONArray metrics = data.optJSONArray("metrics");
@@ -988,9 +1012,9 @@ public class MainActivity extends Activity {
         if (rows != null) {
             for (int i = 0; i < Math.min(rows.length(), 7); i++) {
                 JSONObject r = rows.optJSONObject(i);
-                LinearLayout line = compactActionRow(r.optString("label", "وضعیت"), money(r.opt("amount")) + " • " + formatNumber(r.opt("count")) + " فقره", accent);
                 String status = r.optString("status", "");
                 String label = r.optString("label", "وضعیت");
+                LinearLayout line = checkDashboardRow(label, r.opt("amount"), r.opt("count"), accent);
                 line.setOnClickListener(v -> showCheckList(incoming, status, label));
                 c.addView(line, compactRowLp());
             }
@@ -999,53 +1023,172 @@ public class MainActivity extends Activity {
         content.addView(c, lp);
     }
 
+    private LinearLayout checkDashboardRow(String label, Object amount, Object count, int accent) {
+        LinearLayout line = new LinearLayout(this);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setPadding(dp(9), dp(8), dp(9), dp(8));
+        line.setClickable(true);
+        line.setBackground(roundedStroke(alpha(accent, 18), 16, alpha(accent, 78)));
+        TextView bullet = text("●", 18, accent, Typeface.BOLD);
+        bullet.setGravity(Gravity.CENTER);
+        line.addView(bullet, new LinearLayout.LayoutParams(dp(26), dp(42)));
+        LinearLayout titleBox = new LinearLayout(this);
+        titleBox.setOrientation(LinearLayout.VERTICAL);
+        titleBox.setPadding(dp(6), 0, dp(8), 0);
+        titleBox.addView(text(label, 12, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        titleBox.addView(text(formatNumber(count) + " فقره", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        line.addView(titleBox, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView money = text(money(amount), 11.3f, TEXT, Typeface.BOLD);
+        money.setGravity(Gravity.CENTER);
+        money.setPadding(dp(9), dp(5), dp(9), dp(5));
+        money.setBackground(roundedStroke(SURFACE_2, 999, alpha(accent, 92)));
+        line.addView(money, new LinearLayout.LayoutParams(-2, -2));
+        return line;
+    }
+
     private void addDashboardInsightTable(JSONObject today) {
+        addSmartCustomerSignalSection("مشتریان بدهکار", "۵ مشتری اول برای پیگیری سریع", today.optJSONArray("topDebtors"), "party", "amount", DANGER, ir.meelano.android.R.drawable.icon_customers);
+        addSmartCustomerSignalSection("تسویه‌های گذشته", "سررسید، ویزیتور و مبلغ معوق بدون شلوغی", today.optJSONArray("overdueInvoices"), "party", "amount", WARNING, ir.meelano.android.R.drawable.icon_sales);
+        addSmartCustomerSignalSection("مشتریان بدون خرید", "۵ مشتری اول که خرید ثبت‌شده ندارند", today.optJSONArray("inactiveCustomers"), "party", "hint", INFO, ir.meelano.android.R.drawable.icon_visitors);
+        addSmartProductSignalSection("کالاهای فروخته‌شده روز", "۵ قلم اول با گروه، مقدار و مبلغ", today.optJSONArray("todayItems"), GOLD, ir.meelano.android.R.drawable.icon_products);
+    }
+
+    private void addSmartCustomerSignalSection(String title, String sub, JSONArray rows, String labelKey, String valueKey, int accent, int iconRes) {
+        if (rows == null || rows.length() == 0) return;
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(GOLD, 30), SURFACE}, GradientDrawable.Orientation.TOP_BOTTOM, 24));
-        c.addView(text("جدول هوشمند پیگیری", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        c.addView(text("مشتریان، کالاها و هشدارهای مهم در یک جدول فشرده و قابل کلیک", 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
-        addInsightRows(c, "بدهکاران", today.optJSONArray("topDebtors"), "party", "amount", DANGER, "customer");
-        addInsightRows(c, "تسویه گذشته", today.optJSONArray("overdueInvoices"), "party", "amount", WARNING, "customer");
-        addInsightRows(c, "بدون خرید", today.optJSONArray("inactiveCustomers"), "party", "hint", INFO, "customer");
-        addInsightRows(c, "کالاهای فروخته‌شده", today.optJSONArray("todayItems"), "item", "amount", GOLD, "product");
+        c.setBackground(gradient(new int[]{alpha(accent, 34), SURFACE}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(iconRes);
+        icon.setPadding(dp(5), dp(5), dp(5), dp(5));
+        icon.setBackground(roundedStroke(alpha(accent, 42), 16, alpha(accent, 90)));
+        head.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(10), 0, dp(10), 0);
+        copy.addView(text(title, 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(sub, 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        c.addView(head, new LinearLayout.LayoutParams(-1, -2));
+        JSONArray chart = new JSONArray();
+        for (int i = 0; i < Math.min(rows.length(), 5); i++) {
+            JSONObject r = rows.optJSONObject(i);
+            JSONObject p = new JSONObject();
+            try { p.put("label", String.valueOf(i + 1)); p.put("value", valueKey.equals("hint") ? 1 : Math.max(0, r.optDouble(valueKey, r.optDouble("amount", 0)))); chart.put(p); } catch (Exception ignored) { }
+        }
+        if (chart.length() > 0 && !valueKey.equals("hint")) {
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, dp(86)); cp.setMargins(0, dp(8), 0, 0);
+            c.addView(new BarChartView(this, chart, accent), cp);
+        }
+        for (int i = 0; i < Math.min(rows.length(), 5); i++) {
+            JSONObject r = rows.optJSONObject(i);
+            String label = r.optString(labelKey, r.optString("party", "—"));
+            String main = valueKey.equals("hint") ? r.optString("hint", "بدون خرید") : money(r.opt(valueKey));
+            String meta = "";
+            if (!r.optString("visitor", "").isEmpty()) meta = "ویزیتور: " + r.optString("visitor");
+            if (!r.optString("dueDate", "").isEmpty()) meta = (meta.isEmpty() ? "" : meta + " • ") + "سررسید: " + r.optString("dueDate");
+            if (!r.optString("hint", "").isEmpty() && !valueKey.equals("hint")) meta = (meta.isEmpty() ? "" : meta + " • ") + r.optString("hint");
+            LinearLayout line = signalRow(i + 1, label, main, meta, accent);
+            line.setOnClickListener(v -> openCustomerFromDashboard(r));
+            c.addView(line, compactRowLp());
+        }
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12));
         content.addView(c, lp);
     }
 
-    private void addInsightRows(LinearLayout parent, String section, JSONArray rows, String labelKey, String valueKey, int accent, String target) {
+    private void addSmartProductSignalSection(String title, String sub, JSONArray rows, int accent, int iconRes) {
         if (rows == null || rows.length() == 0) return;
-        TextView h = text(section, 12, accent, Typeface.BOLD);
-        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2); hp.setMargins(0, dp(10), 0, 0);
-        parent.addView(h, hp);
-        for (int i = 0; i < Math.min(rows.length(), 3); i++) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(accent, 34), SURFACE}, GradientDrawable.Orientation.LEFT_RIGHT, 22));
+        LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView icon = new ImageView(this); icon.setImageResource(iconRes); icon.setPadding(dp(5), dp(5), dp(5), dp(5)); icon.setBackground(roundedStroke(alpha(accent, 42), 16, alpha(accent, 90)));
+        head.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(10), 0, dp(10), 0);
+        copy.addView(text(title, 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(sub, 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f)); c.addView(head, new LinearLayout.LayoutParams(-1, -2));
+        for (int i = 0; i < Math.min(rows.length(), 5); i++) {
             JSONObject r = rows.optJSONObject(i);
-            String label = r.optString(labelKey, r.optString("party", r.optString("item", "—")));
-            String value = valueKey.equals("hint") ? r.optString("hint", "") : money(r.opt(valueKey));
-            String meta = r.optString("visitor", "");
-            if (!r.optString("dueDate", "").isEmpty()) meta = (meta.isEmpty() ? "" : meta + " • ") + "سررسید " + r.optString("dueDate");
-            if (!r.optString("hint", "").isEmpty() && !valueKey.equals("hint")) meta = (meta.isEmpty() ? "" : meta + " • ") + r.optString("hint");
-            LinearLayout line = compactActionRow(section + " • " + label, value + (meta.isEmpty() ? "" : "\n" + meta), accent);
-            line.setOnClickListener(v -> {
-                if ("customer".equals(target)) openCustomerFromDashboard(r);
-                else openProductFromDashboard(r);
-            });
-            parent.addView(line, compactRowLp());
+            String meta = r.optString("hint", "");
+            LinearLayout line = signalRow(i + 1, r.optString("item", "کالا"), money(r.opt("amount")), meta, accent);
+            line.setOnClickListener(v -> openProductFromDashboard(r));
+            c.addView(line, compactRowLp());
         }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private LinearLayout signalRow(int index, String label, String value, String meta, int accent) {
+        LinearLayout line = new LinearLayout(this);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setPadding(dp(9), dp(8), dp(9), dp(8));
+        line.setClickable(true);
+        line.setBackground(roundedStroke(alpha(accent, 18), 16, alpha(accent, 70)));
+        TextView num = text(String.valueOf(index), 12, TEXT, Typeface.BOLD);
+        num.setGravity(Gravity.CENTER);
+        num.setBackground(gradient(new int[]{alpha(accent, 150), alpha(GOLD_2, 72)}, GradientDrawable.Orientation.TL_BR, 999));
+        line.addView(num, new LinearLayout.LayoutParams(dp(34), dp(34)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(9), 0, dp(9), 0);
+        copy.addView(text(label, 11.7f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        if (meta != null && !meta.isEmpty()) copy.addView(text(meta, 9.6f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        line.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView val = text(value, 10.8f, TEXT, Typeface.BOLD);
+        val.setGravity(Gravity.CENTER);
+        val.setPadding(dp(8), dp(5), dp(8), dp(5));
+        val.setBackground(roundedStroke(SURFACE_2, 999, alpha(accent, 82)));
+        line.addView(val, new LinearLayout.LayoutParams(-2, -2));
+        return line;
     }
 
     private void addDashboardBankTable(JSONArray banks) {
         if (banks == null || banks.length() == 0) return;
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(INFO, 42), alpha(GOLD, 24), SURFACE}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
-        c.addView(text("بانک‌ها و موجودی نقدی", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        c.addView(text("نمای فشرده سه‌بعدی از مانده بانک‌ها، ورودی و خروجی چک‌ها", 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        c.setBackground(gradient(new int[]{alpha(INFO, 38), alpha(GOLD, 20), SURFACE}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        c.addView(text("موجودی بانک‌ها", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("آیکن سه‌بعدی هر بانک همراه با موجودی، ورودی و خروجی؛ هماهنگ با تم فعال", 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         for (int i = 0; i < Math.min(6, banks.length()); i++) {
             JSONObject b = banks.optJSONObject(i);
-            LinearLayout row = compactActionRow(b.optString("label", "بانک"), "مانده " + money(b.opt("balance")) + " • ورودی " + money(b.opt("inflow")) + " • خروجی " + money(b.opt("outflow")), INFO);
+            LinearLayout row = bankIconRow(i, b, INFO);
             c.addView(row, compactRowLp());
         }
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12));
         content.addView(c, lp);
+    }
+
+    private LinearLayout bankIconRow(int index, JSONObject b, int accent) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(9), dp(8), dp(9), dp(8));
+        row.setBackground(roundedStroke(alpha(accent, 18), 16, alpha(accent, 76)));
+        row.setContentDescription(b == null ? "بانک" : b.optString("label", "بانک"));
+        TextView icon = text("🏦", 23, TEXT, Typeface.BOLD);
+        icon.setGravity(Gravity.CENTER);
+        icon.setBackground(gradient(new int[]{alpha(accent, 120), alpha(GOLD_2, 80)}, GradientDrawable.Orientation.TL_BR, 18));
+        row.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        LinearLayout values = new LinearLayout(this);
+        values.setOrientation(LinearLayout.VERTICAL);
+        values.setPadding(dp(9), 0, dp(9), 0);
+        values.addView(bankValueLine("موجودی", money(b == null ? 0 : b.opt("balance")), SUCCESS), new LinearLayout.LayoutParams(-1, -2));
+        values.addView(bankValueLine("ورودی", money(b == null ? 0 : b.opt("inflow")), INFO), new LinearLayout.LayoutParams(-1, -2));
+        values.addView(bankValueLine("خروجی", money(b == null ? 0 : b.opt("outflow")), WARNING), new LinearLayout.LayoutParams(-1, -2));
+        row.addView(values, new LinearLayout.LayoutParams(0, -2, 1f));
+        return row;
+    }
+
+    private LinearLayout bankValueLine(String label, String value, int accent) {
+        LinearLayout line = new LinearLayout(this);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        TextView l = text(label, 9.8f, MUTED, Typeface.BOLD);
+        TextView v = text(value, 10.8f, TEXT, Typeface.BOLD);
+        v.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        v.setPadding(dp(7), dp(3), dp(7), dp(3));
+        v.setBackground(roundedStroke(SURFACE_2, 999, alpha(accent, 70)));
+        line.addView(l, new LinearLayout.LayoutParams(dp(58), -2));
+        line.addView(v, new LinearLayout.LayoutParams(0, -2, 1f));
+        return line;
     }
 
     private LinearLayout compactActionRow(String title, String value, int accent) {
@@ -2794,7 +2937,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.4.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.6.0\nاین نسخه برای تست شخصی با اتصال مستقیم به SQL Server ساخته شده است. جزئیات اتصال در UI نمایش داده نمی‌شود و کاربر فقط با حساب Meelano وارد می‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
