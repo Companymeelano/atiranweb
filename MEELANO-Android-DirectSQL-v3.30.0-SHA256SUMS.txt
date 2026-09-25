@@ -1,2 +1,0 @@
-14c4cfa7f17b1031633b8cd1793af8331203235520fbd31a48c2b7b8d61c4c6b  artifacts/MEELANO-Android-DirectSQL-v3.30.0-debug.apk
-47219f6ddfe01134b60b8aa25090bcb51159a0e6e65929641a18b76f6c0fdfa5  artifacts/MEELANO-Android-DirectSQL-v3.30.0.apk
