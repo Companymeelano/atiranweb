@@ -43,6 +43,7 @@ import android.security.keystore.KeyProperties;
 import android.text.InputType;
 import android.util.Base64;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
@@ -422,6 +423,123 @@ public class MainActivity extends Activity {
                 Math.round(Color.blue(from) + (Color.blue(to) - Color.blue(from)) * r));
     }
 
+    private int onColorFor(int color) {
+        int score = Color.red(color) * 299 + Color.green(color) * 587 + Color.blue(color) * 114;
+        return score > 156000 ? Color.rgb(18, 23, 34) : Color.WHITE;
+    }
+
+    private int themeAccent(String key) {
+        String k = key == null ? "" : key.toLowerCase(Locale.US);
+        if (k.contains("debt") || k.contains("danger") || k.contains("risk") || k.contains("مطالب")) return DANGER;
+        if (k.contains("warning") || k.contains("check") || k.contains("چک")) return WARNING;
+        if (k.contains("success") || k.contains("customer") || k.contains("مشتری")) return SUCCESS;
+        if (k.contains("attendance") || k.contains("حضور")) return mix(GOLD, SUCCESS, 0.32f);
+        if (k.contains("chat") || k.contains("گفتگو")) return mix(GOLD_2, INFO, 0.62f);
+        if (k.contains("personnel") || k.contains("پرسنل")) return mix(SUCCESS, INFO, 0.38f);
+        if (k.contains("report") || k.contains("گزارش")) return INFO;
+        if (k.contains("product") || k.contains("کالا")) return WARNING;
+        if (k.contains("theme") || k.contains("تم")) return GOLD_2;
+        return GOLD;
+    }
+
+    private GradientDrawable premiumPanel(int accent, float radius) {
+        int glow = mix(accent, Color.WHITE, isLightTheme() ? 0.42f : 0.18f);
+        int deep = mix(SURFACE, accent, isLightTheme() ? 0.06f : 0.18f);
+        GradientDrawable d = gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 92 : 20), alpha(glow, isLightTheme() ? 42 : 34), alpha(deep, 248)}, GradientDrawable.Orientation.TL_BR, radius);
+        d.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.30f), isLightTheme() ? 96 : 82));
+        return d;
+    }
+
+    private GradientDrawable luxuryButtonBg(int accent, boolean primary, float radius) {
+        GradientDrawable d;
+        if (primary) {
+            d = gradient(new int[]{mix(accent, Color.WHITE, isLightTheme() ? 0.34f : 0.20f), accent, mix(GOLD, accent, 0.36f), mix(accent, Color.BLACK, isLightTheme() ? 0.08f : 0.28f)}, GradientDrawable.Orientation.LEFT_RIGHT, radius);
+            d.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.52f), 150));
+        } else {
+            d = gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 95 : 18), alpha(accent, isLightTheme() ? 22 : 30), alpha(SURFACE_2, 235)}, GradientDrawable.Orientation.TL_BR, radius);
+            d.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.22f), 92));
+        }
+        return d;
+    }
+
+    private void applyTouchFeedback(View v) {
+        if (v == null) return;
+        v.setOnTouchListener((view, event) -> {
+            if (!motionAllowed() || event == null) return false;
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                view.animate().scaleX(0.975f).scaleY(0.975f).alpha(0.94f).setDuration(90).start();
+            } else if (event.getAction() == MotionEvent.ACTION_UP || event.getAction() == MotionEvent.ACTION_CANCEL) {
+                view.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(130).start();
+            }
+            return false;
+        });
+    }
+
+    private String navGlyph(String key) {
+        if ("dashboard".equals(key)) return "⌂";
+        if ("customers".equals(key)) return "م";
+        if ("products".equals(key)) return "▦";
+        if ("reports".equals(key)) return "≡";
+        if ("command".equals(key)) return "⚡";
+        if ("assistant".equals(key)) return "✦";
+        if ("chat".equals(key)) return "✉";
+        if ("personnel".equals(key)) return "ID";
+        if ("attendance".equals(key)) return "⏱";
+        return "◆";
+    }
+
+    private String semanticGlyph(String label) {
+        String t = label == null ? "" : label;
+        if (t.contains("تماس")) return "☎";
+        if (t.contains("پیام") || t.contains("گفتگو")) return "✉";
+        if (t.contains("گردش") || t.contains("حساب")) return "☷";
+        if (t.contains("CSV")) return "CSV";
+        if (t.contains("PDF")) return "PDF";
+        if (t.contains("تازه") || t.contains("بروزرسان")) return "⟳";
+        if (t.contains("تم")) return "✺";
+        if (t.contains("مرخصی")) return "☘";
+        if (t.contains("ورود")) return "↘";
+        if (t.contains("خروج")) return "↗";
+        if (t.contains("جستجو")) return "⌕";
+        if (t.contains("فروش")) return "↗";
+        if (t.contains("خرید")) return "↙";
+        if (t.contains("چک")) return "✓";
+        if (t.contains("کالا")) return "▦";
+        if (t.contains("مشتری")) return "م";
+        return "◆";
+    }
+
+    private String withIcon(String glyph, String label) {
+        String g = glyph == null ? "" : glyph.trim();
+        String l = label == null ? "" : label.trim();
+        return g.isEmpty() ? l : g + "  " + l;
+    }
+
+    private TextView pill(String label, int accent, boolean filled) {
+        TextView chip = text(label, 9.6f, filled ? onColorFor(accent) : accent, Typeface.BOLD);
+        chip.setGravity(Gravity.CENTER);
+        chip.setSingleLine(true);
+        chip.setPadding(dp(8), dp(4), dp(8), dp(4));
+        chip.setBackground(filled ? luxuryButtonBg(accent, true, 999) : roundedStroke(alpha(accent, isLightTheme() ? 18 : 28), 999, alpha(accent, 86)));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) chip.setElevation(dp(filled ? 3 : 1));
+        return chip;
+    }
+
+    private void styleMeelanoDialog(AlertDialog dialog, int accent) {
+        if (dialog == null) return;
+        dialog.setOnShowListener(d -> {
+            try {
+                if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(premiumPanel(accent, 30));
+                Button pos = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+                Button neg = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+                Button neu = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+                if (pos != null) { pos.setTextColor(accent); pos.setAllCaps(false); pos.setTypeface(Typeface.DEFAULT, Typeface.BOLD); applyTouchFeedback(pos); }
+                if (neg != null) { neg.setTextColor(MUTED); neg.setAllCaps(false); applyTouchFeedback(neg); }
+                if (neu != null) { neu.setTextColor(INFO); neu.setAllCaps(false); applyTouchFeedback(neu); }
+            } catch (Exception ignored) { }
+        });
+    }
+
     private GradientDrawable rounded(int color, float radius) {
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);
@@ -590,8 +708,8 @@ public class MainActivity extends Activity {
         tools.setGravity(Gravity.CENTER_VERTICAL);
         tools.setPadding(dp(2), 0, dp(2), 0);
         addHeaderTool(tools, "⌕", "جستجوی سراسری", INFO, v -> showGlobalSearchDialog());
-        addHeaderTool(tools, privacyMode() ? "•••" : "۱۲۳", "محدودیت نمایش اعداد", privacyMode() ? DANGER : GOLD, v -> togglePrivacyMode());
-        addHeaderTool(tools, "◐", "انتخاب تم", GOLD_2, v -> showThemeChooser());
+        addHeaderTool(tools, privacyMode() ? "◌•" : "₿", "محرمانه‌سازی مبلغ‌ها", privacyMode() ? DANGER : GOLD, v -> togglePrivacyMode());
+        addHeaderTool(tools, "✺", "انتخاب تم", GOLD_2, v -> showThemeChooser());
         addHeaderTool(tools, "⚙", "تنظیمات", SUCCESS, v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings"); });
         addHeaderTool(tools, "⎋", "خروج", DANGER, v -> { if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید."); else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید."); });
         header.addView(tools, new LinearLayout.LayoutParams(-2, dp(38)));
@@ -612,7 +730,7 @@ public class MainActivity extends Activity {
         b.setTextSize(glyph != null && glyph.length() > 1 ? 11.2f : 14.8f);
         b.setGravity(Gravity.CENTER);
         b.setSingleLine(true);
-        b.setTextColor(Color.WHITE);
+        b.setTextColor(onColorFor(accent));
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setPadding(0, 0, 0, dp(1));
         b.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, 150));
@@ -624,6 +742,7 @@ public class MainActivity extends Activity {
         b.setClickable(true);
         b.setFocusable(true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) b.setElevation(dp(7));
+        applyTouchFeedback(b);
         b.setOnClickListener(listener);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(31), dp(31));
         lp.setMargins(dp(2), 0, dp(2), 0);
@@ -728,6 +847,7 @@ public class MainActivity extends Activity {
         addThemeOption(box, dialog, "onyx_gold", "دارک ۱", "اونیکس طلایی", new int[]{Color.rgb(7, 9, 16), Color.rgb(231, 177, 90), Color.rgb(102, 170, 245)});
         addThemeOption(box, dialog, "royal_amethyst", "دارک ۲", "آمتیست", new int[]{Color.rgb(10, 8, 24), Color.rgb(184, 114, 255), Color.rgb(248, 113, 193)});
         addThemeOption(box, dialog, "noir_aurora", "دارک ۳", "نوآر شفق", new int[]{Color.rgb(3, 5, 16), Color.rgb(0, 210, 210), Color.rgb(126, 87, 255)});
+        styleMeelanoDialog(dialog, GOLD_2);
         dialog.show();
     }
 
@@ -738,24 +858,27 @@ public class MainActivity extends Activity {
         card.setGravity(Gravity.CENTER_VERTICAL);
         card.setPadding(dp(10), dp(9), dp(10), dp(9));
         card.setClickable(true);
-        card.setBackground(gradient(new int[]{alpha(palette[1], selected ? 78 : 32), SURFACE}, GradientDrawable.Orientation.LEFT_RIGHT, 18));
+        card.setBackground(gradient(new int[]{alpha(palette[1], selected ? 78 : 32), alpha(palette[2], 20), SURFACE}, GradientDrawable.Orientation.LEFT_RIGHT, 18));
         LinearLayout swatches = new LinearLayout(this);
         swatches.setOrientation(LinearLayout.HORIZONTAL);
+        swatches.setGravity(Gravity.CENTER);
         for (int color : palette) {
             TextView dot = new TextView(this);
-            dot.setText("●");
-            dot.setTextSize(25);
+            dot.setText(" ");
             dot.setGravity(Gravity.CENTER);
-            dot.setTextColor(color);
-            swatches.addView(dot, new LinearLayout.LayoutParams(dp(26), dp(34)));
+            dot.setBackground(gradient(new int[]{mix(color, Color.WHITE, 0.26f), color, mix(color, Color.BLACK, 0.16f)}, GradientDrawable.Orientation.TL_BR, 999));
+            LinearLayout.LayoutParams dpLp = new LinearLayout.LayoutParams(dp(24), dp(24));
+            dpLp.setMargins(dp(2), 0, dp(2), 0);
+            swatches.addView(dot, dpLp);
         }
-        card.addView(swatches, new LinearLayout.LayoutParams(-2, -2));
+        card.addView(swatches, new LinearLayout.LayoutParams(-2, dp(38)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(12), 0, dp(12), 0);
         copy.addView(text(title + (selected ? "  ✓" : ""), 15, selected ? palette[1] : TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         copy.addView(text(subtitle, 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         card.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        applyTouchFeedback(card);
         card.setOnClickListener(v -> {
             prefs.edit().putString(KEY_THEME, id).apply();
             applyTheme(id);
@@ -784,12 +907,16 @@ public class MainActivity extends Activity {
         Button b = new Button(this);
         b.setText(label);
         b.setAllCaps(false);
-        b.setTextColor(ON_PRIMARY);
-        b.setTextSize(13.5f);
+        int accent = themeAccent(label);
+        b.setTextColor(onColorFor(accent));
+        b.setTextSize(compactUi() ? 12.4f : 13.3f);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, 80));
-        b.setBackground(gradient(new int[]{mix(GOLD_2, Color.WHITE, 0.20f), GOLD_2, GOLD, mix(INFO, GOLD, 0.30f)}, GradientDrawable.Orientation.LEFT_RIGHT, 18));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) b.setElevation(dp(5));
+        b.setMinHeight(dp(44));
+        b.setPadding(dp(10), 0, dp(10), dp(1));
+        b.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, isLightTheme() ? 80 : 150));
+        b.setBackground(luxuryButtonBg(accent, true, 18));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) { b.setElevation(dp(5)); b.setLetterSpacing(0.01f); }
+        applyTouchFeedback(b);
         return b;
     }
 
@@ -797,10 +924,15 @@ public class MainActivity extends Activity {
         Button b = new Button(this);
         b.setText(label);
         b.setAllCaps(false);
+        int accent = themeAccent(label);
         b.setTextColor(TEXT);
-        b.setTextSize(13f);
-        b.setBackground(diamondStroke(SURFACE_2, GOLD, 17));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) b.setElevation(dp(2));
+        b.setTextSize(compactUi() ? 12.0f : 12.8f);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setMinHeight(dp(42));
+        b.setPadding(dp(10), 0, dp(10), dp(1));
+        b.setBackground(luxuryButtonBg(accent, false, 17));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) { b.setElevation(dp(2)); b.setLetterSpacing(0.005f); }
+        applyTouchFeedback(b);
         return b;
     }
 
@@ -828,8 +960,8 @@ public class MainActivity extends Activity {
         c.setOrientation(LinearLayout.VERTICAL);
         int pad = compactUi() ? dp(11) : dp(15);
         c.setPadding(pad, pad, pad, pad);
-        c.setBackground(diamondStroke(SURFACE, INFO, compactUi() ? 19 : 23));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) c.setElevation(dp(7));
+        c.setBackground(premiumPanel(INFO, compactUi() ? 19 : 23));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) c.setElevation(dp(6));
         return c;
     }
 
@@ -1274,15 +1406,15 @@ public class MainActivity extends Activity {
         navStrip.addView(row1, new LinearLayout.LayoutParams(-1, 0, 1f));
         navStrip.addView(row2, new LinearLayout.LayoutParams(-1, 0, 1f));
         navStrip.addView(row3, new LinearLayout.LayoutParams(-1, 0, 1f));
-        addNav(row1, "dashboard", "داشبورد", "◈");
-        addNav(row1, "customers", "مشتریان", "👥");
-        addNav(row1, "products", "کالا", "◼");
-        addNav(row2, "reports", "گزارشات", "⌁");
-        addNav(row2, "command", "فرماندهی", "⚡");
-        addNav(row2, "assistant", "دستیار", "✦");
-        addNav(row3, "chat", "گفتگو", "☷");
-        addNav(row3, "personnel", "پرسنل", "♙");
-        addNav(row3, "attendance", "حضور", "⌚");
+        addNav(row1, "dashboard", "داشبورد", navGlyph("dashboard"));
+        addNav(row1, "customers", "مشتریان", navGlyph("customers"));
+        addNav(row1, "products", "کالا", navGlyph("products"));
+        addNav(row2, "reports", "گزارشات", navGlyph("reports"));
+        addNav(row2, "command", "فرماندهی", navGlyph("command"));
+        addNav(row2, "assistant", "دستیار", navGlyph("assistant"));
+        addNav(row3, "chat", "گفتگو", navGlyph("chat"));
+        addNav(row3, "personnel", "پرسنل", navGlyph("personnel"));
+        addNav(row3, "attendance", "حضور", navGlyph("attendance"));
     }
 
     private LinearLayout navRow() {
@@ -1301,19 +1433,18 @@ public class MainActivity extends Activity {
         tab.setPadding(dp(5), dp(4), dp(5), dp(4));
         tab.setClickable(true);
         tab.setFocusable(true);
-        tab.setBackground(active
-                ? gradient(new int[]{mix(accent, Color.WHITE, 0.30f), accent, mix(accent, Color.BLACK, 0.18f)}, GradientDrawable.Orientation.TL_BR, 19)
-                : roundedStroke(alpha(SURFACE, 232), 19, alpha(accent, 75)));
+        tab.setBackground(active ? luxuryButtonBg(accent, true, 19) : luxuryButtonBg(accent, false, 19));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) tab.setElevation(dp(active ? 7 : 2));
+        applyTouchFeedback(tab);
 
-        TextView badge = text(icon, 16, active ? Color.WHITE : accent, Typeface.BOLD);
+        TextView badge = text(icon, icon != null && icon.length() > 1 ? 12.5f : 16, active ? onColorFor(accent) : accent, Typeface.BOLD);
         badge.setGravity(Gravity.CENTER);
         badge.setSingleLine(true);
         badge.setShadowLayer(dp(active ? 3 : 1), 0, dp(1), alpha(Color.BLACK, active ? 145 : 55));
-        badge.setBackground(roundedStroke(active ? alpha(Color.WHITE, 34) : alpha(accent, 18), 13, active ? alpha(Color.WHITE, 85) : alpha(accent, 70)));
+        badge.setBackground(roundedStroke(active ? alpha(Color.WHITE, isLightTheme() ? 58 : 38) : alpha(accent, 18), 13, active ? alpha(Color.WHITE, 105) : alpha(accent, 70)));
         tab.addView(badge, new LinearLayout.LayoutParams(dp(30), dp(30)));
 
-        TextView title = text(label, 10.2f, active ? Color.WHITE : TEXT, Typeface.BOLD);
+        TextView title = text(label, 10.2f, active ? onColorFor(accent) : TEXT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         title.setSingleLine(true);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1f); tp.setMargins(dp(4), 0, dp(4), 0);
@@ -1325,12 +1456,12 @@ public class MainActivity extends Activity {
     }
 
     private int navAccent(String key) {
-        if ("command".equals(key)) return Color.rgb(0, 184, 217);
+        if ("command".equals(key)) return INFO;
         if ("assistant".equals(key)) return mix(GOLD_2, INFO, 0.45f);
         if ("customers".equals(key)) return SUCCESS;
         if ("products".equals(key)) return WARNING;
         if ("reports".equals(key)) return INFO;
-        if ("chat".equals(key)) return Color.rgb(126, 87, 255);
+        if ("chat".equals(key)) return mix(GOLD_2, INFO, 0.62f);
         if ("personnel".equals(key)) return mix(SUCCESS, INFO, 0.35f);
         if ("attendance".equals(key)) return mix(GOLD, SUCCESS, 0.30f);
         return GOLD;
@@ -1378,7 +1509,8 @@ public class MainActivity extends Activity {
         c.setGravity(Gravity.CENTER_VERTICAL);
         c.setPadding(dp(10), dp(8), dp(10), dp(8));
         int accent = navAccent(page);
-        c.setBackground(gradient(new int[]{alpha(accent, 30), alpha(SURFACE, 246)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        c.setBackground(premiumPanel(accent, 22));
+        c.addView(report3dIcon("⟳", accent), new LinearLayout.LayoutParams(dp(42), dp(42)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(8), 0, dp(8), 0);
@@ -1388,7 +1520,7 @@ public class MainActivity extends Activity {
         copy.addView(sub, new LinearLayout.LayoutParams(-1, -2));
         c.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         TextView btn = new TextView(this);
-        btn.setText("⟳ تازه‌سازی");
+        btn.setText(withIcon("⟳", "تازه‌سازی"));
         btn.setTextSize(10.2f);
         btn.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         btn.setTextColor(Color.WHITE);
@@ -1400,6 +1532,7 @@ public class MainActivity extends Activity {
         btn.setBackground(bg);
         btn.setClickable(true);
         btn.setOnClickListener(v -> { if (refresh != null) refresh.run(); });
+        applyTouchFeedback(btn);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) btn.setElevation(dp(5));
         c.addView(btn, new LinearLayout.LayoutParams(dp(108), dp(40)));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12));
@@ -1545,7 +1678,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.26.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.27.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -1576,12 +1709,14 @@ public class MainActivity extends Activity {
         EditText q = input("نام مشتری، شماره چک، کد کالا یا فاکتور…", "", false);
         q.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) q.setTextDirection(View.TEXT_DIRECTION_RTL);
-        new AlertDialog.Builder(this)
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("جستجوی هوشمند سراسری")
                 .setView(q)
                 .setNegativeButton("بستن", null)
                 .setPositiveButton("جستجو", (d, w) -> showGlobalSearchResults(q.getText().toString().trim()))
-                .show();
+                .create();
+        styleMeelanoDialog(dialog, INFO);
+        dialog.show();
     }
 
     private void showGlobalSearchResults(String query) {
@@ -1708,15 +1843,12 @@ public class MainActivity extends Activity {
 
     private void addHero(String title, String text) {
         LinearLayout hero = card();
-        hero.setBackground(gradient(new int[]{alpha(Color.WHITE, 24), HERO_START, alpha(INFO, 26), HERO_END}, GradientDrawable.Orientation.TL_BR, 26));
+        int accent = themeAccent(title);
+        hero.setBackground(gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 36 : 18), alpha(accent, 24), HERO_START, HERO_END}, GradientDrawable.Orientation.TL_BR, 26));
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        TextView img = text("M◆", 20, ON_PRIMARY, Typeface.BOLD);
-        img.setGravity(Gravity.CENTER);
-        img.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        img.setShadowLayer(dp(4), 0, dp(2), alpha(Color.BLACK, 120));
-        img.setBackground(gradient(new int[]{mix(GOLD_2, Color.WHITE, 0.22f), GOLD, alpha(INFO, 185)}, GradientDrawable.Orientation.TL_BR, 19));
+        TextView img = report3dIcon(semanticGlyph(title), accent);
         row.addView(img, new LinearLayout.LayoutParams(dp(60), dp(60)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
@@ -1780,7 +1912,7 @@ public class MainActivity extends Activity {
         addLoadingChip(row, "فروش", "↗", GOLD, 0);
         addLoadingChip(row, "بانک", "◉", INFO, 120);
         addLoadingChip(row, "چک", "✓", WARNING, 240);
-        addLoadingChip(row, "مشتری", "👥", SUCCESS, 360);
+        addLoadingChip(row, "مشتری", "م", SUCCESS, 360);
         c.addView(row, new LinearLayout.LayoutParams(-1, -2));
         addSkeletonBars(c);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
@@ -3609,7 +3741,7 @@ public class MainActivity extends Activity {
 
     private String kpiGlyph(String title, int index) {
         String t = title == null ? "" : title;
-        if (t.contains("مشتری")) return "👥";
+        if (t.contains("مشتری")) return "م";
         if (t.contains("کالا")) return "◼";
         if (t.contains("فروش") || t.contains("فاکتور")) return "₿";
         if (t.contains("چک")) return "✓";
@@ -3879,24 +4011,45 @@ public class MainActivity extends Activity {
     private void addChatMessageCard(JSONObject m, boolean admin) {
         if (m == null) return;
         int accent = m.optBoolean("pinned") ? GOLD : navAccent("chat");
-        LinearLayout c = card(); c.setPadding(dp(12), dp(10), dp(12), dp(10));
-        c.setBackground(roundedStroke(alpha(accent, m.optBoolean("pinned") ? 25 : 14), 18, alpha(accent, 68)));
-        String head = (m.optBoolean("pinned") ? "📌 " : "") + m.optString("display", m.optString("sender", "کاربر")) + " • " + m.optString("time", "") + "  #" + m.optLong("id");
-        c.addView(text(head, 10.5f, accent, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout c = card();
+        c.setPadding(dp(12), dp(10), dp(12), dp(10));
+        c.setBackground(gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 60 : 16), alpha(accent, m.optBoolean("pinned") ? 34 : 22), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 20));
+        LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView avatar = report3dIcon(m.optBoolean("pinned") ? "⌖" : initials(m.optString("display", m.optString("sender", "ک"))), accent);
+        head.addView(avatar, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(9), 0, dp(8), 0);
+        TextView sender = text(m.optString("display", m.optString("sender", "کاربر")), 12.4f, TEXT, Typeface.BOLD);
+        sender.setSingleLine(true); sender.setEllipsize(TextUtils.TruncateAt.END);
+        copy.addView(sender, new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text((m.optBoolean("pinned") ? "پیام پین‌شده • " : "") + m.optString("time", "") + " • #" + m.optLong("id"), 9.6f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        head.addView(pill(chatKindLabel(m.optString("kind", "text")), accent, false), new LinearLayout.LayoutParams(-2, -2));
+        c.addView(head, new LinearLayout.LayoutParams(-1, -2));
+
         if (!m.optString("body", "").isEmpty()) {
-            TextView body = text(m.optString("body", ""), 12.4f, TEXT, Typeface.NORMAL); body.setLineSpacing(dp(2), 1.06f); c.addView(body, new LinearLayout.LayoutParams(-1, -2));
+            TextView body = text(m.optString("body", ""), 12.5f, TEXT, Typeface.NORMAL);
+            body.setLineSpacing(dp(3), 1.08f);
+            body.setPadding(dp(9), dp(8), dp(9), dp(8));
+            body.setBackground(roundedStroke(alpha(accent, isLightTheme() ? 10 : 22), 16, alpha(accent, 45)));
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2); bp.setMargins(0, dp(8), 0, 0); c.addView(body, bp);
         }
         if (!m.optString("file", "").isEmpty()) {
-            TextView f = text("پیوست: " + m.optString("file") + " • " + compactBytes(m.optLong("bytes")) + " • " + m.optString("kind", "file"), 10.4f, MUTED, Typeface.BOLD);
-            f.setBackground(roundedStroke(alpha(accent, 16), 14, alpha(accent, 58))); f.setPadding(dp(8), dp(6), dp(8), dp(6));
+            LinearLayout file = new LinearLayout(this); file.setOrientation(LinearLayout.HORIZONTAL); file.setGravity(Gravity.CENTER_VERTICAL); file.setPadding(dp(8), dp(7), dp(8), dp(7));
+            file.setBackground(roundedStroke(alpha(accent, 18), 16, alpha(accent, 62)));
+            file.addView(report3dIcon(chatAttachmentGlyph(m.optString("kind", "file")), accent), new LinearLayout.LayoutParams(dp(42), dp(42)));
+            LinearLayout fc = new LinearLayout(this); fc.setOrientation(LinearLayout.VERTICAL); fc.setPadding(dp(8), 0, dp(8), 0);
+            TextView fn = text(m.optString("file"), 10.8f, TEXT, Typeface.BOLD); fn.setSingleLine(true); fn.setEllipsize(TextUtils.TruncateAt.END);
+            fc.addView(fn, new LinearLayout.LayoutParams(-1, -2));
+            fc.addView(text(compactBytes(m.optLong("bytes")) + " • لمس برای ذخیره/اشتراک", 9.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+            file.addView(fc, new LinearLayout.LayoutParams(0, -2, 1f));
             long msgId = m.optLong("id"); String fileName = m.optString("file", "attachment");
-            f.setClickable(true); f.setOnClickListener(v -> saveChatAttachment(msgId, fileName));
-            LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(-1, -2); fp.setMargins(0, dp(6), 0, 0); c.addView(f, fp);
+            file.setClickable(true); file.setOnClickListener(v -> saveChatAttachment(msgId, fileName)); applyTouchFeedback(file);
+            LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(-1, -2); fp.setMargins(0, dp(7), 0, 0); c.addView(file, fp);
         }
         if (admin) {
             LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-            Button pin = secondaryButton(m.optBoolean("pinned") ? "برداشتن پین" : "پین"); pin.setTextSize(9.2f);
-            Button del = secondaryButton("حذف"); del.setTextSize(9.2f);
+            Button pin = secondaryButton(m.optBoolean("pinned") ? withIcon("⌖", "برداشتن پین") : withIcon("⌖", "پین")); pin.setTextSize(9.2f);
+            Button del = secondaryButton(withIcon("×", "حذف")); del.setTextSize(9.2f);
             long id = m.optLong("id"); boolean nextPinned = !m.optBoolean("pinned");
             pin.setOnClickListener(v -> chatAdminMessageAction(id, nextPinned, false));
             del.setOnClickListener(v -> chatAdminMessageAction(id, false, true));
@@ -3904,6 +4057,21 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(7), 0, 0); c.addView(row, rp);
         }
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(8)); content.addView(c, lp);
+    }
+
+    private String chatKindLabel(String kind) {
+        if ("image".equals(kind)) return "عکس";
+        if ("video".equals(kind)) return "ویدیو";
+        if ("audio".equals(kind)) return "ویس";
+        if ("file".equals(kind)) return "فایل";
+        return "متن";
+    }
+
+    private String chatAttachmentGlyph(String kind) {
+        if ("image".equals(kind)) return "▧";
+        if ("video".equals(kind)) return "▶";
+        if ("audio".equals(kind)) return "♪";
+        return "□";
     }
 
     private String compactBytes(long b) {
@@ -3923,13 +4091,13 @@ public class MainActivity extends Activity {
         EditText input = input("پیام گروهی…", "", false);
         input.setMinLines(2); input.setMaxLines(4); c.addView(input, new LinearLayout.LayoutParams(-1, dp(74)));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button send = primaryButton(state.optInt("scheduleDelay", 0) > 0 ? "ارسال زمان‌دار" : "ارسال"); send.setTextSize(10.2f);
-        Button sticker = secondaryButton("استیکر"); sticker.setTextSize(10.2f);
+        Button send = primaryButton(state.optInt("scheduleDelay", 0) > 0 ? withIcon("⏱", "ارسال زمان‌دار") : withIcon("↗", "ارسال")); send.setTextSize(10.2f);
+        Button sticker = secondaryButton(withIcon("✦", "استیکر")); sticker.setTextSize(10.2f);
         send.setOnClickListener(v -> sendChatText(input.getText().toString()));
         sticker.setOnClickListener(v -> sendChatText("😊✨"));
         row.addView(send, weightedButtonLp()); row.addView(sticker, weightedButtonLp()); c.addView(row, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
-        Button photo = secondaryButton("عکس"); Button video = secondaryButton("ویدیو"); Button audio = secondaryButton("ویس"); Button file = secondaryButton("فایل");
+        Button photo = secondaryButton(withIcon("▧", "عکس")); Button video = secondaryButton(withIcon("▶", "ویدیو")); Button audio = secondaryButton(withIcon("♪", "ویس")); Button file = secondaryButton(withIcon("□", "فایل"));
         photo.setTextSize(9.3f); video.setTextSize(9.3f); audio.setTextSize(9.3f); file.setTextSize(9.3f);
         photo.setOnClickListener(v -> pickChatAttachment("image", "image/*")); video.setOnClickListener(v -> pickChatAttachment("video", "video/*")); audio.setOnClickListener(v -> pickChatAttachment("audio", "audio/*")); file.setOnClickListener(v -> pickChatAttachment("file", "*/*"));
         row2.addView(photo, weightedButtonLp()); row2.addView(video, weightedButtonLp()); row2.addView(audio, weightedButtonLp()); row2.addView(file, weightedButtonLp());
@@ -3942,20 +4110,20 @@ public class MainActivity extends Activity {
         c.addView(text("مدیریت گفتگو", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         c.addView(text("بستن موقت، سکوت، پین پیام، زمان‌بندی ارسال، اخراج یا اعطای دسترسی مدیر/کارمند", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout r1 = new LinearLayout(this); r1.setOrientation(LinearLayout.HORIZONTAL);
-        Button close = secondaryButton(state.optBoolean("closed") ? "بازکردن گفتگو" : "بستن گفتگو");
-        Button silent = secondaryButton("بی‌صدا ۱ ساعت");
+        Button close = secondaryButton(state.optBoolean("closed") ? withIcon("✓", "بازکردن گفتگو") : withIcon("×", "بستن گفتگو"));
+        Button silent = secondaryButton(withIcon("◌", "بی‌صدا ۱ ساعت"));
         close.setTextSize(9.4f); silent.setTextSize(9.4f);
         close.setOnClickListener(v -> chatSetClosed(!state.optBoolean("closed")));
         silent.setOnClickListener(v -> chatSetSilentOneHour());
         r1.addView(close, weightedButtonLp()); r1.addView(silent, weightedButtonLp()); c.addView(r1, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout r2 = new LinearLayout(this); r2.setOrientation(LinearLayout.HORIZONTAL);
-        Button schedule = secondaryButton("تنظیم زمان ارسال"); Button grant = secondaryButton("مدیر/کارمند");
+        Button schedule = secondaryButton(withIcon("⏱", "تنظیم زمان ارسال")); Button grant = secondaryButton(withIcon("ID", "مدیر/کارمند"));
         schedule.setTextSize(9.4f); grant.setTextSize(9.4f);
         schedule.setOnClickListener(v -> showChatScheduleDialog());
         grant.setOnClickListener(v -> showChatMemberAdminDialog(false));
         r2.addView(schedule, weightedButtonLp()); r2.addView(grant, weightedButtonLp()); LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(6), 0, 0); c.addView(r2, r2p);
         LinearLayout r3 = new LinearLayout(this); r3.setOrientation(LinearLayout.HORIZONTAL);
-        Button kick = secondaryButton("اخراج/بازگردانی"); Button mute = secondaryButton("سکوت کاربر");
+        Button kick = secondaryButton(withIcon("↺", "اخراج/بازگردانی")); Button mute = secondaryButton(withIcon("◌", "سکوت کاربر"));
         kick.setTextSize(9.4f); mute.setTextSize(9.4f);
         kick.setOnClickListener(v -> showChatMemberAdminDialog(true));
         mute.setOnClickListener(v -> showChatMuteDialog());
@@ -4090,7 +4258,7 @@ public class MainActivity extends Activity {
     private void showChatScheduleDialog() {
         EditText minutes = input("دقیقه تا ارسال", "15", false);
         minutes.setInputType(InputType.TYPE_CLASS_NUMBER);
-        new AlertDialog.Builder(this)
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("زمان ارسال پیام بعدی")
                 .setView(minutes)
                 .setNegativeButton("لغو زمان‌بندی", (d, w) -> { if (prefs != null) prefs.edit().putInt("chat_schedule_delay", 0).apply(); Toast.makeText(this, "زمان‌بندی غیرفعال شد.", Toast.LENGTH_SHORT).show(); loadChatRoom(); })
@@ -4100,7 +4268,8 @@ public class MainActivity extends Activity {
                     if (prefs != null) prefs.edit().putInt("chat_schedule_delay", m).apply();
                     Toast.makeText(this, m == 0 ? "ارسال فوری فعال شد." : "پیام بعدی " + m + " دقیقه بعد ارسال می‌شود.", Toast.LENGTH_SHORT).show();
                     loadChatRoom();
-                }).show();
+                }).create();
+        styleMeelanoDialog(dialog, navAccent("chat")); dialog.show();
     }
 
     private void chatSetClosed(boolean closed) { runDb(() -> { try (Connection c = openConnection()) { ensureMeelanoCollabTables(c); setChatSetting(c, "chat_closed", closed ? "1" : "0"); } return "ok"; }, new DbCallback() { @Override public void ok(String b) { loadChatRoom(); } @Override public void fail(Exception e) { showPageError("مدیریت گفتگو", e, () -> loadChatRoom()); } }); }
@@ -4112,12 +4281,14 @@ public class MainActivity extends Activity {
 
     private void showChatMemberAdminDialog(boolean kickMode) {
         EditText user = input("نام کاربری", "", false);
-        new AlertDialog.Builder(this).setTitle(kickMode ? "اخراج یا بازگردانی کاربر" : "اعطای دسترسی").setView(user).setNegativeButton("بستن", null).setNeutralButton(kickMode ? "بازگردانی" : "کارمند", (d,w) -> chatMemberUpdate(user.getText().toString(), kickMode ? "restore" : "user")).setPositiveButton(kickMode ? "اخراج" : "مدیر", (d,w) -> chatMemberUpdate(user.getText().toString(), kickMode ? "kick" : "admin")).show();
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(kickMode ? "اخراج یا بازگردانی کاربر" : "اعطای دسترسی").setView(user).setNegativeButton("بستن", null).setNeutralButton(kickMode ? "بازگردانی" : "کارمند", (d,w) -> chatMemberUpdate(user.getText().toString(), kickMode ? "restore" : "user")).setPositiveButton(kickMode ? "اخراج" : "مدیر", (d,w) -> chatMemberUpdate(user.getText().toString(), kickMode ? "kick" : "admin")).create();
+        styleMeelanoDialog(dialog, navAccent("chat")); dialog.show();
     }
 
     private void showChatMuteDialog() {
         EditText user = input("نام کاربری برای سکوت ۲ ساعت", "", false);
-        new AlertDialog.Builder(this).setTitle("سکوت کاربر").setView(user).setNegativeButton("بستن", null).setPositiveButton("اعمال", (d,w) -> chatMemberUpdate(user.getText().toString(), "mute")).show();
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("سکوت کاربر").setView(user).setNegativeButton("بستن", null).setPositiveButton("اعمال", (d,w) -> chatMemberUpdate(user.getText().toString(), "mute")).create();
+        styleMeelanoDialog(dialog, navAccent("chat")); dialog.show();
     }
 
     private void chatMemberUpdate(String username, String action) {
@@ -4216,10 +4387,50 @@ public class MainActivity extends Activity {
     }
 
     private void renderPersonnel(JSONArray rows) {
-        content.removeAllViews(); addHero("پرسنل", "مانده، فروش، آخرین فعالیت و گردش اختصاصی هر نفر"); addManualRefreshPanel("personnel", "بروزرسانی دستی پرسنل", "آخرین بروزرسانی: " + lastRefreshText("personnel"), () -> loadPersonnel());
+        content.removeAllViews();
+        addHero("پرسنل", "مانده، فروش، آخرین فعالیت و گردش اختصاصی هر نفر");
+        addManualRefreshPanel("personnel", "بروزرسانی دستی پرسنل", "آخرین بروزرسانی: " + lastRefreshText("personnel"), () -> loadPersonnel());
         if (isAdminUser()) addPersonnelAdminPanel();
         if (rows == null || rows.length() == 0) { addEmptyTo(content, "پرسنلی پیدا نشد؛ جدول visitors یا sys_users داده قابل نمایش ندارد."); return; }
-        for (int i=0;i<rows.length();i++) { JSONObject r=rows.optJSONObject(i); if (r==null) continue; LinearLayout c=card(); int accent=i%3==0?SUCCESS:(i%3==1?INFO:GOLD); c.setBackground(gradient(new int[]{alpha(accent, 26), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 22)); c.addView(text(r.optString("name","پرسنل"), 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2)); c.addView(text("نام کاربری: " + stringOr(r.optString("username"), "—") + " • کد: " + r.optString("id","—"), 10.3f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2)); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.addView(customerMiniMetric("مانده", money(r.opt("balance")), accent), weightedMiniLp()); row.addView(customerMiniMetric("فروش", compactMoney(r.opt("sales")), GOLD), weightedMiniLp()); row.addView(customerMiniMetric("فاکتور", formatNumber(r.opt("docs")), INFO), weightedMiniLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(8),0,0); c.addView(row,rp); TextView more=text("مشاهده گردش حساب، فاکتورها، دریافت‌ها و پرداخت‌ها", 10.4f, accent, Typeface.BOLD); more.setGravity(Gravity.CENTER); LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,-2); mp.setMargins(0,dp(8),0,0); c.addView(more,mp); c.setClickable(true); c.setOnClickListener(v -> showPersonnelDetail(r)); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(10)); content.addView(c,lp); }
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject r = rows.optJSONObject(i); if (r == null) continue;
+            int accent = i % 3 == 0 ? navAccent("personnel") : (i % 3 == 1 ? INFO : GOLD);
+            LinearLayout c = card();
+            c.setBackground(gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 60 : 18), alpha(accent, isLightTheme() ? 24 : 36), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+            c.setClickable(true); c.setOnClickListener(v -> showPersonnelDetail(r)); applyTouchFeedback(c);
+
+            LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+            TextView avatar = text(initials(r.optString("name", "پ")), 16.5f, onColorFor(accent), Typeface.BOLD);
+            avatar.setGravity(Gravity.CENTER);
+            avatar.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, 130));
+            avatar.setBackground(gradient(new int[]{mix(accent, Color.WHITE, 0.25f), accent, mix(GOLD_2, accent, 0.35f)}, GradientDrawable.Orientation.TL_BR, 999));
+            head.addView(avatar, new LinearLayout.LayoutParams(dp(54), dp(54)));
+            LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(10), 0, dp(8), 0);
+            TextView name = text(r.optString("name", "پرسنل"), 15.5f, TEXT, Typeface.BOLD);
+            name.setSingleLine(true); name.setEllipsize(TextUtils.TruncateAt.END);
+            copy.addView(name, new LinearLayout.LayoutParams(-1, -2));
+            copy.addView(text("نام کاربری: " + stringOr(r.optString("username"), "—") + " • کد: " + r.optString("id", "—"), 10.3f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+            head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+            head.addView(pill(r.optString("source", "پرسنل"), accent, false), new LinearLayout.LayoutParams(-2, -2));
+            c.addView(head, new LinearLayout.LayoutParams(-1, -2));
+
+            LinearLayout badges = new LinearLayout(this); badges.setOrientation(LinearLayout.HORIZONTAL);
+            addCustomerTagChip(badges, stringOr(r.optString("last", ""), "فعالیت نامشخص"), INFO);
+            addCustomerTagChip(badges, r.optString("phone", "").trim().isEmpty() ? "بدون تماس" : "تماس ثبت‌شده", r.optString("phone", "").trim().isEmpty() ? WARNING : SUCCESS);
+            addCustomerTagChip(badges, "پرونده زنده", GOLD);
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2); bp.setMargins(0, dp(8), 0, 0); c.addView(badges, bp);
+
+            LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+            row.addView(customerMiniMetric("مانده", money(r.opt("balance")), accent), weightedMiniLp());
+            row.addView(customerMiniMetric("فروش", compactMoney(r.opt("sales")), GOLD), weightedMiniLp());
+            row.addView(customerMiniMetric("فاکتور", formatNumber(r.opt("docs")), INFO), weightedMiniLp());
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(9), 0, 0); c.addView(row, rp);
+
+            TextView more = pill(withIcon("☷", "مشاهده پرونده، حضور، مرخصی و گردش مالی"), accent, false);
+            more.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, dp(38)); mp.setMargins(0, dp(9), 0, 0); c.addView(more, mp);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(10)); content.addView(c, lp);
+        }
     }
 
     private void addPersonnelAdminPanel() {
@@ -4228,7 +4439,7 @@ public class MainActivity extends Activity {
         c.addView(text("مدیریت دسترسی پرسنل", 15, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2));
         c.addView(text("تعریف مدیر/کارمند گفتگو، سکوت یا بازگردانی کاربران از همین بخش انجام می‌شود.", 10.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button role = secondaryButton("نقش گفتگو"); Button kick = secondaryButton("اخراج/بازگردانی"); Button mute = secondaryButton("سکوت کاربر");
+        Button role = secondaryButton("نقش گفتگو"); Button kick = secondaryButton(withIcon("↺", "اخراج/بازگردانی")); Button mute = secondaryButton(withIcon("◌", "سکوت کاربر"));
         role.setTextSize(9.5f); kick.setTextSize(9.5f); mute.setTextSize(9.5f);
         role.setOnClickListener(v -> showChatMemberAdminDialog(false)); kick.setOnClickListener(v -> showChatMemberAdminDialog(true)); mute.setOnClickListener(v -> showChatMuteDialog());
         row.addView(role, weightedButtonLp()); row.addView(kick, weightedButtonLp()); row.addView(mute, weightedButtonLp());
@@ -4287,9 +4498,9 @@ public class MainActivity extends Activity {
     private void renderAttendance(JSONObject state) {
         content.removeAllViews(); addHero("حضور", state.optBoolean("admin")?"پنل مدیریت حضور، خروج و مرخصی پرسنل":"ثبت ورود/خروج و درخواست مرخصی"); addManualRefreshPanel("attendance","بروزرسانی حضور","آخرین بروزرسانی: "+lastRefreshText("attendance"),()->loadAttendance()); addAttendanceWifiCard(state); if(state.optBoolean("admin")) addAttendanceAdminBlocks(state); else { addAttendanceUserActions(state); addLeaveBalanceCard(state.optJSONArray("leaves")); addLeaveList("درخواست‌های مرخصی من", state.optJSONArray("leaves"), false); } }
 
-    private void addAttendanceWifiCard(JSONObject state){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(navAccent("attendance"),28),alpha(SURFACE,250)},GradientDrawable.Orientation.TL_BR,22)); JSONObject wifi=currentWifiFingerprint(); c.addView(text("مودم محل کار",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("ثبت‌شده: "+stringOr(state.optString("wifiSsid"),"تنظیم نشده")+" • فعلی: "+stringOr(wifi.optString("ssid"),"نامشخص"),10.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(state.optBoolean("admin")){ LinearLayout wr=new LinearLayout(this); wr.setOrientation(LinearLayout.HORIZONTAL); Button cap=primaryButton("ثبت همین مودم"); Button hours=secondaryButton("ساعت مجاز"); cap.setTextSize(9.6f); hours.setTextSize(9.6f); cap.setOnClickListener(v->captureWorkWifi()); hours.setOnClickListener(v->showAttendanceHoursDialog()); wr.addView(cap,weightedButtonLp()); wr.addView(hours,weightedButtonLp()); LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2); cp.setMargins(0,dp(10),0,0); c.addView(wr,cp);} LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
+    private void addAttendanceWifiCard(JSONObject state){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(navAccent("attendance"),28),alpha(SURFACE,250)},GradientDrawable.Orientation.TL_BR,22)); JSONObject wifi=currentWifiFingerprint(); c.addView(text("مودم محل کار",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("ثبت‌شده: "+stringOr(state.optString("wifiSsid"),"تنظیم نشده")+" • فعلی: "+stringOr(wifi.optString("ssid"),"نامشخص"),10.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(state.optBoolean("admin")){ LinearLayout wr=new LinearLayout(this); wr.setOrientation(LinearLayout.HORIZONTAL); Button cap=primaryButton(withIcon("⌁", "ثبت همین مودم")); Button hours=secondaryButton(withIcon("⏱", "ساعت مجاز")); cap.setTextSize(9.6f); hours.setTextSize(9.6f); cap.setOnClickListener(v->captureWorkWifi()); hours.setOnClickListener(v->showAttendanceHoursDialog()); wr.addView(cap,weightedButtonLp()); wr.addView(hours,weightedButtonLp()); LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2); cp.setMargins(0,dp(10),0,0); c.addView(wr,cp);} LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
 
-    private void addAttendanceUserActions(JSONObject state){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(SUCCESS,24),alpha(SURFACE,250)},GradientDrawable.Orientation.RIGHT_LEFT,22)); c.addView(text("ثبت حضور با تأیید مودم",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("برای ثبت ورود یا خروج، گوشی باید به شبکه محل کار متصل باشد؛ رمز مودم در برنامه ذخیره نمی‌شود.",10.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button in=primaryButton("ثبت ورود"); Button out=secondaryButton("ثبت خروج"); in.setOnClickListener(v->recordAttendance("in")); out.setOnClickListener(v->recordAttendance("out")); row.addView(in,weightedButtonLp()); row.addView(out,weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(10),0,0); c.addView(row,rp); Button leave=secondaryButton("درخواست مرخصی"); leave.setOnClickListener(v->showLeaveRequestDialog()); LinearLayout.LayoutParams lpv=new LinearLayout.LayoutParams(-1,dp(44)); lpv.setMargins(0,dp(8),0,0); c.addView(leave,lpv); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); addAttendanceRows("آخرین ورود/خروج من", state.optJSONArray("mine")); }
+    private void addAttendanceUserActions(JSONObject state){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(SUCCESS,24),alpha(SURFACE,250)},GradientDrawable.Orientation.RIGHT_LEFT,22)); c.addView(text("ثبت حضور با تأیید مودم",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("برای ثبت ورود یا خروج، گوشی باید به شبکه محل کار متصل باشد؛ رمز مودم در برنامه ذخیره نمی‌شود.",10.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button in=primaryButton(withIcon("↘", "ثبت ورود")); Button out=secondaryButton(withIcon("↗", "ثبت خروج")); in.setOnClickListener(v->recordAttendance("in")); out.setOnClickListener(v->recordAttendance("out")); row.addView(in,weightedButtonLp()); row.addView(out,weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(10),0,0); c.addView(row,rp); Button leave=secondaryButton(withIcon("☘", "درخواست مرخصی")); leave.setOnClickListener(v->showLeaveRequestDialog()); LinearLayout.LayoutParams lpv=new LinearLayout.LayoutParams(-1,dp(44)); lpv.setMargins(0,dp(8),0,0); c.addView(leave,lpv); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); addAttendanceRows("آخرین ورود/خروج من", state.optJSONArray("mine")); }
 
     private void addAttendanceAdminBlocks(JSONObject state){ addAttendanceReportActions(state); addAttendanceRows("حضور امروز پرسنل", state.optJSONArray("today")); addLeaveBalanceCard(state.optJSONArray("leaves")); addLeaveList("درخواست‌های مرخصی", state.optJSONArray("leaves"), true); notifyPendingLeavesOnce(state.optJSONArray("leaves")); }
 
@@ -4299,7 +4510,7 @@ public class MainActivity extends Activity {
         c.addView(text("خروجی مدیریتی حضور و مرخصی", 15, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2));
         c.addView(text("گزارش سریع برای بایگانی، حقوق و کنترل منابع انسانی", 10.3f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button csv = primaryButton("CSV حضور"); Button pdf = secondaryButton("PDF خلاصه");
+        Button csv = primaryButton(withIcon("CSV", "حضور")); Button pdf = secondaryButton(withIcon("PDF", "خلاصه"));
         csv.setTextSize(9.7f); pdf.setTextSize(9.7f);
         csv.setOnClickListener(v -> exportAttendanceCsv(state.optJSONArray("today"), state.optJSONArray("leaves")));
         pdf.setOnClickListener(v -> exportAttendancePdf(state.optJSONArray("today"), state.optJSONArray("leaves")));
@@ -4336,7 +4547,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.26.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.27.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -4348,7 +4559,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.26.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.27.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -4368,10 +4579,14 @@ public class MainActivity extends Activity {
 
     private void showAttendanceHoursDialog() {
         LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(12),dp(10),dp(12),dp(8));
+        box.addView(text("بازه مجاز ثبت حضور", 14.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2));
+        box.addView(text("اگر خالی بگذارید محدودیت زمانی حذف می‌شود.", 10.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2));
         EditText start=input("شروع مجاز مثل 08:00", prefs==null?"":prefs.getString("attendance_start_hint","08:00"), false);
         EditText end=input("پایان مجاز مثل 18:00", prefs==null?"":prefs.getString("attendance_end_hint","18:00"), false);
-        box.addView(start,new LinearLayout.LayoutParams(-1,dp(50))); box.addView(end,new LinearLayout.LayoutParams(-1,dp(50)));
-        new AlertDialog.Builder(this).setTitle("بازه مجاز ثبت حضور").setView(box).setNegativeButton("حذف محدودیت",(d,w)->setAttendanceHours("","",true)).setPositiveButton("ثبت",(d,w)->setAttendanceHours(start.getText().toString(),end.getText().toString(),false)).show();
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(-1,dp(50)); ip.setMargins(0,dp(8),0,0);
+        box.addView(start,ip); box.addView(end,new LinearLayout.LayoutParams(-1,dp(50)));
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("تنظیم ساعت حضور").setView(box).setNegativeButton("حذف محدودیت",(d,w)->setAttendanceHours("","",true)).setPositiveButton("ثبت",(d,w)->setAttendanceHours(start.getText().toString(),end.getText().toString(),false)).create();
+        styleMeelanoDialog(dialog, navAccent("attendance")); dialog.show();
     }
 
     private void setAttendanceHours(String start, String end, boolean clear) {
@@ -4380,8 +4595,14 @@ public class MainActivity extends Activity {
 
     private void addAttendanceRows(String title, JSONArray rows){
         LinearLayout c=card();
-        c.setBackground(gradient(new int[]{alpha(navAccent("attendance"),22),alpha(SURFACE,250)},GradientDrawable.Orientation.RIGHT_LEFT,22));
-        c.addView(text(title,15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        c.setBackground(gradient(new int[]{alpha(navAccent("attendance"),22), alpha(SURFACE,250)},GradientDrawable.Orientation.RIGHT_LEFT,22));
+        LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(report3dIcon("⏱", navAccent("attendance")), new LinearLayout.LayoutParams(dp(44), dp(44)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(9),0,dp(8),0);
+        copy.addView(text(title,15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        copy.addView(text("خط زمانی ورود و خروج با رنگ‌بندی هماهنگ با تم فعال",9.7f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
+        head.addView(copy,new LinearLayout.LayoutParams(0,-2,1f));
+        c.addView(head,new LinearLayout.LayoutParams(-1,-2));
         if(rows==null||rows.length()==0)c.addView(text("رکوردی ثبت نشده است.",11,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,dp(54)));
         else for(int i=0;i<Math.min(120,rows.length());i++){ JSONObject r=rows.optJSONObject(i); if(r!=null)c.addView(attendanceEventRow(r),compactRowLp()); }
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp);
@@ -4393,13 +4614,14 @@ public class MainActivity extends Activity {
         LinearLayout line = new LinearLayout(this);
         line.setOrientation(LinearLayout.HORIZONTAL);
         line.setGravity(Gravity.CENTER_VERTICAL);
-        line.setPadding(dp(9), dp(8), dp(9), dp(8));
-        line.setBackground(roundedStroke(alpha(accent, 16), 16, alpha(accent, 68)));
-        TextView badge = text(in ? "ورود" : "خروج", 9.4f, Color.WHITE, Typeface.BOLD);
-        badge.setGravity(Gravity.CENTER);
-        badge.setSingleLine(true);
-        badge.setBackground(gradient(new int[]{accent, mix(accent, Color.BLACK, 0.22f)}, GradientDrawable.Orientation.TL_BR, 999));
-        line.addView(badge, new LinearLayout.LayoutParams(dp(54), dp(34)));
+        line.setPadding(dp(8), dp(8), dp(8), dp(8));
+        line.setBackground(roundedStroke(alpha(accent, isLightTheme() ? 13 : 24), 18, alpha(accent, 70)));
+        LinearLayout rail = new LinearLayout(this);
+        rail.setOrientation(LinearLayout.VERTICAL);
+        rail.setGravity(Gravity.CENTER);
+        TextView dot = report3dIcon(in ? "↘" : "↗", accent);
+        rail.addView(dot, new LinearLayout.LayoutParams(dp(36), dp(36)));
+        line.addView(rail, new LinearLayout.LayoutParams(dp(42), -2));
         LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(8),0,dp(8),0);
         TextView name = text(r.optString("display", r.optString("username", "کاربر")) + " • " + r.optString("time", ""), 11.4f, TEXT, Typeface.BOLD);
         name.setSingleLine(true); name.setEllipsize(TextUtils.TruncateAt.END);
@@ -4408,6 +4630,7 @@ public class MainActivity extends Activity {
         meta.setSingleLine(true); meta.setEllipsize(TextUtils.TruncateAt.END);
         copy.addView(meta, new LinearLayout.LayoutParams(-1,-2));
         line.addView(copy, new LinearLayout.LayoutParams(0,-2,1f));
+        line.addView(pill(in ? "ورود" : "خروج", accent, false), new LinearLayout.LayoutParams(-2,-2));
         return line;
     }
 
@@ -4422,7 +4645,7 @@ public class MainActivity extends Activity {
         prefs.edit().putBoolean(key, true).apply();
         showLocalNotification("درخواست مرخصی", formatNumber(pending) + " درخواست مرخصی در انتظار بررسی است.", false);
     }
-    private void addLeaveList(String title, JSONArray rows, boolean admin){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(INFO,20),alpha(SURFACE,250)},GradientDrawable.Orientation.TL_BR,22)); c.addView(text(title,15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); if(rows==null||rows.length()==0)c.addView(text("درخواستی ثبت نشده است.",11,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,dp(54))); else for(int i=0;i<Math.min(80,rows.length());i++){ JSONObject r=rows.optJSONObject(i); LinearLayout item=new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL); item.setPadding(dp(9),dp(8),dp(9),dp(8)); item.setBackground(roundedStroke(alpha(navAccent("attendance"),16),16,alpha(navAccent("attendance"),60))); item.addView(text("#"+r.optLong("id")+" • "+r.optString("display")+" • "+leaveStatusFa(r.optString("status")),11.2f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); item.addView(text(r.optString("type")+" • "+r.optString("start")+" تا "+r.optString("end")+" • "+r.optString("hours"),10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(!r.optString("reason").isEmpty()) item.addView(text(r.optString("reason"),10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(admin&&"pending".equals(r.optString("status"))){ LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button ok=primaryButton("تأیید"); Button no=secondaryButton("رد"); long id=r.optLong("id"); ok.setOnClickListener(v->decideLeave(id,true)); no.setOnClickListener(v->decideLeave(id,false)); row.addView(ok,weightedButtonLp()); row.addView(no,weightedButtonLp()); item.addView(row,new LinearLayout.LayoutParams(-1,-2)); } LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,-2); ip.setMargins(0,dp(7),0,0); c.addView(item,ip);} LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
+    private void addLeaveList(String title, JSONArray rows, boolean admin){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(INFO,20),alpha(SURFACE,250)},GradientDrawable.Orientation.TL_BR,22)); c.addView(text(title,15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); if(rows==null||rows.length()==0)c.addView(text("درخواستی ثبت نشده است.",11,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,dp(54))); else for(int i=0;i<Math.min(80,rows.length());i++){ JSONObject r=rows.optJSONObject(i); LinearLayout item=new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL); item.setPadding(dp(9),dp(8),dp(9),dp(8)); item.setBackground(roundedStroke(alpha(navAccent("attendance"),16),16,alpha(navAccent("attendance"),60))); item.addView(text("#"+r.optLong("id")+" • "+r.optString("display")+" • "+leaveStatusFa(r.optString("status")),11.2f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); item.addView(text(r.optString("type")+" • "+r.optString("start")+" تا "+r.optString("end")+" • "+r.optString("hours"),10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(!r.optString("reason").isEmpty()) item.addView(text(r.optString("reason"),10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(admin&&"pending".equals(r.optString("status"))){ LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button ok=primaryButton(withIcon("✓", "تأیید")); Button no=secondaryButton(withIcon("×", "رد")); long id=r.optLong("id"); ok.setOnClickListener(v->decideLeave(id,true)); no.setOnClickListener(v->decideLeave(id,false)); row.addView(ok,weightedButtonLp()); row.addView(no,weightedButtonLp()); item.addView(row,new LinearLayout.LayoutParams(-1,-2)); } LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,-2); ip.setMargins(0,dp(7),0,0); c.addView(item,ip);} LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
     private String leaveStatusFa(String s){ if("approved".equals(s))return "تأیید شده"; if("rejected".equals(s))return "رد شده"; return "در انتظار"; }
 
     private JSONObject currentWifiFingerprint(){ JSONObject o=new JSONObject(); try{ if(Build.VERSION.SDK_INT>=23&&checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){ requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQ_WIFI_PERMISSION); o.put("error","نیاز به مجوز موقعیت برای خواندن نام WiFi"); return o;} WifiManager wm=(WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE); if(wm==null)return o; WifiInfo info=wm.getConnectionInfo(); if(info!=null){ String ssid=info.getSSID(); if(ssid!=null)ssid=ssid.replace("\"",""); o.put("ssid",ssid); o.put("bssid",stringOr(info.getBSSID(),"")); } try{ int g=wm.getDhcpInfo()==null?0:wm.getDhcpInfo().gateway; o.put("gateway", ((g)&0xff)+"."+((g>>8)&0xff)+"."+((g>>16)&0xff)+"."+((g>>24)&0xff)); }catch(Exception ignored){} }catch(Exception ignored){} return o; }
@@ -4454,8 +4677,28 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void showLeaveRequestDialog(){ LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(14),dp(12),dp(14),dp(8)); final String[] type={"مرخصی استحقاقی"}; Button typeBtn=secondaryButton(type[0]); typeBtn.setOnClickListener(v->{ String[] items={"مرخصی استحقاقی","مرخصی استعلاجی","مرخصی ساعتی","ماموریت","سایر"}; new AlertDialog.Builder(this).setItems(items,(d,which)->{type[0]=items[which]; typeBtn.setText(type[0]);}).show(); }); Button start=secondaryButton(todayDateText()); Button end=secondaryButton(todayDateText()); start.setOnClickListener(v->showDatePickForButton(start)); end.setOnClickListener(v->showDatePickForButton(end)); EditText hours=input("ساعت/مدت", "", false); EditText reason=input("توضیح درخواست", "", false); reason.setMinLines(2); box.addView(typeBtn,new LinearLayout.LayoutParams(-1,dp(46))); box.addView(start,new LinearLayout.LayoutParams(-1,dp(46))); box.addView(end,new LinearLayout.LayoutParams(-1,dp(46))); box.addView(hours,new LinearLayout.LayoutParams(-1,dp(46))); box.addView(reason,new LinearLayout.LayoutParams(-1,dp(76))); new AlertDialog.Builder(this).setTitle("درخواست مرخصی").setView(box).setNegativeButton("بستن",null).setPositiveButton("ارسال",(d,w)->submitLeaveRequest(type[0],start.getText().toString(),end.getText().toString(),hours.getText().toString(),reason.getText().toString())).show(); }
-    private void showDatePickForButton(Button b){ Calendar cal=Calendar.getInstance(new Locale("fa","IR")); DatePicker picker=new DatePicker(this); picker.init(cal.get(Calendar.YEAR),cal.get(Calendar.MONTH),cal.get(Calendar.DAY_OF_MONTH),(v,y,m,d)->{}); new AlertDialog.Builder(this).setTitle("انتخاب تاریخ").setView(picker).setNegativeButton("بستن",null).setPositiveButton("ثبت",(d,w)->b.setText(String.format(Locale.US,"%04d/%02d/%02d",picker.getYear(),picker.getMonth()+1,picker.getDayOfMonth()))).show(); }
+    private void showLeaveRequestDialog(){
+        LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(14),dp(12),dp(14),dp(8));
+        box.addView(text("درخواست مرخصی",14.5f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        box.addView(text("نوع، تاریخ و توضیح کوتاه را کامل وارد کنید تا مدیر سریع‌تر تصمیم بگیرد.",10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
+        final String[] type={"مرخصی استحقاقی"};
+        Button typeBtn=secondaryButton(withIcon("☘", type[0]));
+        typeBtn.setOnClickListener(v->{ String[] items={"مرخصی استحقاقی","مرخصی استعلاجی","مرخصی ساعتی","ماموریت","سایر"}; AlertDialog d=new AlertDialog.Builder(this).setItems(items,(di,which)->{type[0]=items[which]; typeBtn.setText(withIcon("☘", type[0]));}).create(); styleMeelanoDialog(d, navAccent("attendance")); d.show(); });
+        Button start=secondaryButton(withIcon("◷", todayDateText())); Button end=secondaryButton(withIcon("◷", todayDateText()));
+        start.setOnClickListener(v->showDatePickForButton(start)); end.setOnClickListener(v->showDatePickForButton(end));
+        EditText hours=input("ساعت/مدت", "", false); EditText reason=input("توضیح درخواست", "", false); reason.setMinLines(2);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,dp(46)); lp.setMargins(0,dp(8),0,0);
+        box.addView(typeBtn,lp); box.addView(start,new LinearLayout.LayoutParams(-1,dp(46))); box.addView(end,new LinearLayout.LayoutParams(-1,dp(46))); box.addView(hours,new LinearLayout.LayoutParams(-1,dp(46))); box.addView(reason,new LinearLayout.LayoutParams(-1,dp(76)));
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("درخواست مرخصی").setView(box).setNegativeButton("بستن",null).setPositiveButton("ارسال",(d,w)->submitLeaveRequest(type[0],start.getText().toString().replace("◷","").trim(),end.getText().toString().replace("◷","").trim(),hours.getText().toString(),reason.getText().toString())).create();
+        styleMeelanoDialog(dialog, navAccent("attendance")); dialog.show();
+    }
+
+    private void showDatePickForButton(Button b){
+        Calendar cal=Calendar.getInstance(new Locale("fa","IR")); DatePicker picker=new DatePicker(this); picker.init(cal.get(Calendar.YEAR),cal.get(Calendar.MONTH),cal.get(Calendar.DAY_OF_MONTH),(v,y,m,d)->{});
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("انتخاب تاریخ").setView(picker).setNegativeButton("بستن",null).setPositiveButton("ثبت",(d,w)->b.setText(withIcon("◷", String.format(Locale.US,"%04d/%02d/%02d",picker.getYear(),picker.getMonth()+1,picker.getDayOfMonth())))).create();
+        styleMeelanoDialog(dialog, navAccent("attendance")); dialog.show();
+    }
+
     private void submitLeaveRequest(String type,String start,String end,String hours,String reason){
         if (type == null || type.trim().isEmpty()) { Toast.makeText(this,"نوع مرخصی را انتخاب کنید.",Toast.LENGTH_SHORT).show(); return; }
         if (start == null || start.trim().isEmpty() || end == null || end.trim().isEmpty()) { Toast.makeText(this,"تاریخ شروع و پایان الزامی است.",Toast.LENGTH_SHORT).show(); return; }
@@ -4545,7 +4788,7 @@ public class MainActivity extends Activity {
         panel.addView(titleRow, new LinearLayout.LayoutParams(-1, -2));
 
         HorizontalScrollView scroll = new HorizontalScrollView(this);
-        scroll.setHorizontalScrollBarEnabled(false);
+        styleHorizontalScroll(scroll);
         LinearLayout chips = new LinearLayout(this);
         chips.setOrientation(LinearLayout.HORIZONTAL);
         String[][] options = customerSortOptions(filter);
@@ -4786,73 +5029,108 @@ public class MainActivity extends Activity {
         int accent = balance > 0 ? DANGER : (balance < 0 ? SUCCESS : INFO);
         String statusText = balance > 0 ? "بدهکار" : (balance < 0 ? "بستانکار" : "تسویه");
         int riskScore = customerRiskScore(r);
+
         LinearLayout c = card();
+        c.setOrientation(LinearLayout.HORIZONTAL);
+        c.setPadding(0, 0, 0, 0);
         c.setClickable(true);
-        c.setBackground(gradient(new int[]{alpha(Color.WHITE, 24), alpha(accent, 42), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 26));
+        c.setBackground(gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 70 : 18), alpha(accent, isLightTheme() ? 28 : 44), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 26));
         c.setOnClickListener(v -> showCustomerDetail(r, "all"));
+        applyTouchFeedback(c);
+
+        View rail = new View(this);
+        rail.setBackground(gradient(new int[]{mix(accent, Color.WHITE, 0.35f), accent, mix(accent, Color.BLACK, isLightTheme() ? 0.10f : 0.28f)}, GradientDrawable.Orientation.TOP_BOTTOM, 999));
+        LinearLayout.LayoutParams railLp = new LinearLayout.LayoutParams(dp(6), -1);
+        railLp.setMargins(0, dp(10), dp(8), dp(10));
+        c.addView(rail, railLp);
+
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        int pad = compactUi() ? dp(10) : dp(13);
+        body.setPadding(pad, pad, pad, pad);
+        c.addView(body, new LinearLayout.LayoutParams(0, -2, 1f));
+
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        TextView avatar = text(initials(r.optString("نام", "م")), 17, Color.WHITE, Typeface.BOLD);
+        TextView avatar = text(initials(r.optString("نام", "م")), 17, onColorFor(accent), Typeface.BOLD);
         avatar.setGravity(Gravity.CENTER);
         avatar.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, 130));
-        avatar.setBackground(gradient(new int[]{mix(accent, Color.WHITE, 0.18f), accent, alpha(GOLD_2, 135)}, GradientDrawable.Orientation.TL_BR, 20));
+        avatar.setBackground(gradient(new int[]{mix(accent, Color.WHITE, 0.24f), accent, mix(GOLD_2, accent, 0.34f)}, GradientDrawable.Orientation.TL_BR, 20));
         head.addView(avatar, new LinearLayout.LayoutParams(dp(56), dp(56)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(10), 0, dp(10), 0);
         String name = r.optString("نام", "بدون نام");
-        copy.addView(text(name, 15.8f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView nameView = text(name, 15.8f, TEXT, Typeface.BOLD);
+        nameView.setSingleLine(true); nameView.setEllipsize(TextUtils.TruncateAt.END);
+        copy.addView(nameView, new LinearLayout.LayoutParams(-1, -2));
         copy.addView(text("کد " + r.optString("کد", "-") + " • آخرین خرید: " + stringOr(r.optString("آخرین_خرید", ""), "—"), 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
-        TextView chip = text(statusText, 10.5f, TEXT, Typeface.BOLD);
-        chip.setGravity(Gravity.CENTER);
-        chip.setPadding(dp(10), dp(5), dp(10), dp(5));
-        chip.setBackground(roundedStroke(alpha(accent, 70), 999, alpha(accent, 135)));
+        TextView chip = pill(statusText, accent, false);
         head.addView(chip, new LinearLayout.LayoutParams(-2, -2));
-        c.addView(head, new LinearLayout.LayoutParams(-1, -2));
+        body.addView(head, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout priority = new LinearLayout(this);
+        priority.setOrientation(LinearLayout.HORIZONTAL);
+        priority.setGravity(Gravity.CENTER_VERTICAL);
+        addCustomerTagChip(priority, collectionPriorityLabel(r), accent);
+        addCustomerTagChip(priority, customerSmartTag(balance, salesTotal, invoices, creditLimit), accent);
+        addCustomerTagChip(priority, customerRiskLabel(riskScore), customerRiskAccent(riskScore));
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, -2); pp.setMargins(0, dp(10), 0, 0); body.addView(priority, pp);
 
         LinearLayout tags = new LinearLayout(this);
         tags.setOrientation(LinearLayout.HORIZONTAL);
-        addCustomerTagChip(tags, customerSmartTag(balance, salesTotal, invoices, creditLimit), accent);
-        addCustomerTagChip(tags, invoices == 0 ? "نیازمند بازفعال‌سازی" : "آخرین فاکتور: " + stringOr(r.optString("آخرین_خرید", ""), "—"), invoices == 0 ? WARNING : INFO);
-        addCustomerTagChip(tags, customerRiskLabel(riskScore), customerRiskAccent(riskScore));
-        LinearLayout.LayoutParams tagp = new LinearLayout.LayoutParams(-1, -2); tagp.setMargins(0, dp(10), 0, 0); c.addView(tags, tagp);
+        addCustomerTagChip(tags, invoices == 0 ? "کمپین بازفعال‌سازی" : "آخرین فاکتور: " + stringOr(r.optString("آخرین_خرید", ""), "—"), invoices == 0 ? WARNING : INFO);
+        addCustomerTagChip(tags, importanceLabel(salesTotal, invoices, balance), salesTotal > 0 ? GOLD : MUTED);
+        addCustomerTagChip(tags, firstPhone(r).equals("—") ? "بدون تماس" : "تماس آماده", firstPhone(r).equals("—") ? WARNING : SUCCESS);
+        LinearLayout.LayoutParams tagp = new LinearLayout.LayoutParams(-1, -2); tagp.setMargins(0, dp(7), 0, 0); body.addView(tags, tagp);
 
         LinearLayout row1 = new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL);
         row1.addView(customerMiniMetric("مانده", money(r.opt("مانده")), accent), weightedMiniLp());
         row1.addView(customerMiniMetric("فروش", money(r.opt("جمع_فروش")), GOLD), weightedMiniLp());
         row1.addView(customerMiniMetric("فاکتور", formatNumber(r.opt("تعداد_فاکتور")), INFO), weightedMiniLp());
-        LinearLayout.LayoutParams r1p = new LinearLayout.LayoutParams(-1, -2); r1p.setMargins(0, dp(10), 0, 0); c.addView(row1, r1p);
+        LinearLayout.LayoutParams r1p = new LinearLayout.LayoutParams(-1, -2); r1p.setMargins(0, dp(10), 0, 0); body.addView(row1, r1p);
 
         LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
         row2.addView(customerMiniMetric("چک", money(r.opt("جمع_چک")), WARNING), weightedMiniLp());
         row2.addView(customerMiniMetric("اعتبار", money(r.opt("اعتبار")), SUCCESS), weightedMiniLp());
         row2.addView(customerMiniMetric("تماس", firstPhone(r), INFO), weightedMiniLp());
-        LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(7), 0, 0); c.addView(row2, r2p);
+        LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(7), 0, 0); body.addView(row2, r2p);
 
         TextView address = text("نشانی: " + r.optString("نشانی", "-"), 10.5f, alpha(TEXT, 190), Typeface.NORMAL);
-        address.setMaxLines(2);
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); c.addView(address, ap);
+        address.setMaxLines(2); address.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); body.addView(address, ap);
 
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
-        Button ledger = secondaryButton("گردش حساب");
-        ledger.setTextSize(10.5f);
+        Button ledger = secondaryButton(withIcon("☷", "گردش حساب"));
+        ledger.setTextSize(10.2f);
         ledger.setOnClickListener(v -> showCustomerDetail(r, "all"));
-        Button call = primaryButton("تماس سریع");
-        call.setTextSize(10.5f);
+        Button call = primaryButton(withIcon("☎", "تماس سریع"));
+        call.setTextSize(10.2f);
         call.setOnClickListener(v -> openPhoneDialer(firstPhone(r)));
-        Button msg = secondaryButton("پیام میلو");
-        msg.setTextSize(10.2f);
+        Button msg = secondaryButton(withIcon("✉", "پیام میلو"));
+        msg.setTextSize(10.0f);
         msg.setOnClickListener(v -> showCustomerMessageDialog(r));
         actions.addView(ledger, weightedButtonLp());
         actions.addView(msg, weightedButtonLp());
         actions.addView(call, weightedButtonLp());
-        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(-1, -2); alp.setMargins(0, dp(8), 0, 0); c.addView(actions, alp);
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(-1, -2); alp.setMargins(0, dp(8), 0, 0); body.addView(actions, alp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, 0, 0, dp(10));
         parent.addView(c, lp);
+    }
+
+    private String collectionPriorityLabel(JSONObject r) {
+        double balance = customerPositiveBalance(r);
+        int risk = customerRiskScore(r);
+        long last = customerLastSaleValue(r);
+        if (balance <= 0) return r != null && r.optDouble("مانده", 0) < 0 ? "تهاتر/تسویه" : "بدون مانده";
+        if (risk >= 72) return "فوری امروز";
+        if (last > 0 && last < 14000101L) return "قدیمی و مهم";
+        if (risk >= 45) return "پیگیری نزدیک";
+        return "وصول منظم";
     }
 
     private void addCustomerTagChip(LinearLayout parent, String label, int accent) {
@@ -4906,18 +5184,22 @@ public class MainActivity extends Activity {
 
     private void showCustomerMessageDialog(JSONObject r) {
         String[] labels = {"پیام وصول محترمانه", "پیام فروش مجدد", "یادآوری چک/تعهد"};
-        new AlertDialog.Builder(this)
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("میلو چه پیامی بدهد؟")
                 .setItems(labels, (d, which) -> {
                     String body = buildCustomerMessage(r, which);
-                    new AlertDialog.Builder(this)
+                    AlertDialog inner = new AlertDialog.Builder(this)
                             .setTitle(labels[which])
                             .setMessage(body)
                             .setNegativeButton("بستن", null)
                             .setPositiveButton("ارسال/کپی", (dd, w) -> sharePlainText("پیام مشتری Meelano", body, null))
-                            .show();
+                            .create();
+                    styleMeelanoDialog(inner, SUCCESS);
+                    inner.show();
                 })
-                .show();
+                .create();
+        styleMeelanoDialog(dialog, SUCCESS);
+        dialog.show();
     }
 
     private String buildCustomerMessage(JSONObject r, int type) {
@@ -4977,7 +5259,7 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
         box.setPadding(dp(5), dp(7), dp(5), dp(7));
-        box.setBackground(roundedStroke(alpha(accent, 18), 14, alpha(accent, 62)));
+        box.setBackground(roundedStroke(alpha(accent, isLightTheme() ? 16 : 28), 14, alpha(accent, 72)));
         TextView l = text(label, 9.2f, MUTED, Typeface.BOLD); l.setGravity(Gravity.CENTER);
         TextView v = text(value, 10.3f, TEXT, Typeface.BOLD); v.setGravity(Gravity.CENTER); v.setSingleLine(false); v.setMaxLines(2);
         box.addView(l, new LinearLayout.LayoutParams(-1, -2));
@@ -5954,7 +6236,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.26.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.27.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -5992,7 +6274,7 @@ public class MainActivity extends Activity {
         String checks = checkStatusSummary(a.optJSONArray("checkStatuses"));
         String[][] cells = {
                 {"فروش", salesTrend, "↗"}, {"سود", profitTrend, "◆"}, {"حاشیه سود", margin, "%"},
-                {"مشتری فعال", customerGrowth, "👥"}, {"ریسک مطالبات", debt, "!"}, {"چک‌ها", checks, "✓"}
+                {"مشتری فعال", customerGrowth, "م"}, {"ریسک مطالبات", debt, "!"}, {"چک‌ها", checks, "✓"}
         };
         int[] colors = {GOLD, SUCCESS, GOLD_2, INFO, DANGER, WARNING};
         for (int i = 0; i < cells.length; i++) {
@@ -6344,13 +6626,15 @@ public class MainActivity extends Activity {
     }
 
     private TextView report3dIcon(String glyph, int accent) {
-        TextView icon = text(glyph, glyph != null && glyph.length() > 2 ? 13.5f : 20, Color.WHITE, Typeface.BOLD);
+        TextView icon = text(glyph, glyph != null && glyph.length() > 2 ? 12.8f : 19.5f, onColorFor(accent), Typeface.BOLD);
         icon.setGravity(Gravity.CENTER);
-        icon.setShadowLayer(dp(5), 0, dp(2), alpha(Color.BLACK, 165));
-        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, 0.30f), accent, mix(accent, Color.BLACK, 0.30f), alpha(INFO, 165)}, GradientDrawable.Orientation.TL_BR, 18);
-        bg.setStroke(dp(1), alpha(Color.WHITE, 92));
+        icon.setSingleLine(true);
+        icon.setShadowLayer(dp(4), 0, dp(2), alpha(Color.BLACK, isLightTheme() ? 105 : 175));
+        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, isLightTheme() ? 0.38f : 0.22f), accent, mix(accent, GOLD_2, 0.20f), mix(accent, Color.BLACK, isLightTheme() ? 0.10f : 0.34f)}, GradientDrawable.Orientation.TL_BR, 18);
+        bg.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.58f), 132));
         icon.setBackground(bg);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) icon.setElevation(dp(5));
+        applyTouchFeedback(icon);
         return icon;
     }
 
@@ -6805,14 +7089,16 @@ public class MainActivity extends Activity {
 
     private String reportGlyph(String title) {
         String t = title == null ? "" : title;
-        if (t.contains("چک")) return "✓";
-        if (t.contains("مشتری")) return "👥";
-        if (t.contains("مطالبات")) return "!";
-        if (t.contains("بانک")) return "◉";
+        if (t.contains("چک")) return "چ";
+        if (t.contains("مشتری")) return "م";
+        if (t.contains("مطالبات") || t.contains("ریسک") || t.contains("معوق")) return "!";
+        if (t.contains("بانک")) return "بانک";
         if (t.contains("خرید")) return "↙";
-        if (t.contains("سود") || t.contains("حاشیه")) return "◆";
-        if (t.contains("کالا") || t.contains("دسته")) return "◼";
-        return "↗";
+        if (t.contains("سود") || t.contains("حاشیه")) return "٪";
+        if (t.contains("کالا") || t.contains("دسته") || t.contains("گروه")) return "▦";
+        if (t.contains("فروش") || t.contains("درآمد")) return "↗";
+        if (t.contains("حضور")) return "⏱";
+        return "◆";
     }
 
     private void initSpeechEngine() {
@@ -8274,7 +8560,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.26.0\nاین نسخه مرتب‌سازی هوشمند لیست مشتریان پس از فیلتر بدهکار/بستانکار/بدون خرید/پرخرید را اضافه می‌کند؛ مرتب‌سازی بدون بارگذاری دوباره انجام می‌شود و جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.27.0\nاین نسخه سیستم طراحی تم‌محور Meelano را روی کارت‌ها، دکمه‌ها، آیکن‌ها، مشتریان، پرسنل، گفتگو، حضور، گزارش‌ها، دیالوگ‌ها و حالت‌های خالی هماهنگ‌تر می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -8432,18 +8718,27 @@ public class MainActivity extends Activity {
     private void addEmptyTo(LinearLayout parent, String message) {
         LinearLayout c = card();
         c.setGravity(Gravity.CENTER_HORIZONTAL);
-        c.setBackground(gradient(new int[]{alpha(INFO, 18), alpha(SURFACE, 248)}, GradientDrawable.Orientation.TL_BR, 24));
-        TextView icon = report3dIcon("◇", INFO);
-        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(54), dp(54));
-        ip.gravity = Gravity.CENTER_HORIZONTAL;
-        c.addView(icon, ip);
-        TextView t = text(message, 12.7f, TEXT, Typeface.BOLD);
+        int accent = themeAccent(message);
+        c.setBackground(gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 70 : 18), alpha(accent, isLightTheme() ? 20 : 32), alpha(SURFACE, 248)}, GradientDrawable.Orientation.TL_BR, 26));
+        FrameLayout art = new FrameLayout(this);
+        TextView halo = report3dIcon(message != null && message.contains("جستجو") ? "⌕" : "◇", accent);
+        art.addView(halo, new FrameLayout.LayoutParams(dp(64), dp(64), Gravity.CENTER));
+        View shadow = new View(this);
+        shadow.setBackground(roundedStroke(alpha(accent, 18), 999, alpha(accent, 0)));
+        FrameLayout.LayoutParams sh = new FrameLayout.LayoutParams(dp(96), dp(14), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        art.addView(shadow, sh);
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(dp(112), dp(82));
+        ap.gravity = Gravity.CENTER_HORIZONTAL;
+        c.addView(art, ap);
+        TextView t = text(message, 13.0f, TEXT, Typeface.BOLD);
         t.setGravity(Gravity.CENTER);
+        t.setLineSpacing(dp(2), 1.04f);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
-        tp.setMargins(0, dp(9), 0, 0);
+        tp.setMargins(0, dp(6), 0, 0);
         c.addView(t, tp);
-        TextView sub = text("اگر انتظار داده دارید، فیلتر/جستجو را تغییر بدهید یا اتصال را تازه‌سازی کنید.", 10.5f, MUTED, Typeface.NORMAL);
+        TextView sub = text("فیلتر، جستجو یا تازه‌سازی را تغییر دهید؛ میلو داده را دوباره مرتب و تمیز نمایش می‌دهد.", 10.5f, MUTED, Typeface.NORMAL);
         sub.setGravity(Gravity.CENTER);
+        sub.setLineSpacing(dp(2), 1.04f);
         c.addView(sub, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, 0, 0, dp(10));
