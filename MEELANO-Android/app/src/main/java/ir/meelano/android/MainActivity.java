@@ -8,6 +8,8 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -477,8 +479,8 @@ public class MainActivity extends Activity {
 
     private String navGlyph(String key) {
         if ("dashboard".equals(key)) return "⌂";
-        if ("customers".equals(key)) return "م";
-        if ("products".equals(key)) return "▦";
+        if ("customers".equals(key)) return "◉";
+        if ("products".equals(key)) return "▣";
         if ("reports".equals(key)) return "≡";
         if ("command".equals(key)) return "⚡";
         if ("assistant".equals(key)) return "✦";
@@ -1678,7 +1680,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.27.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.28.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -1763,9 +1765,12 @@ public class MainActivity extends Activity {
             String phone = resolve(cols, "cell", "mobile", "tell1", "phone");
             if (code == null) return;
             List<String> parts = new ArrayList<>();
-            for (String col : new String[]{code, name, phone}) if (col != null) parts.add("TRY_CONVERT(nvarchar(500),[" + col + "]) LIKE N'%' + ? + N'%'");
-            String sql = "SELECT TOP (5) TRY_CONVERT(nvarchar(80),[" + code + "]), " + (name == null ? "N'بدون نام'" : "TRY_CONVERT(nvarchar(250),[" + name + "])") + ", " + (phone == null ? "N''" : "TRY_CONVERT(nvarchar(100),[" + phone + "])") + " FROM dbo.CUSTOMERS WHERE " + join(parts, " OR ");
-            try (PreparedStatement ps = c.prepareStatement(sql)) { for (int i = 1; i <= parts.size(); i++) ps.setString(i, q); try (ResultSet r = ps.executeQuery()) { while (r.next()) addGlobalResult(out, "مشتری", stringOr(r.getString(2), "بدون نام"), "کد " + stringOr(r.getString(1), "—") + " • " + stringOr(r.getString(3), ""), SUCCESS); } }
+            List<String> searchCols = new ArrayList<>();
+            for (String col : new String[]{code, name, phone}) if (col != null && !searchCols.contains(col)) searchCols.add(col);
+            for (String col : customerAddressColumns(cols)) if (col != null && !searchCols.contains(col)) searchCols.add(col);
+            for (String col : searchCols) if (col != null) parts.add("TRY_CONVERT(nvarchar(500),[" + col + "]) LIKE N'%' + ? + N'%'");
+            String sql = "SELECT TOP (5) TRY_CONVERT(nvarchar(80),[" + code + "]), " + (name == null ? "N'بدون نام'" : "TRY_CONVERT(nvarchar(250),[" + name + "])") + ", " + (phone == null ? "N''" : "TRY_CONVERT(nvarchar(100),[" + phone + "])") + ", " + customerAddressExpr(cols, "") + " FROM dbo.CUSTOMERS WHERE " + join(parts, " OR ");
+            try (PreparedStatement ps = c.prepareStatement(sql)) { for (int i = 1; i <= parts.size(); i++) ps.setString(i, q); try (ResultSet r = ps.executeQuery()) { while (r.next()) addGlobalResult(out, "مشتری", stringOr(r.getString(2), "بدون نام"), "کد " + stringOr(r.getString(1), "—") + " • " + stringOr(r.getString(3), "") + (cleanCustomerAddress(r.getString(4)).isEmpty() ? "" : " • نشانی: " + cleanCustomerAddress(r.getString(4))), SUCCESS); } }
         } catch (Exception ignored) { }
     }
 
@@ -4447,17 +4452,248 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c, lp);
     }
 
-    private void showPersonnelDetail(JSONObject person) {
-        content.removeAllViews(); addHero("پرونده پرسنلی", person.optString("name","پرسنل")); Button back=secondaryButton("بازگشت به پرسنل"); back.setOnClickListener(v -> loadPersonnel()); content.addView(back, new LinearLayout.LayoutParams(-1, dp(48))); addLoading(content, "در حال دریافت پرونده پرسنل…");
-        runDb(() -> queryPersonnelDetail(person.optString("id",""), person.optString("username", "")), new DbCallback(){ @Override public void ok(String body){ try { renderPersonnelDetail(person, new JSONObject(body)); } catch(Exception e){ showPageError("پرسنل", e, () -> showPersonnelDetail(person)); } } @Override public void fail(Exception e){ showPageError("پرسنل", e, () -> showPersonnelDetail(person)); }});
+    private void showPersonnelDetail(JSONObject person) { showPersonnelDetail(person, "", ""); }
+
+    private void showPersonnelDetail(JSONObject person, String fromDate, String toDate) {
+        final String from = fromDate == null ? "" : fromDate.trim();
+        final String to = toDate == null ? "" : toDate.trim();
+        content.removeAllViews();
+        addHero("پرونده پرسنلی", person.optString("name", "پرسنل") + (from.isEmpty() && to.isEmpty() ? "" : " • بازه " + stringOr(from, "ابتدا") + " تا " + stringOr(to, "امروز")));
+        addPersonnelBackBar(person.optString("name", "پرسنل"));
+        addPersonnelDateFilterCard(person, from, to);
+        addLoading(content, "در حال دریافت پرونده تفکیک‌شده پرسنل…");
+        runDb(() -> queryPersonnelDetail(person.optString("id", ""), person.optString("username", ""), from, to), new DbCallback(){
+            @Override public void ok(String body){ try { renderPersonnelDetail(person, new JSONObject(body), from, to); } catch(Exception e){ showPageError("پرسنل", e, () -> showPersonnelDetail(person, from, to)); } }
+            @Override public void fail(Exception e){ showPageError("پرسنل", e, () -> showPersonnelDetail(person, from, to)); }
+        });
     }
 
-    private String queryPersonnelDetail(String id, String username) throws Exception {
-        try(Connection c=openConnection()) { JSONObject out=new JSONObject(); JSONArray docs=new JSONArray(); Set<String> sail=columns(c,"sailfact"); if(id!=null&&!id.isEmpty()&&hasCol(sail,"vis_rdf")&&hasCol(sail,"shfacfo")){ String date=resolve(sail,"date"); String amount=resolve(sail,"all"); String shmo=resolve(sail,"shmo"); String paid=resolve(sail,"MabDaryaftFactor","Daryaft","received"); String sql="SELECT TOP (120) TRY_CONVERT(nvarchar(80),shfacfo), "+(date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),["+date+"])") +", "+(shmo==null?"CAST(NULL AS nvarchar(100))":"TRY_CONVERT(nvarchar(100),["+shmo+"])") +", "+(amount==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),["+amount+"])") +", "+(paid==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),["+paid+"])") +" FROM dbo.sailfact WHERE TRY_CONVERT(nvarchar(100),vis_rdf)=?"+activeAnd(sail,"")+" ORDER BY "+(date==null?"1":"["+date+"] DESC"); try(PreparedStatement ps=c.prepareStatement(sql)){ ps.setString(1,id); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("number",stringOr(r.getString(1),"—")); o.put("date",stringOr(r.getString(2),"")); o.put("party",stringOr(r.getString(3),"")); o.put("amount",r.getDouble(4)); o.put("paid",r.getDouble(5)); docs.put(o); } } } } out.put("documents", docs); ensureMeelanoCollabTables(c); String u=username==null?"":username.trim(); if(!u.isEmpty()){ out.put("attendance", queryAttendanceRows(c,u,false)); out.put("leaves", queryLeaveRequestsForUser(c,u)); } return out.toString(); }
+    private void addPersonnelBackBar(String title) {
+        LinearLayout bar = card();
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(10), dp(8), dp(10), dp(8));
+        int accent = navAccent("personnel");
+        bar.setBackground(gradient(new int[]{alpha(accent, isLightTheme() ? 22 : 34), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 20));
+        Button back = secondaryButton(withIcon("↩", "بازگشت به پرسنل"));
+        back.setTextSize(10.2f); back.setOnClickListener(v -> loadPersonnel());
+        bar.addView(back, new LinearLayout.LayoutParams(dp(150), dp(42)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(10), 0, dp(8), 0);
+        copy.addView(text("پرونده تفکیک‌شده", 12.4f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView sub = text(stringOr(title, "پرسنل") + " • فاکتور، دریافت، پرداخت، اهداف و مشتریان اختصاصی", 9.7f, MUTED, Typeface.NORMAL);
+        sub.setSingleLine(true); sub.setEllipsize(TextUtils.TruncateAt.END);
+        copy.addView(sub, new LinearLayout.LayoutParams(-1, -2));
+        bar.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(10)); content.addView(bar, lp);
     }
 
-    private void renderPersonnelDetail(JSONObject person, JSONObject data) {
-        content.removeAllViews(); addHero("پرونده پرسنلی", person.optString("name","پرسنل") + " • مانده " + money(person.opt("balance"))); Button back=secondaryButton("بازگشت به پرسنل"); back.setOnClickListener(v -> loadPersonnel()); LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(48)); bp.setMargins(0,0,0,dp(12)); content.addView(back,bp); LinearLayout top=card(); top.setBackground(gradient(new int[]{alpha(navAccent("personnel"),30), alpha(SURFACE,250)}, GradientDrawable.Orientation.TL_BR,22)); top.addView(text("اطلاعات ضروری",15,TEXT,Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2)); top.addView(text("نام کاربری: "+stringOr(person.optString("username"),"—")+" • تماس: "+stringOr(person.optString("phone"),"—")+" • آخرین فعالیت: "+stringOr(person.optString("last"),"—"),10.5f,MUTED,Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2)); content.addView(top,new LinearLayout.LayoutParams(-1,-2)); JSONArray docs=data.optJSONArray("documents"); if(docs==null||docs.length()==0){ addEmptyTo(content,"فاکتور یا گردش قابل نمایش برای این پرسنل پیدا نشد."); } else { LinearLayout list=card(); list.addView(text("گردش فاکتورها و دریافت‌ها",15,TEXT,Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2)); for(int i=0;i<Math.min(120,docs.length());i++){ JSONObject d=docs.optJSONObject(i); if(d!=null) list.addView(personnelFinanceRow(d), compactRowLp()); } LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,dp(10),0,dp(12)); content.addView(list,lp); } addAttendanceRows("حضور و خروج این پرسنل", data.optJSONArray("attendance")); addLeaveList("مرخصی‌های این پرسنل", data.optJSONArray("leaves"), false);
+    private void addPersonnelDateFilterCard(JSONObject person, String from, String to) {
+        LinearLayout c = card();
+        int accent = navAccent("personnel");
+        c.setBackground(gradient(new int[]{alpha(accent, 22), alpha(GOLD, 12), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 22));
+        LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(report3dIcon("◷", accent), new LinearLayout.LayoutParams(dp(44), dp(44)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(9),0,dp(8),0);
+        copy.addView(text("فیلتر تاریخ و نمایش گزارش", 14.2f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2));
+        copy.addView(text("برای تفکیک فاکتورها، دریافتی‌ها، پرداختی‌ها، اهداف و مشتریان همین بازه را وارد کنید.", 9.8f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2));
+        head.addView(copy, new LinearLayout.LayoutParams(0,-2,1f));
+        c.addView(head, new LinearLayout.LayoutParams(-1,-2));
+        EditText start = input("از تاریخ مثل 1403/01/01", from, false);
+        EditText end = input("تا تاریخ مثل 1403/12/29", to, false);
+        start.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); end.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) { start.setTextDirection(View.TEXT_DIRECTION_RTL); end.setTextDirection(View.TEXT_DIRECTION_RTL); }
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(start, weightedButtonLp()); row.addView(end, weightedButtonLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0, dp(9), 0, dp(8)); c.addView(row, rp);
+        LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button apply = primaryButton(withIcon("⌕", "نمایش گزارش"));
+        Button clear = secondaryButton(withIcon("×", "حذف فیلتر"));
+        apply.setTextSize(10.2f); clear.setTextSize(10.2f);
+        apply.setOnClickListener(v -> showPersonnelDetail(person, start.getText().toString(), end.getText().toString()));
+        clear.setOnClickListener(v -> showPersonnelDetail(person, "", ""));
+        actions.addView(apply, weightedButtonLp()); actions.addView(clear, weightedButtonLp());
+        c.addView(actions, new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c, lp);
+    }
+
+    private String queryPersonnelDetail(String id, String username, String fromDate, String toDate) throws Exception {
+        try(Connection c=openConnection()) {
+            JSONObject out=new JSONObject();
+            String from = fromDate == null ? "" : fromDate.trim();
+            String to = toDate == null ? "" : toDate.trim();
+            JSONArray invoices=new JSONArray(); JSONArray receipts=new JSONArray(); JSONArray payments=new JSONArray();
+            if(id!=null&&!id.trim().isEmpty()){
+                try { appendPersonnelInvoices(c, invoices, id.trim(), from, to); } catch(Exception ignored) { }
+                try { appendPersonnelChecks(c, receipts, id.trim(), true, from, to); } catch(Exception ignored) { }
+                try { appendPersonnelChecks(c, payments, id.trim(), false, from, to); } catch(Exception ignored) { }
+                try { out.put("assignedCustomers", queryPersonnelAssignedCustomers(c, id.trim())); } catch(Exception ignored) { out.put("assignedCustomers", new JSONArray()); }
+                try { out.put("goals", queryPersonnelGoals(c, id.trim(), from, to)); } catch(Exception ignored) { out.put("goals", new JSONArray()); }
+            } else { out.put("assignedCustomers", new JSONArray()); out.put("goals", new JSONArray()); }
+            out.put("invoices", sortLedgerRows(invoices));
+            out.put("receipts", sortLedgerRows(receipts));
+            out.put("payments", sortLedgerRows(payments));
+            JSONArray all = new JSONArray(); appendJsonArray(all, invoices); appendJsonArray(all, receipts); appendJsonArray(all, payments); out.put("documents", sortLedgerRows(all));
+            ensureMeelanoCollabTables(c);
+            String u=username==null?"":username.trim();
+            if(!u.isEmpty()){ out.put("attendance", queryAttendanceRows(c,u,false)); out.put("leaves", queryLeaveRequestsForUser(c,u)); }
+            else { out.put("attendance", new JSONArray()); out.put("leaves", new JSONArray()); }
+            out.put("from", from); out.put("to", to);
+            return out.toString();
+        }
+    }
+
+    private void appendJsonArray(JSONArray target, JSONArray source) {
+        if (target == null || source == null) return;
+        for (int i=0;i<source.length();i++) { JSONObject o=source.optJSONObject(i); if(o!=null) target.put(o); }
+    }
+
+    private String personnelDateWhere(String dateExpr, String from, String to, List<Object> params) {
+        String w = "";
+        if (dateExpr == null || dateExpr.trim().isEmpty()) return w;
+        if (from != null && !from.trim().isEmpty()) { w += " AND TRY_CONVERT(nvarchar(30)," + dateExpr + ")>=?"; params.add(from.trim()); }
+        if (to != null && !to.trim().isEmpty()) { w += " AND TRY_CONVERT(nvarchar(30)," + dateExpr + ")<=?"; params.add(to.trim()); }
+        return w;
+    }
+
+    private void appendPersonnelInvoices(Connection c, JSONArray rows, String id, String from, String to) throws Exception {
+        Set<String> sail=columns(c,"sailfact");
+        String vis=resolveFlexible(sail,"vis_rdf","visitor","visitor_id","shvis","VisitorID");
+        String number=resolveFlexible(sail,"shfacfo","factor_no","number","shomare");
+        String date=resolveFlexible(sail,"date","t_date","Date");
+        String amount=resolveFlexible(sail,"all","all_fel","amount","total");
+        String paid=resolveFlexible(sail,"MabDaryaftFactor","Daryaft","received","paid");
+        String shmo=resolveFlexible(sail,"shmo","SHMO","customer","CustomerCode");
+        String desc=resolveFlexible(sail,"description","Explain","tozihat","شرح");
+        if(vis==null || amount==null) return;
+        List<Object> params=new ArrayList<>(); params.add(id);
+        String dateExpr = date==null ? null : "sf.["+date+"]";
+        String sql="SELECT TOP (160) "+(date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),sf.["+date+"])") +", "+(number==null?"CAST(NULL AS nvarchar(80))":"TRY_CONVERT(nvarchar(80),sf.["+number+"])") +", "+(shmo==null?"CAST(NULL AS nvarchar(100))":"TRY_CONVERT(nvarchar(100),sf.["+shmo+"])") +", TRY_CONVERT(decimal(19,2),sf.["+amount+"]), "+(paid==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),sf.["+paid+"])") +", "+(desc==null?"CAST(NULL AS nvarchar(500))":"TRY_CONVERT(nvarchar(500),sf.["+desc+"])") +" FROM dbo.sailfact sf WHERE TRY_CONVERT(nvarchar(100),sf.["+vis+"])=?"+personnelDateWhere(dateExpr,from,to,params)+" ORDER BY "+(date==null?"1":"sf.["+date+"] DESC");
+        try(PreparedStatement ps=c.prepareStatement(sql)){ setParams(ps,params); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("type","فاکتور فروش"); o.put("date",stringOr(r.getString(1),"—")); o.put("title","فاکتور "+stringOr(r.getString(2),"—")+" • مشتری "+stringOr(r.getString(3),"—")); o.put("amount",r.getDouble(4)); o.put("received",r.getDouble(5)); o.put("status","دریافتی: "+money(r.getObject(5))); o.put("description",stringOr(r.getString(6),"")); rows.put(o);} } }
+    }
+
+    private void appendPersonnelChecks(Connection c, JSONArray rows, String id, boolean incoming, String from, String to) throws Exception {
+        String table=incoming?"getchk":"putchk";
+        Set<String> cols=columns(c,table); Set<String> typeCols=columns(c,"CheckTypes");
+        String vis=resolveFlexible(cols,"vis_rdf","visitor","visitor_id","shvis","VisitorID");
+        if(vis==null) return;
+        String amount=incoming?resolveFlexible(cols,"getchkmab","mablagh","amount"):resolveFlexible(cols,"putchkmab","mablagh","amount");
+        if(amount==null) return;
+        String date=incoming?resolveFlexible(cols,"getchkdate","chkdate","date","sarresid"):resolveFlexible(cols,"putchkdate","chkdate","date","sarresid");
+        String number=incoming?resolveFlexible(cols,"getchknum","chknum","number","serial"):resolveFlexible(cols,"putchknum","chknum","number","serial");
+        String shmo=resolveFlexible(cols,"shmo","SHMO","customer","CustomerCode");
+        String status=incoming?resolveFlexible(cols,"chk_satus","status","Status"):resolveFlexible(cols,"putchk_status","status","Status");
+        String desc=resolveFlexible(cols,"description","Explain","tozihat","شرح");
+        String statusExpr=status==null?"N'نامشخص'":(hasCol(typeCols,"ID")&&hasCol(typeCols,"Desciption")?"COALESCE(TRY_CONVERT(nvarchar(120),t.Desciption),TRY_CONVERT(nvarchar(50),x.["+status+"]))":"TRY_CONVERT(nvarchar(50),x.["+status+"])");
+        String join=status!=null&&hasCol(typeCols,"ID")&&hasCol(typeCols,"Desciption")?" LEFT JOIN dbo.CheckTypes t ON t.ID=x.["+status+"]":"";
+        List<Object> params=new ArrayList<>(); params.add(id);
+        String dateExpr=date==null?null:"x.["+date+"]";
+        String sql="SELECT TOP (120) "+(date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),x.["+date+"])") +", "+(number==null?"CAST(NULL AS nvarchar(80))":"TRY_CONVERT(nvarchar(80),x.["+number+"])") +", "+(shmo==null?"CAST(NULL AS nvarchar(100))":"TRY_CONVERT(nvarchar(100),x.["+shmo+"])") +", TRY_CONVERT(decimal(19,2),x.["+amount+"]), "+statusExpr+", "+(desc==null?"CAST(NULL AS nvarchar(500))":"TRY_CONVERT(nvarchar(500),x.["+desc+"])") +" FROM dbo.["+table+"] x"+join+" WHERE TRY_CONVERT(nvarchar(100),x.["+vis+"])=?"+personnelDateWhere(dateExpr,from,to,params)+" ORDER BY 1 DESC";
+        try(PreparedStatement ps=c.prepareStatement(sql)){ setParams(ps,params); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("type",incoming?"چک دریافتی":"چک پرداختی"); o.put("date",stringOr(r.getString(1),"—")); o.put("title","چک "+stringOr(r.getString(2),"—")+" • مشتری "+stringOr(r.getString(3),"—")); o.put("amount",r.getDouble(4)); o.put("status",stringOr(r.getString(5),"—")); o.put("description",stringOr(r.getString(6),"")); rows.put(o);} } }
+    }
+
+    private JSONArray queryPersonnelAssignedCustomers(Connection c, String id) throws Exception {
+        JSONArray arr=new JSONArray();
+        Set<String> cols=columns(c,"CUSTOMERS");
+        String vis=resolveFlexible(cols,"vis_rdf","VisitorID","visid","visitor","shvis");
+        String code=resolveFlexible(cols,"SHMO","shmo","CustomerCode");
+        String name=resolveFlexible(cols,"MONAME","Name","CusName","CustomerName");
+        String balance=resolveFlexible(cols,"man","Balance","Mandeh","mande");
+        String phone=resolveFlexible(cols,"cell","mobile","Mobile","tell1","tel1","phone","Phone");
+        if(vis==null||code==null) return arr;
+        String sql="SELECT TOP (100) TRY_CONVERT(nvarchar(100),c.["+code+"]), "+(name==null?"N'بدون نام'":"TRY_CONVERT(nvarchar(250),c.["+name+"])") +", "+(balance==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),c.["+balance+"])") +", "+(phone==null?"CAST(NULL AS nvarchar(100))":"TRY_CONVERT(nvarchar(100),c.["+phone+"])") +", "+customerAddressExpr(cols,"c")+" FROM dbo.CUSTOMERS c WHERE TRY_CONVERT(nvarchar(100),c.["+vis+"])=? ORDER BY "+(name==null?"1":"c.["+name+"]");
+        try(PreparedStatement ps=c.prepareStatement(sql)){ ps.setString(1,id); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("code",stringOr(r.getString(1),"")); o.put("name",stringOr(r.getString(2),"بدون نام")); o.put("balance",r.getDouble(3)); o.put("phone",stringOr(r.getString(4),"")); o.put("address",stringOr(r.getString(5),"")); arr.put(o);} } }
+        return arr;
+    }
+
+    private JSONArray queryPersonnelGoals(Connection c, String id, String from, String to) throws Exception {
+        JSONArray arr=new JSONArray();
+        if(!tableExists(c,"vis_goals")) return arr;
+        Set<String> cols=columns(c,"vis_goals");
+        String vis=resolveFlexible(cols,"vis_rdf","visitor","visitor_id","shvis","VisitorID");
+        if(vis==null) return arr;
+        String date=resolveFlexible(cols,"date","t_date","start_date","goal_date","Date");
+        String title=resolveFlexible(cols,"title","subject","name","description","Explain","tozihat");
+        String target=resolveFlexible(cols,"target","goal","amount","mablagh","mablagh_goal","sale_goal","forosh");
+        String done=resolveFlexible(cols,"done","achieved","sale","amount_done","actual","forosh_done");
+        List<Object> params=new ArrayList<>(); params.add(id);
+        String dateExpr=date==null?null:"g.["+date+"]";
+        String sql="SELECT TOP (80) "+(date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),g.["+date+"])") +", "+(title==null?"N'هدف ویزیتور'":"TRY_CONVERT(nvarchar(250),g.["+title+"])") +", "+(target==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),g.["+target+"])") +", "+(done==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),g.["+done+"])") +" FROM dbo.vis_goals g WHERE TRY_CONVERT(nvarchar(100),g.["+vis+"])=?"+personnelDateWhere(dateExpr,from,to,params)+" ORDER BY "+(date==null?"1":"g.["+date+"] DESC");
+        try(PreparedStatement ps=c.prepareStatement(sql)){ setParams(ps,params); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("date",stringOr(r.getString(1),"—")); o.put("title",stringOr(r.getString(2),"هدف ویزیتور")); o.put("target",r.getDouble(3)); o.put("done",r.getDouble(4)); arr.put(o);} } }
+        return arr;
+    }
+
+    private void renderPersonnelDetail(JSONObject person, JSONObject data, String from, String to) {
+        content.removeAllViews();
+        addHero("پرونده پرسنلی", person.optString("name","پرسنل") + " • مانده " + money(person.opt("balance")));
+        addPersonnelBackBar(person.optString("name","پرسنل"));
+        addPersonnelDateFilterCard(person, from, to);
+        LinearLayout top=card(); top.setBackground(gradient(new int[]{alpha(navAccent("personnel"),30), alpha(SURFACE,250)}, GradientDrawable.Orientation.TL_BR,22));
+        top.addView(text("اطلاعات ضروری",15,TEXT,Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2));
+        top.addView(text("نام کاربری: "+stringOr(person.optString("username"),"—")+" • تماس: "+stringOr(person.optString("phone"),"—")+" • آخرین فعالیت: "+stringOr(person.optString("last"),"—"),10.5f,MUTED,Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,-2); tp.setMargins(0,0,0,dp(10)); content.addView(top,tp);
+        addPersonnelFinanceSummary(data);
+        addPersonnelLedgerSection("فاکتورهای فروش", "فروش‌های ثبت‌شده برای این ویزیتور/پرسنل", data.optJSONArray("invoices"), GOLD);
+        addPersonnelLedgerSection("دریافتی‌ها", "چک‌ها و وصول‌های قابل انتساب به این نفر", data.optJSONArray("receipts"), SUCCESS);
+        addPersonnelLedgerSection("پرداختی‌ها", "چک‌ها/پرداختی‌های قابل انتساب؛ برای کنترل تعهدات", data.optJSONArray("payments"), WARNING);
+        addPersonnelAssignedCustomers(data.optJSONArray("assignedCustomers"));
+        addPersonnelGoalsSection(data.optJSONArray("goals"));
+        addAttendanceRows("حضور و خروج این پرسنل", data.optJSONArray("attendance"));
+        addLeaveList("مرخصی‌های این پرسنل", data.optJSONArray("leaves"), false);
+    }
+
+    private void addPersonnelFinanceSummary(JSONObject data) {
+        JSONArray inv=data.optJSONArray("invoices"), rec=data.optJSONArray("receipts"), pay=data.optJSONArray("payments"), cust=data.optJSONArray("assignedCustomers"), goals=data.optJSONArray("goals");
+        double invSum=sumAmount(inv,"amount"), recSum=sumAmount(rec,"amount"), paySum=sumAmount(pay,"amount");
+        LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(navAccent("personnel"),24), alpha(GOLD,14), alpha(SURFACE,250)}, GradientDrawable.Orientation.RIGHT_LEFT,22));
+        c.addView(text("خلاصه تفکیک‌شده مدیر",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        c.addView(text("فاکتور، دریافتی، پرداختی، اهداف و مشتریان اختصاصی جدا شده‌اند تا گزارش قابل تصمیم‌گیری باشد.",10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout r1=new LinearLayout(this); r1.setOrientation(LinearLayout.HORIZONTAL);
+        r1.addView(customerMiniMetric("فروش", compactMoney(invSum), GOLD), weightedMiniLp());
+        r1.addView(customerMiniMetric("دریافتی", compactMoney(recSum), SUCCESS), weightedMiniLp());
+        r1.addView(customerMiniMetric("پرداختی", compactMoney(paySum), WARNING), weightedMiniLp());
+        LinearLayout.LayoutParams r1p=new LinearLayout.LayoutParams(-1,-2); r1p.setMargins(0,dp(8),0,0); c.addView(r1,r1p);
+        LinearLayout r2=new LinearLayout(this); r2.setOrientation(LinearLayout.HORIZONTAL);
+        r2.addView(customerMiniMetric("مشتری اختصاصی", formatNumber(cust==null?0:cust.length()), INFO), weightedMiniLp());
+        r2.addView(customerMiniMetric("هدف", formatNumber(goals==null?0:goals.length()), navAccent("personnel")), weightedMiniLp());
+        r2.addView(customerMiniMetric("خالص", compactMoney(recSum-paySum), recSum>=paySum?SUCCESS:DANGER), weightedMiniLp());
+        LinearLayout.LayoutParams r2p=new LinearLayout.LayoutParams(-1,-2); r2p.setMargins(0,dp(7),0,0); c.addView(r2,r2p);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp);
+    }
+
+    private double sumAmount(JSONArray rows, String key) {
+        double sum=0; if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject o=rows.optJSONObject(i); if(o!=null) sum += o.optDouble(key,0); }
+        return sum;
+    }
+
+    private void addPersonnelLedgerSection(String title, String sub, JSONArray rows, int accent) {
+        LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(accent,20), alpha(SURFACE,250)}, GradientDrawable.Orientation.TL_BR,22));
+        LinearLayout head=new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(report3dIcon(reportGlyph(title), accent), new LinearLayout.LayoutParams(dp(44), dp(44)));
+        LinearLayout copy=new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(9),0,dp(8),0);
+        copy.addView(text(title,15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        copy.addView(text(sub + " • تعداد: " + formatNumber(rows==null?0:rows.length()),10.0f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
+        head.addView(copy,new LinearLayout.LayoutParams(0,-2,1f)); c.addView(head,new LinearLayout.LayoutParams(-1,-2));
+        if(rows==null||rows.length()==0) c.addView(text("رکوردی در این بخش/بازه پیدا نشد.",10.8f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,dp(48)));
+        else for(int i=0;i<Math.min(120,rows.length());i++){ JSONObject r=rows.optJSONObject(i); if(r!=null)c.addView(personnelFinanceRow(r), compactRowLp()); }
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp);
+    }
+
+    private void addPersonnelAssignedCustomers(JSONArray rows) {
+        LinearLayout c=card(); int accent=SUCCESS; c.setBackground(gradient(new int[]{alpha(accent,20), alpha(SURFACE,250)}, GradientDrawable.Orientation.RIGHT_LEFT,22));
+        c.addView(text("مشتریان اختصاص‌داده‌شده",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        c.addView(text("مشتریانی که با کد ویزیتور/پرسنل مرتبط هستند؛ برای کنترل پوشش منطقه و پیگیری فروش.",10.1f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
+        if(rows==null||rows.length()==0)c.addView(text("مشتری اختصاصی قابل نمایش پیدا نشد.",10.8f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,dp(48)));
+        else for(int i=0;i<Math.min(80,rows.length());i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; LinearLayout item=new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL); item.setPadding(dp(9),dp(8),dp(9),dp(8)); item.setBackground(roundedStroke(alpha(accent,16),16,alpha(accent,62))); TextView name=text(r.optString("name","مشتری")+" • کد "+r.optString("code","—"),11.2f,TEXT,Typeface.BOLD); name.setSingleLine(true); name.setEllipsize(TextUtils.TruncateAt.END); item.addView(name,new LinearLayout.LayoutParams(-1,-2)); item.addView(text("مانده: "+money(r.opt("balance"))+" • تماس: "+stringOr(r.optString("phone"),"—"),9.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); String addr=cleanCustomerAddress(r.optString("address","")); if(!addr.isEmpty()){ TextView a=text("نشانی: "+addr,9.3f,MUTED,Typeface.NORMAL); a.setMaxLines(2); a.setEllipsize(TextUtils.TruncateAt.END); item.addView(a,new LinearLayout.LayoutParams(-1,-2)); } LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,-2); ip.setMargins(0,dp(7),0,0); c.addView(item,ip); }
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp);
+    }
+
+    private void addPersonnelGoalsSection(JSONArray rows) {
+        LinearLayout c=card(); int accent=INFO; c.setBackground(gradient(new int[]{alpha(accent,20), alpha(GOLD,12), alpha(SURFACE,250)}, GradientDrawable.Orientation.TL_BR,22));
+        c.addView(text("اهداف ویزیتور",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        c.addView(text("هدف، عملکرد و درصد تحقق در بازه انتخابی نمایش داده می‌شود؛ اگر ستون‌های هدف متفاوت باشند، برنامه بهترین ستون‌های موجود را استفاده می‌کند.",10.0f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
+        if(rows==null||rows.length()==0)c.addView(text("هدف قابل نمایش برای این ویزیتور پیدا نشد.",10.8f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,dp(48)));
+        else for(int i=0;i<Math.min(80,rows.length());i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; double target=r.optDouble("target",0), done=r.optDouble("done",0); double pct=target==0?0:(done/Math.abs(target))*100d; LinearLayout item=new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL); item.setPadding(dp(9),dp(8),dp(9),dp(8)); item.setBackground(roundedStroke(alpha(accent,16),16,alpha(accent,62))); item.addView(text(r.optString("title","هدف ویزیتور")+" • "+r.optString("date","—"),11.2f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.addView(customerMiniMetric("هدف", compactMoney(target), GOLD), weightedMiniLp()); row.addView(customerMiniMetric("عملکرد", compactMoney(done), SUCCESS), weightedMiniLp()); row.addView(customerMiniMetric("تحقق", formatNumber(pct)+"٪", pct>=100?SUCCESS:WARNING), weightedMiniLp()); item.addView(row,new LinearLayout.LayoutParams(-1,-2)); LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,-2); ip.setMargins(0,dp(7),0,0); c.addView(item,ip); }
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp);
     }
 
     private LinearLayout personnelFinanceRow(JSONObject d) {
@@ -4465,15 +4701,25 @@ public class MainActivity extends Activity {
         line.setOrientation(LinearLayout.HORIZONTAL);
         line.setGravity(Gravity.CENTER_VERTICAL);
         line.setPadding(dp(9), dp(8), dp(9), dp(8));
-        int accent = navAccent("personnel");
+        String type = d.optString("type", "گردش");
+        int accent = type.contains("دریافتی") ? SUCCESS : (type.contains("پرداخت") ? WARNING : GOLD);
         line.setBackground(roundedStroke(alpha(accent, 16), 16, alpha(accent, 68)));
-        TextView badge = text("فاکتور", 9.2f, Color.WHITE, Typeface.BOLD);
+        TextView badge = text(type.contains("چک") ? "چک" : "فاکتور", 9.2f, onColorFor(accent), Typeface.BOLD);
         badge.setGravity(Gravity.CENTER); badge.setSingleLine(true);
-        badge.setBackground(gradient(new int[]{accent, mix(accent, Color.BLACK, 0.22f)}, GradientDrawable.Orientation.TL_BR, 999));
+        badge.setBackground(luxuryButtonBg(accent, true, 999));
         line.addView(badge, new LinearLayout.LayoutParams(dp(58), dp(34)));
         LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(8),0,dp(8),0);
-        copy.addView(text("شماره " + d.optString("number", "—") + " • " + d.optString("date", ""), 11.2f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2));
-        copy.addView(text("طرف حساب: " + stringOr(d.optString("party", ""), "—") + " • دریافتی: " + compactMoney(d.opt("paid")), 9.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2));
+        TextView title = text(type + " • " + d.optString("date", "—"), 11.2f, TEXT, Typeface.BOLD);
+        title.setSingleLine(true); title.setEllipsize(TextUtils.TruncateAt.END);
+        copy.addView(title, new LinearLayout.LayoutParams(-1,-2));
+        TextView sub = text(d.optString("title", "—") + " • " + d.optString("status", "—"), 9.4f, MUTED, Typeface.NORMAL);
+        sub.setSingleLine(true); sub.setEllipsize(TextUtils.TruncateAt.END);
+        copy.addView(sub, new LinearLayout.LayoutParams(-1,-2));
+        if (!d.optString("description", "").isEmpty()) {
+            TextView desc = text(d.optString("description", ""), 9.2f, MUTED, Typeface.NORMAL);
+            desc.setMaxLines(2); desc.setEllipsize(TextUtils.TruncateAt.END);
+            copy.addView(desc, new LinearLayout.LayoutParams(-1,-2));
+        }
         line.addView(copy, new LinearLayout.LayoutParams(0,-2,1f));
         TextView amount = text(compactMoney(d.opt("amount")), 10.4f, TEXT, Typeface.BOLD);
         amount.setGravity(Gravity.CENTER); amount.setSingleLine(true); amount.setPadding(dp(8), dp(5), dp(8), dp(5));
@@ -4547,7 +4793,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.27.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.28.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -4559,7 +4805,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.27.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.28.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -4968,7 +5214,7 @@ public class MainActivity extends Activity {
             String phone = resolve(cols, "cell", "mobile", "Mobile", "tell1", "tel1");
             String phone2 = resolve(cols, "tell1", "tell2", "phone", "Phone");
             String phone3 = resolve(cols, "tell2", "tell3");
-            String address = resolve(cols, "address", "Address", "adr", "addr", "manzel");
+            String address = resolveFlexible(cols, "address", "Address", "ADDRESS", "adr", "addr", "ADDR", "Adress", "adress", "address1", "Address1", "customer_address", "CustomerAddress", "neshani", "Neshani", "NESHANI", "نشانی", "نشاني", "آدرس", "ادرس", "manzel", "Manzel", "MOADD", "MOADR", "moneshan", "MONESHAN");
             String balance = resolve(cols, "man", "Balance", "Mandeh", "mande");
             String credit = resolve(cols, "etebar", "credit", "Credit");
             String vis = resolve(cols, "vis_rdf", "VisitorID", "visid");
@@ -4981,7 +5227,7 @@ public class MainActivity extends Activity {
             select.add(phone == null ? "CAST(NULL AS nvarchar(100)) AS همراه" : "TRY_CONVERT(nvarchar(100),c.[" + phone + "]) AS همراه");
             select.add(phone2 == null ? "CAST(NULL AS nvarchar(100)) AS تلفن" : "TRY_CONVERT(nvarchar(100),c.[" + phone2 + "]) AS تلفن");
             select.add(phone3 == null ? "CAST(NULL AS nvarchar(100)) AS تلفن۲" : "TRY_CONVERT(nvarchar(100),c.[" + phone3 + "]) AS تلفن۲");
-            select.add(address == null ? "CAST(NULL AS nvarchar(500)) AS نشانی" : "TRY_CONVERT(nvarchar(500),c.[" + address + "]) AS نشانی");
+            select.add(customerAddressExpr(cols, "c") + " AS نشانی");
             select.add(balance == null ? "CAST(0 AS decimal(19,2)) AS مانده" : "TRY_CONVERT(decimal(19,2),c.[" + balance + "]) AS مانده");
             select.add(credit == null ? "CAST(NULL AS decimal(19,2)) AS اعتبار" : "TRY_CONVERT(decimal(19,2),c.[" + credit + "]) AS اعتبار");
             select.add(economic == null ? "CAST(NULL AS nvarchar(100)) AS اقتصادی" : "TRY_CONVERT(nvarchar(100),c.[" + economic + "]) AS اقتصادی");
@@ -4996,8 +5242,11 @@ public class MainActivity extends Activity {
             List<Object> params = new ArrayList<>();
             if (search != null && !search.trim().isEmpty()) {
                 List<String> parts = new ArrayList<>();
-                for (String col : new String[]{name, phone, phone2, phone3, address, shmo, national, economic}) {
-                    if (col != null) { parts.add("TRY_CONVERT(nvarchar(500),c.[" + col + "]) LIKE N'%' + ? + N'%'"); params.add(search.trim()); }
+                List<String> searchCols = new ArrayList<>();
+                for (String col : new String[]{name, phone, phone2, phone3, address, shmo, national, economic}) if (col != null && !searchCols.contains(col)) searchCols.add(col);
+                for (String col : customerAddressColumns(cols)) if (col != null && !searchCols.contains(col)) searchCols.add(col);
+                for (String col : searchCols) {
+                    parts.add("TRY_CONVERT(nvarchar(500),c.[" + col + "]) LIKE N'%' + ? + N'%'"); params.add(search.trim());
                 }
                 where.add("(" + join(parts, " OR ") + ")");
             }
@@ -5098,9 +5347,11 @@ public class MainActivity extends Activity {
         row2.addView(customerMiniMetric("تماس", firstPhone(r), INFO), weightedMiniLp());
         LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(7), 0, 0); body.addView(row2, r2p);
 
-        TextView address = text("نشانی: " + r.optString("نشانی", "-"), 10.5f, alpha(TEXT, 190), Typeface.NORMAL);
+        String addrValue = cleanCustomerAddress(r.optString("نشانی", ""));
+        TextView address = text("نشانی: " + stringOr(addrValue, "ثبت نشده"), 10.5f, alpha(TEXT, 190), Typeface.NORMAL);
         address.setMaxLines(2); address.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); body.addView(address, ap);
+        if (!addrValue.isEmpty()) addCustomerAddressActions(body, addrValue);
 
         LinearLayout actions = new LinearLayout(this);
         actions.setOrientation(LinearLayout.HORIZONTAL);
@@ -5225,6 +5476,49 @@ public class MainActivity extends Activity {
         return "اهمیت متوسط";
     }
 
+    private String cleanCustomerAddress(String address) {
+        if (address == null) return "";
+        String a = address.replace("null", "").replace("NULL", "").replace("—", "").trim();
+        if (a.equals("-") || a.equals(".")) return "";
+        while (a.contains("  ")) a = a.replace("  ", " ");
+        return a;
+    }
+
+    private void addCustomerAddressActions(LinearLayout parent, String address) {
+        String addr = cleanCustomerAddress(address);
+        if (parent == null || addr.isEmpty()) return;
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        Button copy = secondaryButton(withIcon("□", "کپی نشانی"));
+        Button map = secondaryButton(withIcon("⌖", "نمایش روی نقشه"));
+        copy.setTextSize(9.6f); map.setTextSize(9.6f);
+        copy.setOnClickListener(v -> copyToClipboard("نشانی مشتری", addr));
+        map.setOnClickListener(v -> openAddressInMap(addr));
+        row.addView(copy, weightedButtonLp());
+        row.addView(map, weightedButtonLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
+        rp.setMargins(0, dp(7), 0, 0);
+        parent.addView(row, rp);
+    }
+
+    private void copyToClipboard(String label, String value) {
+        try {
+            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            if (cm != null) cm.setPrimaryClip(ClipData.newPlainText(label == null ? "Meelano" : label, value == null ? "" : value));
+            Toast.makeText(this, "کپی شد.", Toast.LENGTH_SHORT).show();
+        } catch (Exception ex) { Toast.makeText(this, "کپی ممکن نشد.", Toast.LENGTH_SHORT).show(); }
+    }
+
+    private void openAddressInMap(String address) {
+        try {
+            String addr = cleanCustomerAddress(address);
+            if (addr.isEmpty()) { Toast.makeText(this, "نشانی معتبر ثبت نشده است.", Toast.LENGTH_SHORT).show(); return; }
+            Uri uri = Uri.parse("geo:0,0?q=" + URLEncoder.encode(addr, "UTF-8"));
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            startActivity(Intent.createChooser(intent, "نمایش نشانی مشتری"));
+        } catch (Exception ex) { Toast.makeText(this, "باز کردن نقشه ممکن نشد.", Toast.LENGTH_SHORT).show(); }
+    }
+
     private String firstPhone(JSONObject r) {
         if (r == null) return "";
         for (String key : new String[]{"همراه", "تلفن", "تلفن۲"}) {
@@ -5292,16 +5586,37 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void addCustomerBackBar(String backTarget, String title) {
+        LinearLayout bar = card();
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(10), dp(8), dp(10), dp(8));
+        int accent = "dashboard".equals(backTarget) ? navAccent("dashboard") : navAccent("customers");
+        bar.setBackground(gradient(new int[]{alpha(accent, isLightTheme() ? 22 : 34), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 20));
+        Button back = secondaryButton(withIcon("↩", "بازگشت"));
+        back.setTextSize(10.2f);
+        back.setOnClickListener(v -> backFromCustomerDetail(backTarget));
+        bar.addView(back, new LinearLayout.LayoutParams(dp(112), dp(42)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(10), 0, dp(8), 0);
+        copy.addView(text("جزئیات مشتری", 12.4f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView sub = text(stringOr(title, "مشتری") + " • " + ("dashboard".equals(backTarget) ? "بازگشت به داشبورد" : "بازگشت به لیست قبلی مشتریان"), 9.7f, MUTED, Typeface.NORMAL);
+        sub.setSingleLine(true); sub.setEllipsize(TextUtils.TruncateAt.END);
+        copy.addView(sub, new LinearLayout.LayoutParams(-1, -2));
+        bar.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 0, 0, dp(10));
+        content.addView(bar, lp);
+    }
+
     private void showCustomerDetail(JSONObject customer, String filter) {
         String code = customer.optString("کد", "");
         String name = customer.optString("نام", "Customer 360");
         content.removeAllViews();
         addHero("گردش حساب مشتری", name + " • کد " + code);
         String backTarget = customer.optString("_back", "customers");
-        Button back = secondaryButton("dashboard".equals(backTarget) ? "بازگشت به داشبورد" : "بازگشت به مشتریان");
-        back.setOnClickListener(v -> backFromCustomerDetail(backTarget));
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(10));
-        content.addView(back, bp);
+        addCustomerBackBar(backTarget, name);
         addCustomerLedgerFilters(customer, filter);
         addLoading(content, "در حال دریافت ریز گردش حساب مشتری…");
         runDb(() -> queryCustomerLedger(code, filter), new DbCallback() {
@@ -5330,8 +5645,7 @@ public class MainActivity extends Activity {
         content.removeAllViews();
         addHero("گردش حساب مشتری", customer.optString("نام", "Customer 360") + " • مانده " + money(customer.opt("مانده")));
         String backTarget = customer.optString("_back", "customers");
-        Button back = secondaryButton("dashboard".equals(backTarget) ? "بازگشت به داشبورد" : "بازگشت به مشتریان"); back.setOnClickListener(v -> backFromCustomerDetail(backTarget));
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(10)); content.addView(back, bp);
+        addCustomerBackBar(backTarget, customer.optString("نام", "Customer 360"));
         addCustomerLedgerFilters(customer, filter);
         addCustomer360Summary(customer);
         addCustomerFollowupNotebook(customer);
@@ -5365,6 +5679,14 @@ public class MainActivity extends Activity {
         row.addView(customerMiniMetric("ریسک", formatNumber(risk) + "٪", customerRiskAccent(risk)), weightedMiniLp());
         row.addView(customerMiniMetric("آخرین خرید", stringOr(customer.optString("آخرین_خرید", ""), "—"), INFO), weightedMiniLp());
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
+        String address = cleanCustomerAddress(customer.optString("نشانی", ""));
+        if (!address.isEmpty()) {
+            TextView addr = text("نشانی: " + address, 10.4f, alpha(TEXT, 205), Typeface.BOLD);
+            addr.setMaxLines(3); addr.setEllipsize(TextUtils.TruncateAt.END); addr.setPadding(dp(9), dp(7), dp(9), dp(7));
+            addr.setBackground(roundedStroke(alpha(SUCCESS, 12), 16, alpha(SUCCESS, 55)));
+            LinearLayout.LayoutParams adp = new LinearLayout.LayoutParams(-1, -2); adp.setMargins(0, dp(9), 0, 0); c.addView(addr, adp);
+            addCustomerAddressActions(c, address);
+        }
         TextView advice = text("پیشنهاد میلو: " + customerAdvice(customer), 10.8f, alpha(TEXT, 220), Typeface.BOLD);
         advice.setGravity(Gravity.CENTER); advice.setPadding(dp(10), dp(8), dp(10), dp(8)); advice.setBackground(roundedStroke(alpha(INFO, 18), 16, alpha(INFO, 62)));
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(10), 0, 0); c.addView(advice, ap);
@@ -6236,7 +6558,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.27.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.28.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -8560,7 +8882,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.27.0\nاین نسخه سیستم طراحی تم‌محور Meelano را روی کارت‌ها، دکمه‌ها، آیکن‌ها، مشتریان، پرسنل، گفتگو، حضور، گزارش‌ها، دیالوگ‌ها و حالت‌های خالی هماهنگ‌تر می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.28.0\nاین نسخه فراخوانی نشانی مشتریان، بازگشت هوشمند جزئیات مشتری، پرونده تفکیک‌شده پرسنل با فیلتر تاریخ، اهداف ویزیتور و مشتریان اختصاصی، و هماهنگی آیکن‌های صفحه اصلی را بهبود می‌دهد؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -8604,6 +8926,53 @@ public class MainActivity extends Activity {
             for (String col : cols) if (col != null && col.equalsIgnoreCase(candidate)) return col;
         }
         return null;
+    }
+
+    private String normalizeColumnName(String value) {
+        if (value == null) return "";
+        return value.toLowerCase(Locale.US)
+                .replace('ي','ی').replace('ك','ک')
+                .replace("_", "").replace("-", "").replace(" ", "")
+                .replace(".", "").replace("/", "").trim();
+    }
+
+    private String resolveFlexible(Set<String> cols, String... candidates) {
+        String exact = resolve(cols, candidates);
+        if (exact != null) return exact;
+        if (cols == null || candidates == null) return null;
+        for (String candidate : candidates) {
+            String n = normalizeColumnName(candidate);
+            if (n.isEmpty()) continue;
+            for (String col : cols) if (normalizeColumnName(col).equals(n)) return col;
+        }
+        return null;
+    }
+
+    private List<String> customerAddressColumns(Set<String> cols) {
+        List<String> out = new ArrayList<>();
+        String[] preferred = {"address", "Address", "ADDRESS", "addr", "ADDR", "adr", "Adress", "adress", "address1", "Address1", "Address_1", "customer_address", "CustomerAddress", "neshani", "Neshani", "NESHANI", "نشانی", "نشاني", "آدرس", "ادرس", "manzel", "Manzel", "mahale", "moadr", "MOADR", "MOADD", "moadd", "moneshan", "MONESHAN", "moneshani", "Mahal", "محل"};
+        for (String p : preferred) {
+            String col = resolveFlexible(cols, p);
+            if (col != null && !out.contains(col)) out.add(col);
+        }
+        if (cols != null) for (String col : cols) {
+            String n = normalizeColumnName(col);
+            boolean looksAddress = n.contains("address") || n.contains("addr") || n.contains("adress") || n.contains("adr") || n.contains("neshan") || n.contains("نشانی") || n.contains("نشاني") || n.contains("آدرس") || n.contains("ادرس") || n.contains("manzel") || n.contains("makan") || n.contains("mahale") || n.contains("محل");
+            if (looksAddress && !out.contains(col)) out.add(col);
+        }
+        return out;
+    }
+
+    private String customerAddressExpr(Set<String> cols, String alias) {
+        List<String> list = customerAddressColumns(cols);
+        if (list.isEmpty()) return "CAST(NULL AS nvarchar(500))";
+        String prefix = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
+        List<String> exprs = new ArrayList<>();
+        for (int i = 0; i < Math.min(6, list.size()); i++) {
+            String col = list.get(i);
+            exprs.add("NULLIF(LTRIM(RTRIM(TRY_CONVERT(nvarchar(500)," + prefix + "[" + col + "]))),N'')");
+        }
+        return "COALESCE(" + join(exprs, ",") + ",CAST(NULL AS nvarchar(500)))";
     }
 
     private String activeCondition(Set<String> cols, String alias) {
