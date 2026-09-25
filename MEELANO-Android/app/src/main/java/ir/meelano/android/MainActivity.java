@@ -33,6 +33,7 @@ import android.provider.Settings;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
+import android.text.TextUtils;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.text.InputType;
@@ -128,6 +129,7 @@ public class MainActivity extends Activity {
     private static final String NOTIFY_CHANNEL = "meelano_management_alerts";
     private static final int REQ_ASSISTANT_VOICE = 9401;
     private static final int REQ_BARCODE_SCAN = 9402;
+    private static final int REQ_TTS_CHECK = 9403;
 
     private static final int[] S_HOST = {122, 126, 103, 120, 125, 122, 103, 120, 125, 126, 103, 120, 112};
     private static final int[] S_USER = {8, 45, 36, 32, 39, 8, 39};
@@ -170,6 +172,7 @@ public class MainActivity extends Activity {
     private EditText assistantInput;
     private TextToSpeech tts;
     private boolean ttsReady = false;
+    private String pendingTtsText = "";
     private String lastAssistantAnswer = "";
     private String lastReportSummary = "";
     private String lastReportJson = "";
@@ -569,26 +572,22 @@ public class MainActivity extends Activity {
 
         connectionIndicator = iconButton("◌", "وضعیت اتصال");
         connectionIndicator.setOnClickListener(v -> showApp("health"));
-        header.addView(connectionIndicator, new LinearLayout.LayoutParams(dp(44), dp(44)));
-        headerWrap.addView(header, new LinearLayout.LayoutParams(-1, dp(54)));
+        header.addView(connectionIndicator, new LinearLayout.LayoutParams(dp(34), dp(34)));
 
-        HorizontalScrollView toolScroll = new HorizontalScrollView(this);
-        styleHorizontalScroll(toolScroll);
-        toolScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout tools = new LinearLayout(this);
         tools.setOrientation(LinearLayout.HORIZONTAL);
         tools.setGravity(Gravity.CENTER_VERTICAL);
-        tools.setPadding(dp(2), dp(3), dp(2), dp(2));
-        addHeaderTool(tools, "⌕", "جستجو", Color.rgb(126, 87, 255), v -> showGlobalSearchDialog());
-        addHeaderTool(tools, privacyMode() ? "◉" : "◍", "محرمانه", Color.rgb(236, 72, 153), v -> togglePrivacyMode());
-        addHeaderTool(tools, "◐", "تم", Color.rgb(255, 137, 66), v -> showThemeChooser());
-        addHeaderTool(tools, "⚙", "تنظیمات", INFO, v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings"); });
+        tools.setPadding(dp(2), 0, dp(2), 0);
+        addHeaderTool(tools, "⌕", "جستجوی سراسری", INFO, v -> showGlobalSearchDialog());
+        addHeaderTool(tools, privacyMode() ? "●" : "◌", "حالت محرمانه", privacyMode() ? DANGER : GOLD, v -> togglePrivacyMode());
+        addHeaderTool(tools, "◐", "انتخاب تم", GOLD_2, v -> showThemeChooser());
+        addHeaderTool(tools, "⚙", "تنظیمات", SUCCESS, v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings"); });
         addHeaderTool(tools, "⎋", "خروج", DANGER, v -> { if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید."); else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید."); });
-        toolScroll.addView(tools, new HorizontalScrollView.LayoutParams(-2, -1));
-        headerWrap.addView(toolScroll, new LinearLayout.LayoutParams(-1, dp(45)));
+        header.addView(tools, new LinearLayout.LayoutParams(-2, dp(38)));
+        headerWrap.addView(header, new LinearLayout.LayoutParams(-1, dp(54)));
         setConnectionStatus(session == null ? "idle" : "connected");
 
-        root.addView(headerWrap, new LinearLayout.LayoutParams(-1, dp(111)));
+        root.addView(headerWrap, new LinearLayout.LayoutParams(-1, dp(64)));
 
         stage = new FrameLayout(this);
         stage.setBackgroundColor(NAVY);
@@ -598,24 +597,24 @@ public class MainActivity extends Activity {
 
     private void addHeaderTool(LinearLayout parent, String glyph, String label, int accent, View.OnClickListener listener) {
         TextView b = new TextView(this);
-        b.setText((glyph == null ? "" : glyph) + "  " + (label == null ? "" : label));
-        b.setTextSize(11.2f);
+        b.setText(glyph == null ? "" : glyph);
+        b.setTextSize(14.8f);
         b.setGravity(Gravity.CENTER);
         b.setSingleLine(true);
         b.setTextColor(Color.WHITE);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setPadding(dp(9), 0, dp(9), 0);
-        b.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, 135));
-        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, 0.20f), accent, mix(accent, Color.BLACK, 0.22f)}, GradientDrawable.Orientation.LEFT_RIGHT, 999);
-        bg.setStroke(dp(1), alpha(Color.WHITE, 125));
+        b.setPadding(0, 0, 0, dp(1));
+        b.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, 150));
+        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, 0.26f), accent, mix(accent, HEADER_START, 0.36f)}, GradientDrawable.Orientation.TL_BR, 999);
+        bg.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.45f), 150));
         b.setBackground(bg);
         b.setContentDescription(label);
         b.setClickable(true);
         b.setFocusable(true);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) b.setElevation(dp(4));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) b.setElevation(dp(7));
         b.setOnClickListener(listener);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(Math.max(72, Math.min(104, 46 + (label == null ? 0 : label.length() * 8)))), dp(36));
-        lp.setMargins(dp(4), 0, dp(4), 0);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(29), dp(29));
+        lp.setMargins(dp(2), 0, dp(2), 0);
         parent.addView(b, lp);
     }
 
@@ -711,11 +710,11 @@ public class MainActivity extends Activity {
                 .setView(box)
                 .setNegativeButton("بستن", null)
                 .create();
+        addThemeOption(box, dialog, "azure_diamond", "روشن ۱", "الماس آبی", new int[]{Color.rgb(239, 247, 255), Color.rgb(28, 101, 242), Color.rgb(98, 196, 255)});
+        addThemeOption(box, dialog, "crystal_lagoon", "روشن ۲", "کریستالی", new int[]{Color.rgb(235, 248, 250), Color.rgb(0, 151, 178), Color.rgb(42, 125, 225)});
+        addThemeOption(box, dialog, "ivory_sunrise", "روشن ۳", "عاجی", new int[]{Color.rgb(248, 241, 229), Color.rgb(213, 126, 55), Color.rgb(32, 158, 119)});
         addThemeOption(box, dialog, "onyx_gold", "دارک ۱", "اونیکس طلایی", new int[]{Color.rgb(7, 9, 16), Color.rgb(231, 177, 90), Color.rgb(102, 170, 245)});
         addThemeOption(box, dialog, "royal_amethyst", "دارک ۲", "آمتیست", new int[]{Color.rgb(10, 8, 24), Color.rgb(184, 114, 255), Color.rgb(248, 113, 193)});
-        addThemeOption(box, dialog, "ivory_sunrise", "روشن ۱", "عاجی", new int[]{Color.rgb(248, 241, 229), Color.rgb(213, 126, 55), Color.rgb(32, 158, 119)});
-        addThemeOption(box, dialog, "crystal_lagoon", "روشن ۲", "کریستالی", new int[]{Color.rgb(235, 248, 250), Color.rgb(0, 151, 178), Color.rgb(42, 125, 225)});
-        addThemeOption(box, dialog, "azure_diamond", "روشن ۳", "الماس آبی", new int[]{Color.rgb(239, 247, 255), Color.rgb(28, 101, 242), Color.rgb(98, 196, 255)});
         addThemeOption(box, dialog, "noir_aurora", "دارک ۳", "نوآر شفق", new int[]{Color.rgb(3, 5, 16), Color.rgb(0, 210, 210), Color.rgb(126, 87, 255)});
         dialog.show();
     }
@@ -1454,7 +1453,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.20.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.21.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -1901,8 +1900,6 @@ public class MainActivity extends Activity {
             try { renderDashboardJson(new JSONObject(dashboardCacheJson), false); return; } catch (Exception ignored) { }
         }
         content.removeAllViews();
-        addHero("داشبورد", "اطلاعات تا زمان بروزرسانی دستی ثابت می‌ماند؛ برای دریافت داده جدید از دکمه تازه‌سازی استفاده کنید.");
-        addManualRefreshPanel("dashboard", "کنترل بروزرسانی داشبورد", "بدون تازه‌سازی دستی، همین داده‌ها ثابت می‌مانند", () -> loadDashboard(true));
         addLoading(content, "در حال دریافت داشبورد…");
         runDb(this::queryDashboard, new DbCallback() {
             @Override public void ok(String body) {
@@ -1921,11 +1918,8 @@ public class MainActivity extends Activity {
 
     private void renderDashboardJson(JSONObject j, boolean cached) throws Exception {
         content.removeAllViews();
-        addHero(cached ? "داشبورد آفلاین" : "داشبورد", cached ? "آخرین داده ذخیره‌شده نمایش داده می‌شود." : "داشبورد ثابت است و فقط با تازه‌سازی دستی داده جدید می‌گیرد.");
-        addManualRefreshPanel("dashboard", "بروزرسانی دستی داشبورد", cached ? "نمای آفلاین" : "داده فعلی ثابت است", () -> loadDashboard(true));
         JSONObject today = j.optJSONObject("today");
         addGoodMorningManagerCard(today, cached);
-        addTodayTaskCenter(today);
         addDashboardKpiTable(j.optJSONArray("kpis"));
         addDashboardSmartAlerts(today, cached);
         renderDashboardToday(today);
@@ -2094,36 +2088,163 @@ public class MainActivity extends Activity {
 
     private void addGoodMorningManagerCard(JSONObject today, boolean cached) {
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(GOLD_2, 36), alpha(INFO, 24), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 30));
+        c.setPadding(dp(12), dp(12), dp(12), dp(12));
+        c.setBackground(gradient(new int[]{alpha(GOLD_2, 32), alpha(INFO, 22), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 28));
+
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        head.addView(report3dIcon("☀", GOLD), new LinearLayout.LayoutParams(dp(58), dp(58)));
+        head.addView(report3dIcon("☀", GOLD), new LinearLayout.LayoutParams(dp(46), dp(46)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
-        copy.setPadding(dp(10), 0, dp(8), 0);
-        copy.addView(text("صبح بخیر " + displayFirstName(), 18, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView sub = text(cached ? "آخرین داده ذخیره‌شده را می‌بینی؛ میلو هنوز باوقار است، فقط آنلاین نیست." : managerMorningLine(today), 10.8f, MUTED, Typeface.NORMAL);
-        sub.setLineSpacing(dp(2), 1.05f);
+        copy.setPadding(dp(9), 0, dp(7), 0);
+        copy.addView(text("صبح بخیر " + displayFirstName(), 16.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView sub = text(cached ? "آخرین داده ذخیره‌شده نمایش داده می‌شود؛ هر وقت خواستی با دکمه کنار کارت تازه‌سازی کن." : managerMorningLine(today), 10.2f, MUTED, Typeface.NORMAL);
+        sub.setLineSpacing(dp(1), 1.03f);
+        sub.setMaxLines(2);
         copy.addView(sub, new LinearLayout.LayoutParams(-1, -2));
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView refresh = circularDashboardAction("⟳", "بروزرسانی داشبورد", INFO, v -> loadDashboard(true));
+        head.addView(refresh, new LinearLayout.LayoutParams(dp(38), dp(38)));
         c.addView(head, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+
         JSONObject sales = today == null ? null : today.optJSONObject("sales");
         JSONObject checks = today == null ? null : today.optJSONObject("putChecks");
         JSONObject debtor = firstObject(today == null ? null : today.optJSONArray("topDebtors"));
-        row.addView(customerMiniMetric("فروش", metricValue(sales, "جمع فروش", "—"), GOLD), weightedMiniLp());
-        row.addView(customerMiniMetric("چک", metricValue(checks, "جمع مبلغ", "—"), WARNING), weightedMiniLp());
-        row.addView(customerMiniMetric("بدهکار", labelOf(debtor, "party", "—"), DANGER), weightedMiniLp());
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(12), 0, 0); c.addView(row, rp);
-        LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
-        Button listen = primaryButton("میلو بخوان"); listen.setTextSize(10.5f);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(dashboardMiniMetric("فروش امروز", metricValue(sales, "جمع فروش", "—"), "فاکتورهای روز", GOLD), dashboardMiniLp());
+        row.addView(dashboardMiniMetric("چک امروز", metricValue(checks, "جمع مبلغ", "—"), "پرداختی/سررسید", WARNING), dashboardMiniLp());
+        String debtorName = labelOf(debtor, "party", "—");
+        String debtorAmount = privacyMode() ? "•••• ریال" : moneyValue(debtor, "amount");
+        row.addView(dashboardMiniMetric("بدهکار مهم", debtorName, debtorAmount, DANGER), dashboardMiniLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
+        rp.setMargins(0, dp(10), 0, 0);
+        c.addView(row, rp);
+
+        LinearLayout tasksBox = new LinearLayout(this);
+        tasksBox.setOrientation(LinearLayout.VERTICAL);
+        tasksBox.setPadding(dp(8), dp(8), dp(8), dp(8));
+        tasksBox.setBackground(roundedStroke(alpha(SURFACE_2, 128), 18, alpha(mix(INFO, GOLD, 0.35f), 64)));
+        LinearLayout tasksHead = new LinearLayout(this);
+        tasksHead.setGravity(Gravity.CENTER_VERTICAL);
+        tasksHead.setOrientation(LinearLayout.HORIZONTAL);
+        TextView taskTitle = text("کارهای امروز", 12.6f, TEXT, Typeface.BOLD);
+        tasksHead.addView(taskTitle, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView last = text("آخرین بروزرسانی: " + lastRefreshText("dashboard"), 9.2f, MUTED, Typeface.NORMAL);
+        last.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+        tasksHead.addView(last, new LinearLayout.LayoutParams(-2, -2));
+        tasksBox.addView(tasksHead, new LinearLayout.LayoutParams(-1, -2));
+        JSONArray tasks = buildTodayTasks(today);
+        if (tasks.length() == 0) {
+            try {
+                JSONObject calm = new JSONObject();
+                calm.put("id", "calm_day"); calm.put("tag", "آرام"); calm.put("title", "مرور کوتاه گزارش روزانه");
+                calm.put("body", "فعلاً کار فوری دیده نمی‌شود؛ فروش و اتصال را چک کن."); calm.put("accent", SUCCESS);
+                addDashboardTaskRow(tasksBox, calm);
+            } catch (Exception ignored) { }
+        } else {
+            for (int i = 0; i < Math.min(4, tasks.length()); i++) addDashboardTaskRow(tasksBox, tasks.optJSONObject(i));
+        }
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
+        tp.setMargins(0, dp(10), 0, 0);
+        c.addView(tasksBox, tp);
+
+        Button listen = primaryButton("🔊 میلو بخوان");
+        listen.setTextSize(10.5f);
         listen.setOnClickListener(v -> speakAssistantText(buildDailyVoiceSummary(today)));
-        Button tasks = secondaryButton("کارهای امروز"); tasks.setTextSize(10.5f);
-        tasks.setOnClickListener(v -> Toast.makeText(this, "کارت کارهای امروز همین پایین آماده است.", Toast.LENGTH_SHORT).show());
-        actions.addView(listen, weightedButtonLp()); actions.addView(tasks, weightedButtonLp());
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(10), 0, 0); c.addView(actions, ap);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+        LinearLayout.LayoutParams lpListen = new LinearLayout.LayoutParams(-1, dp(42));
+        lpListen.setMargins(0, dp(9), 0, 0);
+        c.addView(listen, lpListen);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 0, 0, dp(12));
+        content.addView(c, lp);
+    }
+
+    private TextView circularDashboardAction(String glyph, String description, int accent, View.OnClickListener listener) {
+        TextView b = new TextView(this);
+        b.setText(glyph);
+        b.setTextSize(16f);
+        b.setGravity(Gravity.CENTER);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setTextColor(Color.WHITE);
+        b.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, 150));
+        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, 0.25f), accent, mix(accent, Color.BLACK, 0.26f)}, GradientDrawable.Orientation.TL_BR, 999);
+        bg.setStroke(dp(1), alpha(Color.WHITE, 130));
+        b.setBackground(bg);
+        b.setClickable(true);
+        b.setFocusable(true);
+        b.setContentDescription(description);
+        b.setOnClickListener(listener);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) b.setElevation(dp(6));
+        return b;
+    }
+
+    private LinearLayout.LayoutParams dashboardMiniLp() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(84), 1f);
+        lp.setMargins(dp(3), 0, dp(3), 0);
+        return lp;
+    }
+
+    private LinearLayout dashboardMiniMetric(String label, String value, String detail, int accent) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER);
+        box.setPadding(dp(5), dp(6), dp(5), dp(6));
+        box.setBackground(gradient(new int[]{alpha(accent, 28), alpha(SURFACE, 230)}, GradientDrawable.Orientation.TOP_BOTTOM, 16));
+        TextView l = text(label, 8.9f, MUTED, Typeface.BOLD);
+        l.setGravity(Gravity.CENTER);
+        l.setSingleLine(true);
+        TextView v = text(value == null || value.trim().isEmpty() ? "—" : value, 9.8f, TEXT, Typeface.BOLD);
+        v.setGravity(Gravity.CENTER);
+        v.setSingleLine(true);
+        v.setEllipsize(TextUtils.TruncateAt.END);
+        TextView d = text(detail == null || detail.trim().isEmpty() ? "—" : detail, 8.7f, accent, Typeface.BOLD);
+        d.setGravity(Gravity.CENTER);
+        d.setSingleLine(true);
+        d.setEllipsize(TextUtils.TruncateAt.END);
+        box.addView(l, new LinearLayout.LayoutParams(-1, -2));
+        box.addView(v, new LinearLayout.LayoutParams(-1, 0, 1f));
+        box.addView(d, new LinearLayout.LayoutParams(-1, -2));
+        return box;
+    }
+
+    private void addDashboardTaskRow(LinearLayout parent, JSONObject task) {
+        if (task == null) return;
+        String id = task.optString("id", "task");
+        int accent = task.optInt("accent", GOLD);
+        boolean done = taskDone(id);
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.HORIZONTAL);
+        item.setGravity(Gravity.CENTER_VERTICAL);
+        item.setPadding(dp(6), dp(5), dp(6), dp(5));
+        item.setBackground(roundedStroke(alpha(done ? SUCCESS : accent, done ? 16 : 13), 14, alpha(done ? SUCCESS : accent, 50)));
+        TextView badge = text(done ? "✓" : task.optString("tag", "امروز"), 8.6f, done ? SUCCESS : accent, Typeface.BOLD);
+        badge.setGravity(Gravity.CENTER);
+        badge.setSingleLine(true);
+        badge.setBackground(roundedStroke(alpha(done ? SUCCESS : accent, 24), 999, alpha(done ? SUCCESS : accent, 70)));
+        item.addView(badge, new LinearLayout.LayoutParams(dp(50), dp(30)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(7), 0, dp(7), 0);
+        TextView title = text(task.optString("title", "کار امروز"), 10.4f, TEXT, Typeface.BOLD);
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        copy.addView(title, new LinearLayout.LayoutParams(-1, -2));
+        TextView body = text(task.optString("body", ""), 9.2f, done ? alpha(MUTED, 145) : MUTED, Typeface.NORMAL);
+        body.setSingleLine(true);
+        body.setEllipsize(TextUtils.TruncateAt.END);
+        copy.addView(body, new LinearLayout.LayoutParams(-1, -2));
+        item.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        Button toggle = done ? secondaryButton("برگردان") : primaryButton("انجام شد");
+        toggle.setTextSize(8.4f);
+        toggle.setPadding(dp(2), 0, dp(2), 0);
+        toggle.setOnClickListener(v -> { setTaskDone(id, !taskDone(id)); refreshActivePage(); });
+        item.addView(toggle, new LinearLayout.LayoutParams(dp(70), dp(32)));
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(-1, -2);
+        ip.setMargins(0, dp(6), 0, 0);
+        parent.addView(item, ip);
     }
 
     private String managerMorningLine(JSONObject today) {
@@ -4562,7 +4683,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.20.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.21.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -5425,14 +5546,67 @@ public class MainActivity extends Activity {
 
     private void initSpeechEngine() {
         try {
+            if (tts != null) return;
             tts = new TextToSpeech(getApplicationContext(), statusCode -> {
                 if (statusCode == TextToSpeech.SUCCESS && tts != null) {
-                    int result = tts.setLanguage(new Locale("fa", "IR"));
-                    ttsReady = result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED;
+                    ttsReady = configurePersianTts();
+                    if (ttsReady && pendingTtsText != null && !pendingTtsText.trim().isEmpty()) {
+                        String pending = pendingTtsText;
+                        pendingTtsText = "";
+                        if (stage != null) stage.postDelayed(() -> speakAssistantText(pending), 250);
+                    }
+                } else {
+                    ttsReady = false;
+                    if (pendingTtsText != null && !pendingTtsText.trim().isEmpty()) openTtsInstaller();
                 }
             });
         } catch (Exception ignored) {
             ttsReady = false;
+        }
+    }
+
+    private boolean configurePersianTts() {
+        if (tts == null) return false;
+        Locale[] locales = new Locale[]{new Locale("fa", "IR"), new Locale("fa"), new Locale("pes", "IR")};
+        for (Locale locale : locales) {
+            try {
+                int result = tts.setLanguage(locale);
+                if (result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED) {
+                    try { tts.setSpeechRate(0.92f); } catch (Exception ignored) { }
+                    try { tts.setPitch(1.02f); } catch (Exception ignored) { }
+                    return true;
+                }
+            } catch (Exception ignored) { }
+        }
+        return false;
+    }
+
+    private void preparePersianTts(String cleanText) {
+        pendingTtsText = cleanText == null ? "" : cleanText;
+        ttsReady = configurePersianTts();
+        if (ttsReady) {
+            String pending = pendingTtsText;
+            pendingTtsText = "";
+            speakAssistantText(pending);
+            return;
+        }
+        Toast.makeText(this, "میلو در حال آماده‌سازی گفتار فارسی است…", Toast.LENGTH_SHORT).show();
+        try {
+            Intent check = new Intent(TextToSpeech.Engine.ACTION_CHECK_TTS_DATA);
+            check.putExtra(TextToSpeech.Engine.EXTRA_CHECK_VOICE_DATA_FOR, new String[]{"fa-IR", "fa"});
+            startActivityForResult(check, REQ_TTS_CHECK);
+        } catch (Exception ex) {
+            openTtsInstaller();
+        }
+    }
+
+    private void openTtsInstaller() {
+        try {
+            Intent install = new Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA);
+            startActivity(install);
+        } catch (Exception ex) {
+            try { startActivity(new Intent("com.android.settings.TTS_SETTINGS")); }
+            catch (Exception ignored) { Toast.makeText(this, "برای خواندن فارسی، موتور گفتار فارسی را از تنظیمات اندروید فعال کنید.", Toast.LENGTH_LONG).show(); }
         }
     }
 
@@ -6495,11 +6669,17 @@ public class MainActivity extends Activity {
 
     private void speakAssistantText(String text) {
         if (text == null || text.trim().isEmpty()) return;
-        if (tts == null || !ttsReady) {
-            Toast.makeText(this, "موتور گفتار فارسی روی این دستگاه آماده نیست.", Toast.LENGTH_SHORT).show();
+        String clean = text.replace("•", "").replace("✅", "").replace("❌", "").replace("🔊", "").replace("\n", ". ");
+        if (tts == null) {
+            pendingTtsText = clean;
+            initSpeechEngine();
+            Toast.makeText(this, "میلو در حال روشن کردن گفتار فارسی است…", Toast.LENGTH_SHORT).show();
             return;
         }
-        String clean = text.replace("•", "").replace("✅", "").replace("❌", "").replace("\n", ". ");
+        if (!ttsReady) {
+            preparePersianTts(clean);
+            return;
+        }
         miloSpeaking = true;
         miloMood = "thinking";
         if (stage != null) stage.postDelayed(() -> { miloSpeaking = false; miloMood = "happy"; }, Math.min(22000, Math.max(3500, clean.length() * 55)));
@@ -6823,7 +7003,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.20.0\nاین نسخه هدر بدون تداخل، ناوبری ثابت دو ردیفه، تازه‌سازی دستی هوشمند با زمان آخرین بروزرسانی، کش صفحه‌ای بدون فراخوانی مجدد، تقویم یادآوری مشتری، میلو رسپانسیو و گزارشات مقاوم‌تر را اضافه می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.21.0\nاین نسخه هدر فشرده با آیکن‌های دایره‌ای سه‌بعدی، داشبورد خلوت‌تر، جدول مدیریتی صبح بخیر/کارهای امروز/میلو بخوان، چینش منظم تم‌ها و آماده‌سازی هوشمند گفتار فارسی میلو را اضافه می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -7231,6 +7411,14 @@ public class MainActivity extends Activity {
                     assistantInput.setSelection(assistantInput.getText().length());
                 }
                 submitAssistantQuestion(spoken);
+            }
+        } else if (requestCode == REQ_TTS_CHECK) {
+            ttsReady = configurePersianTts();
+            if (!ttsReady && resultCode != TextToSpeech.Engine.CHECK_VOICE_DATA_PASS) openTtsInstaller();
+            else if (ttsReady && pendingTtsText != null && !pendingTtsText.trim().isEmpty()) {
+                String pending = pendingTtsText;
+                pendingTtsText = "";
+                speakAssistantText(pending);
             }
         } else if (requestCode == REQ_BARCODE_SCAN && resultCode == RESULT_OK && data != null) {
             String code = data.getStringExtra("SCAN_RESULT");
