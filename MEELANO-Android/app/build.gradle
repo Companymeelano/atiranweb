@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.android'
         minSdk 24
         targetSdk 35
-        versionCode 26
-        versionName '3.21.0-direct-sql-compact-dashboard-voice'
+        versionCode 27
+        versionName '3.22.0-direct-sql-smart-day-items-lock'
     }
 
     compileOptions {

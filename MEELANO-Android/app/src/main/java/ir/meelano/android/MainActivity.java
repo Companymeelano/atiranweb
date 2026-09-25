@@ -75,6 +75,7 @@ import java.sql.ResultSetMetaData;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -137,7 +138,7 @@ public class MainActivity extends Activity {
     private static final int[] S_DB = {8, 61, 32, 59, 40, 39, 123};
     private static final int S_KEY = 73;
     private static final int SQL_PORT = 1433;
-    private static final String LOCAL_KEY_ALIAS = "meelano_local_secret_v320";
+    private static final String LOCAL_KEY_ALIAS = "meelano_local_secret_v322";
 
     private int NAVY = Color.rgb(7, 9, 16);
     private int SURFACE = Color.rgb(18, 22, 31);
@@ -570,16 +571,14 @@ public class MainActivity extends Activity {
         titles.addView(subtitle, new LinearLayout.LayoutParams(-1, -2));
         header.addView(titles, new LinearLayout.LayoutParams(0, dp(50), 1f));
 
-        connectionIndicator = iconButton("◌", "وضعیت اتصال");
-        connectionIndicator.setOnClickListener(v -> showApp("health"));
-        header.addView(connectionIndicator, new LinearLayout.LayoutParams(dp(34), dp(34)));
+        connectionIndicator = null;
 
         LinearLayout tools = new LinearLayout(this);
         tools.setOrientation(LinearLayout.HORIZONTAL);
         tools.setGravity(Gravity.CENTER_VERTICAL);
         tools.setPadding(dp(2), 0, dp(2), 0);
         addHeaderTool(tools, "⌕", "جستجوی سراسری", INFO, v -> showGlobalSearchDialog());
-        addHeaderTool(tools, privacyMode() ? "●" : "◌", "حالت محرمانه", privacyMode() ? DANGER : GOLD, v -> togglePrivacyMode());
+        addHeaderTool(tools, privacyMode() ? "••" : "۱۲", "محدودیت نمایش اعداد", privacyMode() ? DANGER : GOLD, v -> togglePrivacyMode());
         addHeaderTool(tools, "◐", "انتخاب تم", GOLD_2, v -> showThemeChooser());
         addHeaderTool(tools, "⚙", "تنظیمات", SUCCESS, v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings"); });
         addHeaderTool(tools, "⎋", "خروج", DANGER, v -> { if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید."); else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید."); });
@@ -598,22 +597,23 @@ public class MainActivity extends Activity {
     private void addHeaderTool(LinearLayout parent, String glyph, String label, int accent, View.OnClickListener listener) {
         TextView b = new TextView(this);
         b.setText(glyph == null ? "" : glyph);
-        b.setTextSize(14.8f);
+        b.setTextSize(glyph != null && glyph.length() > 1 ? 11.2f : 14.8f);
         b.setGravity(Gravity.CENTER);
         b.setSingleLine(true);
         b.setTextColor(Color.WHITE);
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setPadding(0, 0, 0, dp(1));
         b.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, 150));
-        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, 0.26f), accent, mix(accent, HEADER_START, 0.36f)}, GradientDrawable.Orientation.TL_BR, 999);
-        bg.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.45f), 150));
+        int baseAccent = mix(accent, GOLD_2, isLightTheme() ? 0.12f : 0.20f);
+        GradientDrawable bg = gradient(new int[]{mix(baseAccent, Color.WHITE, isLightTheme() ? 0.34f : 0.18f), baseAccent, mix(baseAccent, HEADER_START, 0.40f)}, GradientDrawable.Orientation.TL_BR, 999);
+        bg.setStroke(dp(1), alpha(mix(baseAccent, Color.WHITE, 0.45f), 155));
         b.setBackground(bg);
         b.setContentDescription(label);
         b.setClickable(true);
         b.setFocusable(true);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) b.setElevation(dp(7));
         b.setOnClickListener(listener);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(29), dp(29));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(31), dp(31));
         lp.setMargins(dp(2), 0, dp(2), 0);
         parent.addView(b, lp);
     }
@@ -982,7 +982,6 @@ public class MainActivity extends Activity {
                         setConnectionStatus("connected");
                         Toast.makeText(this, "اتصال موفق بود", Toast.LENGTH_SHORT).show();
                         showApp("dashboard");
-                        maybeAskFirstName(false);
                         maybePromptQuickPinSetup();
                     });
                 } catch (Exception ex) {
@@ -1051,28 +1050,98 @@ public class MainActivity extends Activity {
 
     private void maybePromptQuickPinSetup() {
         if (prefs == null || prefs.getBoolean(KEY_QUICK_LOGIN_ENABLED, false) || !prefs.getString(KEY_QUICK_PIN, "").isEmpty()) return;
-        new AlertDialog.Builder(this)
-                .setTitle("ورود سریع فعال شود؟")
-                .setMessage("برای دفعات بعد می‌توانید با PIN امن یا اثر انگشت سریع‌تر وارد شوید.")
-                .setNegativeButton("بعداً", null)
-                .setPositiveButton("تنظیم PIN", (d, w) -> showSetQuickPinDialog())
-                .show();
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(18), dp(18), dp(18), dp(14));
+        box.setBackground(gradient(new int[]{alpha(INFO, 34), alpha(GOLD_2, 26), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 30));
+        TextView icon = report3dIcon("◉", INFO);
+        icon.setText("⌾");
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(70), dp(70));
+        ip.gravity = Gravity.CENTER_HORIZONTAL;
+        box.addView(icon, ip);
+        TextView title = text("قفل سریع و امن Meelano", 18, TEXT, Typeface.BOLD);
+        title.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.setMargins(0, dp(8), 0, dp(4));
+        box.addView(title, tp);
+        TextView body = text("برای ورودهای بعدی، یک PIN کوتاه تنظیم کن؛ اگر گوشی اثر انگشت داشته باشد، همین جلسه ذخیره‌شده با تأیید اثر انگشت هم قابل ورود است.", 11.1f, MUTED, Typeface.NORMAL);
+        body.setGravity(Gravity.CENTER);
+        body.setLineSpacing(dp(2), 1.06f);
+        box.addView(body, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout benefits = new LinearLayout(this);
+        benefits.setOrientation(LinearLayout.HORIZONTAL);
+        addSecurityChip(benefits, "رمزگذاری", "◆", GOLD);
+        addSecurityChip(benefits, "PIN", "••", INFO);
+        addSecurityChip(benefits, "اثر انگشت", "⌾", SUCCESS);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2); bp.setMargins(0, dp(12), 0, dp(12));
+        box.addView(benefits, bp);
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button later = secondaryButton("بعداً");
+        Button setup = primaryButton("تنظیم قفل سریع");
+        actions.addView(later, weightedButtonLp());
+        actions.addView(setup, weightedButtonLp());
+        box.addView(actions, new LinearLayout.LayoutParams(-1, -2));
+        AlertDialog dialog = new AlertDialog.Builder(this).setView(box).create();
+        later.setOnClickListener(v -> dialog.dismiss());
+        setup.setOnClickListener(v -> { dialog.dismiss(); showSetQuickPinDialog(); });
+        dialog.setOnShowListener(d -> { if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(roundedStroke(alpha(SURFACE, 0), 30, alpha(INFO, 0))); });
+        dialog.show();
+    }
+
+    private void addSecurityChip(LinearLayout parent, String label, String glyph, int accent) {
+        LinearLayout chip = new LinearLayout(this);
+        chip.setOrientation(LinearLayout.VERTICAL);
+        chip.setGravity(Gravity.CENTER);
+        chip.setPadding(dp(4), dp(7), dp(4), dp(7));
+        chip.setBackground(gradient(new int[]{alpha(accent, 42), alpha(SURFACE_2, 220)}, GradientDrawable.Orientation.TL_BR, 18));
+        TextView g = text(glyph, 15, accent, Typeface.BOLD);
+        g.setGravity(Gravity.CENTER);
+        TextView l = text(label, 8.6f, TEXT, Typeface.BOLD);
+        l.setGravity(Gravity.CENTER);
+        l.setSingleLine(true);
+        chip.addView(g, new LinearLayout.LayoutParams(-1, -2));
+        chip.addView(l, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(56), 1f);
+        lp.setMargins(dp(3), 0, dp(3), 0);
+        parent.addView(chip, lp);
     }
 
     private void showSetQuickPinDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(18), dp(16), dp(18), dp(12));
+        box.setBackground(gradient(new int[]{alpha(SUCCESS, 30), alpha(INFO, 20), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 28));
+        TextView title = text("PIN امن Meelano", 17, TEXT, Typeface.BOLD);
+        title.setGravity(Gravity.CENTER);
+        box.addView(title, new LinearLayout.LayoutParams(-1, -2));
+        TextView hint = text("۴ تا ۶ رقم انتخاب کن؛ اطلاعات اتصال همچنان مخفی می‌ماند.", 10.8f, MUTED, Typeface.NORMAL);
+        hint.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2); hp.setMargins(0, dp(4), 0, dp(12));
+        box.addView(hint, hp);
         EditText pin = input("PIN چهار تا شش رقمی", "", true);
         pin.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
-        new AlertDialog.Builder(this)
-                .setTitle("تنظیم PIN ورود سریع")
-                .setView(pin)
+        box.addView(pin, new LinearLayout.LayoutParams(-1, dp(54)));
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(box)
                 .setNegativeButton("بستن", null)
-                .setPositiveButton("ذخیره", (d, w) -> {
+                .setPositiveButton("ذخیره", null)
+                .create();
+        dialog.setOnShowListener(d -> {
+            if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(roundedStroke(alpha(SURFACE, 245), 28, alpha(SUCCESS, 90)));
+            Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (positive != null) {
+                positive.setTextColor(SUCCESS);
+                positive.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+                positive.setOnClickListener(v -> {
                     String value = pin.getText().toString().trim();
                     if (value.length() < 4 || value.length() > 6) { Toast.makeText(this, "PIN باید ۴ تا ۶ رقم باشد.", Toast.LENGTH_SHORT).show(); return; }
                     prefs.edit().putString(KEY_QUICK_PIN, protectSecret(value)).putBoolean(KEY_QUICK_LOGIN_ENABLED, true).apply();
                     Toast.makeText(this, "ورود سریع فعال شد.", Toast.LENGTH_SHORT).show();
-                })
-                .show();
+                    dialog.dismiss();
+                });
+            }
+        });
+        dialog.show();
     }
 
     private void showQuickPinDialog() {
@@ -1453,7 +1522,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.21.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.22.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -1921,7 +1990,6 @@ public class MainActivity extends Activity {
         JSONObject today = j.optJSONObject("today");
         addGoodMorningManagerCard(today, cached);
         addDashboardKpiTable(j.optJSONArray("kpis"));
-        addDashboardSmartAlerts(today, cached);
         renderDashboardToday(today);
         updateHomeWidgetFromDashboard(today);
     }
@@ -2089,17 +2157,18 @@ public class MainActivity extends Activity {
     private void addGoodMorningManagerCard(JSONObject today, boolean cached) {
         LinearLayout c = card();
         c.setPadding(dp(12), dp(12), dp(12), dp(12));
-        c.setBackground(gradient(new int[]{alpha(GOLD_2, 32), alpha(INFO, 22), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 28));
+        int greetAccent = timeGreetingAccent();
+        c.setBackground(gradient(new int[]{alpha(greetAccent, 34), alpha(INFO, 18), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 28));
 
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        head.addView(report3dIcon("☀", GOLD), new LinearLayout.LayoutParams(dp(46), dp(46)));
+        head.addView(report3dIcon(timeGreetingIcon(), greetAccent), new LinearLayout.LayoutParams(dp(46), dp(46)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(9), 0, dp(7), 0);
-        copy.addView(text("صبح بخیر " + displayFirstName(), 16.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView sub = text(cached ? "آخرین داده ذخیره‌شده نمایش داده می‌شود؛ هر وقت خواستی با دکمه کنار کارت تازه‌سازی کن." : managerMorningLine(today), 10.2f, MUTED, Typeface.NORMAL);
+        copy.addView(text(timeGreetingTitle() + " " + displayFirstName(), 16.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView sub = text(cached ? "آخرین داده ذخیره‌شده نمایش داده می‌شود؛ هر وقت خواستی با دکمه کنار کارت تازه‌سازی کن." : managerTimedLine(today), 10.2f, MUTED, Typeface.NORMAL);
         sub.setLineSpacing(dp(1), 1.03f);
         sub.setMaxLines(2);
         copy.addView(sub, new LinearLayout.LayoutParams(-1, -2));
@@ -2245,6 +2314,44 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(-1, -2);
         ip.setMargins(0, dp(6), 0, 0);
         parent.addView(item, ip);
+    }
+
+    private int currentHourOfDay() {
+        try { return Calendar.getInstance(new Locale("fa", "IR")).get(Calendar.HOUR_OF_DAY); }
+        catch (Exception ignored) { return Calendar.getInstance().get(Calendar.HOUR_OF_DAY); }
+    }
+
+    private String timeGreetingTitle() {
+        int h = currentHourOfDay();
+        if (h >= 5 && h < 11) return "صبح بخیر";
+        if (h >= 11 && h < 15) return "ظهر بخیر";
+        if (h >= 15 && h < 20) return "عصر بخیر";
+        return "شب بخیر";
+    }
+
+    private String timeGreetingIcon() {
+        int h = currentHourOfDay();
+        if (h >= 5 && h < 11) return "☀";
+        if (h >= 11 && h < 15) return "◉";
+        if (h >= 15 && h < 20) return "◐";
+        return "☾";
+    }
+
+    private int timeGreetingAccent() {
+        int h = currentHourOfDay();
+        if (h >= 5 && h < 11) return GOLD;
+        if (h >= 11 && h < 15) return GOLD_2;
+        if (h >= 15 && h < 20) return WARNING;
+        return INFO;
+    }
+
+    private String managerTimedLine(JSONObject today) {
+        String base = managerMorningLine(today);
+        int h = currentHourOfDay();
+        if (h >= 11 && h < 15) return "گزارش ظهر: " + base;
+        if (h >= 15 && h < 20) return "جمع‌بندی عصر: " + base;
+        if (h >= 20 || h < 5) return "جمع‌بندی شبانه: " + base;
+        return base;
     }
 
     private String managerMorningLine(JSONObject today) {
@@ -2502,6 +2609,8 @@ public class MainActivity extends Activity {
                 if (row != null) row.addView(mm, mlp);
             }
         }
+        addDailyItemsInline(c, type, data.optJSONArray("items"), accent);
+
         JSONArray chartData = data.optJSONArray("chart");
         if (chartData != null && chartData.length() > 0) {
             LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, dp(172));
@@ -2547,6 +2656,67 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, 0, 0, dp(12));
         content.addView(c, lp);
+    }
+
+    private void addDailyItemsInline(LinearLayout parent, String type, JSONArray items, int accent) {
+        if (parent == null || items == null || items.length() == 0) return;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(9), dp(9), dp(9), dp(8));
+        box.setBackground(roundedStroke(alpha(accent, 18), 18, alpha(accent, 68)));
+        String title = "sales".equals(type) ? "سرجمع کالاهای فروخته‌شده همین روز" : "سرجمع کالاهای خریداری‌شده همین روز";
+        String sub = "بر اساس فاکتورهای همان تاریخ؛ هر قلم یک‌بار و سرجمع نمایش داده می‌شود.";
+        box.addView(text(title, 13.2f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView hint = text(sub, 9.5f, MUTED, Typeface.NORMAL);
+        hint.setMaxLines(2);
+        box.addView(hint, new LinearLayout.LayoutParams(-1, -2));
+        for (int i = 0; i < Math.min(items.length(), 5); i++) {
+            JSONObject r = items.optJSONObject(i);
+            if (r == null) continue;
+            LinearLayout line = new LinearLayout(this);
+            line.setOrientation(LinearLayout.HORIZONTAL);
+            line.setGravity(Gravity.CENTER_VERTICAL);
+            line.setPadding(dp(7), dp(6), dp(7), dp(6));
+            line.setClickable(true);
+            line.setBackground(roundedStroke(alpha(SURFACE_2, 132), 14, alpha(accent, 54)));
+            TextView idx = text(formatNumber(i + 1), 10, Color.WHITE, Typeface.BOLD);
+            idx.setGravity(Gravity.CENTER);
+            idx.setBackground(gradient(new int[]{accent, mix(accent, Color.BLACK, 0.25f)}, GradientDrawable.Orientation.TL_BR, 999));
+            line.addView(idx, new LinearLayout.LayoutParams(dp(28), dp(28)));
+            LinearLayout copy = new LinearLayout(this);
+            copy.setOrientation(LinearLayout.VERTICAL);
+            copy.setPadding(dp(7), 0, dp(7), 0);
+            TextView name = text(r.optString("item", "کالا"), 10.8f, TEXT, Typeface.BOLD);
+            name.setSingleLine(true);
+            name.setEllipsize(TextUtils.TruncateAt.END);
+            copy.addView(name, new LinearLayout.LayoutParams(-1, -2));
+            String group = r.optString("group", "");
+            double qv = r.optDouble("quantity", r.optDouble("qty", 0));
+            TextView meta = text((group == null || group.trim().isEmpty() ? "بدون گروه" : group) + " • مقدار " + formatNumber(qv), 9.2f, MUTED, Typeface.NORMAL);
+            meta.setSingleLine(true);
+            meta.setEllipsize(TextUtils.TruncateAt.END);
+            copy.addView(meta, new LinearLayout.LayoutParams(-1, -2));
+            line.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+            TextView amount = text(compactMoney(r.opt("amount")), 10.3f, TEXT, Typeface.BOLD);
+            amount.setGravity(Gravity.CENTER);
+            amount.setSingleLine(true);
+            amount.setBackground(roundedStroke(alpha(accent, 20), 999, alpha(accent, 76)));
+            amount.setPadding(dp(7), dp(4), dp(7), dp(4));
+            line.addView(amount, new LinearLayout.LayoutParams(-2, -2));
+            line.setOnClickListener(v -> openProductFromDashboard(r));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.setMargins(0, dp(6), 0, 0);
+            box.addView(line, lp);
+        }
+        if (items.length() > 5) {
+            TextView more = text("+ " + formatNumber(items.length() - 5) + " قلم دیگر در دکمه «اقلام روز»", 9.3f, accent, Typeface.BOLD);
+            more.setGravity(Gravity.CENTER);
+            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.setMargins(0, dp(6), 0, 0);
+            box.addView(more, mp);
+        }
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
+        bp.setMargins(0, dp(10), 0, 0);
+        parent.addView(box, bp);
     }
 
     private void addCheckDashboardSection(String title, String sub, boolean incoming, JSONObject data, int accent) {
@@ -2623,7 +2793,6 @@ public class MainActivity extends Activity {
         addSmartCustomerSignalSection("مشتریان بدهکار", "۵ مشتری اول برای پیگیری سریع", today.optJSONArray("topDebtors"), "party", "amount", DANGER, ir.meelano.android.R.drawable.icon_customers);
         addSmartCustomerSignalSection("تسویه‌های گذشته", "سررسید، ویزیتور و مبلغ معوق بدون شلوغی", today.optJSONArray("overdueInvoices"), "party", "amount", WARNING, ir.meelano.android.R.drawable.icon_sales);
         addSmartCustomerSignalSection("مشتریان بدون خرید", "۵ مشتری اول که خرید ثبت‌شده ندارند", today.optJSONArray("inactiveCustomers"), "party", "hint", INFO, ir.meelano.android.R.drawable.icon_visitors);
-        addSmartProductSignalSection("کالاهای فروخته‌شده روز", "۵ قلم اول با گروه، مقدار و مبلغ", today.optJSONArray("todayItems"), GOLD, ir.meelano.android.R.drawable.icon_products);
     }
 
     private void addSmartCustomerSignalSection(String title, String sub, JSONArray rows, String labelKey, String valueKey, int accent, int iconRes) {
@@ -2878,7 +3047,7 @@ public class MainActivity extends Activity {
         back.setOnClickListener(v -> showApp("dashboard"));
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(12)); content.addView(back, bp);
         JSONObject block = new JSONObject();
-        try { block.put("date", r.optString("date")); block.put("metrics", r.optJSONArray("metrics")); block.put("chart", r.optJSONArray("chart")); } catch (Exception ignored) { }
+        try { block.put("date", r.optString("date")); block.put("metrics", r.optJSONArray("metrics")); block.put("chart", r.optJSONArray("chart")); block.put("items", r.optJSONArray("items")); } catch (Exception ignored) { }
         addDailyFinanceDashboardBlock(type, type.equals("sales") ? "فروش روز" : "خرید روز", "نمای جزئیات تاریخ انتخابی و دسترسی سریع به لیست‌ها", type.equals("sales") ? ir.meelano.android.R.drawable.icon_sales : ir.meelano.android.R.drawable.icon_products, block, accent);
     }
 
@@ -2924,6 +3093,7 @@ public class MainActivity extends Activity {
         try (Connection c = openConnection()) {
             r.put("chart", queryDailyTrend(c, type, r.optString("date", actualDate)));
             r.put("payments", queryDailyPayments(c, type, r.optString("date", actualDate)));
+            if (r.optJSONArray("items") == null || r.optJSONArray("items").length() == 0) r.put("items", queryDailyAggregatedItems(c, "sales".equals(type), r.optString("date", actualDate), 120));
         }
         return r.toString();
     }
@@ -3051,14 +3221,21 @@ public class MainActivity extends Activity {
         JSONObject out = new JSONObject();
         String salesDate = latestDate(c, "sailfact", "date");
         String purchaseDate = latestDate(c, "buyfact", "DATE");
-        out.put("sales", queryDailyDashboardBlock(c, true, salesDate));
-        out.put("purchases", queryDailyDashboardBlock(c, false, purchaseDate));
+        JSONObject salesBlock = queryDailyDashboardBlock(c, true, salesDate);
+        JSONArray salesItems = queryDailyAggregatedItems(c, true, salesDate, 8);
+        salesBlock.put("items", salesItems);
+        JSONObject purchaseBlock = queryDailyDashboardBlock(c, false, purchaseDate);
+        JSONArray purchaseItems = queryDailyAggregatedItems(c, false, purchaseDate, 8);
+        purchaseBlock.put("items", purchaseItems);
+        out.put("sales", salesBlock);
+        out.put("purchases", purchaseBlock);
         out.put("getChecks", queryCheckDashboardBlock(c, true));
         out.put("putChecks", queryCheckDashboardBlock(c, false));
         out.put("topDebtors", queryTopDebtors(c));
         out.put("overdueInvoices", queryOverdueInvoices(c));
         out.put("inactiveCustomers", queryInactiveCustomers(c));
-        out.put("todayItems", queryTodaySoldItems(c, salesDate));
+        out.put("todayItems", salesItems);
+        out.put("purchaseItems", purchaseItems);
         out.put("banks", loadBanks(c));
         return out;
     }
@@ -3235,19 +3412,71 @@ public class MainActivity extends Activity {
     }
 
     private JSONArray queryTodaySoldItems(Connection c, String date) throws Exception {
-        Set<String> sail = columns(c, "sailfact"); Set<String> detail = columns(c, "subsailfact"); Set<String> inv = columns(c, "inventory"); Set<String> grp = columns(c, "kagroup");
-        if (date == null || date.isEmpty() || !hasCol(sail, "date") || !hasCol(sail, "shfacfo") || !hasCol(detail, "shfacfo") || !hasCol(detail, "SHKA")) return new JSONArray();
-        String lineAmount = resolve(detail, "LINESUM", "all", "amount"); if (lineAmount == null) return new JSONArray();
-        String invName = resolve(inv, "naka", "Name", "KalaName"); String invKey = resolve(inv, "shka", "SHKA");
-        String groupId = resolve(inv, "group_rdf", "GroupID", "VarietyID", "variety_rdf"); String groupKey = resolve(grp, "group_rdf", "ID", "GroupID", "rdf"); String groupName = resolve(grp, "group_name", "name", "Name", "GroupName");
-        String itemName = invName == null ? "N'کالا'" : "TRY_CONVERT(nvarchar(250),i.[" + invName + "])";
-        String productCode = invKey == null ? "TRY_CONVERT(nvarchar(100),d.SHKA)" : "TRY_CONVERT(nvarchar(100),i.[" + invKey + "])";
-        String groupExpr = groupId != null && groupKey != null && groupName != null ? "COALESCE(TRY_CONVERT(nvarchar(150),g.[" + groupName + "]),N'بدون گروه')" : "N'بدون گروه'";
-        String qty = hasCol(detail, "TEDVAH") || hasCol(detail, "TEDJOZ") ? "ISNULL(SUM(" + (hasCol(detail, "TEDVAH") ? "ISNULL(TRY_CONVERT(decimal(19,3),d.TEDVAH),0)" : "0") + "+" + (hasCol(detail, "TEDJOZ") ? "ISNULL(TRY_CONVERT(decimal(19,3),d.TEDJOZ),0)" : "0") + "),0)" : "CAST(0 AS decimal(19,3))";
-        String joinGroup = groupId != null && groupKey != null && groupName != null ? " LEFT JOIN dbo.kagroup g ON TRY_CONVERT(nvarchar(100),g.[" + groupKey + "])=TRY_CONVERT(nvarchar(100),i.[" + groupId + "])" : "";
-        String sql = "SELECT TOP (8) " + productCode + ", " + itemName + ", ISNULL(SUM(TRY_CONVERT(decimal(19,2),d.[" + lineAmount + "])),0), " + groupExpr + ", " + qty + " FROM dbo.sailfact s JOIN dbo.subsailfact d ON d.shfacfo=s.shfacfo LEFT JOIN dbo.inventory i ON i.shka=d.SHKA" + joinGroup + " WHERE s.[date]=?" + activeAnd(sail, "s") + activeAnd(detail, "d") + " GROUP BY " + productCode + "," + itemName + "," + groupExpr + " ORDER BY 3 DESC";
+        return queryDailyAggregatedItems(c, true, date, 8);
+    }
+
+    private JSONArray queryDailyAggregatedItems(Connection c, boolean sales, String date, int top) throws Exception {
         JSONArray arr = new JSONArray();
-        try (PreparedStatement ps = c.prepareStatement(sql)) { ps.setString(1, date); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("item", stringOr(r.getString(2), "کالا")); o.put("amount", r.getDouble(3)); o.put("group", stringOr(r.getString(4), "")); o.put("qty", r.getDouble(5)); o.put("hint", stringOr(r.getString(4), "") + " • مقدار " + formatNumber(r.getDouble(5))); o.put("value", r.getDouble(3)); arr.put(o); } } }
+        if (c == null || date == null || date.trim().isEmpty()) return arr;
+        String header = sales ? "sailfact" : "buyfact";
+        String detailTable = sales ? "subsailfact" : "subbuyfact";
+        Set<String> h = columns(c, header);
+        Set<String> d = columns(c, detailTable);
+        Set<String> inv = columns(c, "inventory");
+        Set<String> grp = columns(c, "kagroup");
+        String dateCol = sales ? resolve(h, "date") : resolve(h, "DATE", "date");
+        String numberCol = sales ? resolve(h, "shfacfo") : resolve(h, "shfackh");
+        String detailNumber = sales ? resolve(d, "shfacfo") : resolve(d, "shfackh");
+        String key = sales ? resolve(d, "SHKA", "shka") : resolve(d, "shka", "SHKA");
+        String lineAmount = sales ? resolve(d, "LINESUM", "tamam_joz", "amount", "all") : resolve(d, "tamam_joz", "LINESUM", "amount", "all");
+        if (dateCol == null || numberCol == null || detailNumber == null || key == null || lineAmount == null) return arr;
+
+        String detailName = sales ? resolve(d, "naka", "name", "Desc_Naka", "KalaName") : resolve(d, "Desc_Naka", "naka", "name", "KalaName");
+        String invKey = resolve(inv, "shka", "SHKA");
+        String invName = resolve(inv, "naka", "Name", "KalaName");
+        String itemName;
+        if (detailName != null && invName != null && invKey != null) itemName = "COALESCE(NULLIF(TRY_CONVERT(nvarchar(500),dd.[" + detailName + "]),N''),TRY_CONVERT(nvarchar(500),i.[" + invName + "]),N'بدون نام')";
+        else if (detailName != null) itemName = "COALESCE(NULLIF(TRY_CONVERT(nvarchar(500),dd.[" + detailName + "]),N''),N'بدون نام')";
+        else if (invName != null && invKey != null) itemName = "COALESCE(TRY_CONVERT(nvarchar(500),i.[" + invName + "]),N'بدون نام')";
+        else itemName = "N'بدون نام'";
+
+        String joinInv = invKey == null ? "" : " LEFT JOIN dbo.inventory i ON TRY_CONVERT(nvarchar(100),i.[" + invKey + "])=TRY_CONVERT(nvarchar(100),dd.[" + key + "]) ";
+        String productCode = invKey == null ? "TRY_CONVERT(nvarchar(100),dd.[" + key + "])" : "COALESCE(TRY_CONVERT(nvarchar(100),i.[" + invKey + "]),TRY_CONVERT(nvarchar(100),dd.[" + key + "]))";
+        String groupId = resolve(inv, "group_rdf", "GroupID", "VarietyID", "variety_rdf");
+        String groupKey = resolve(grp, "group_rdf", "ID", "GroupID", "rdf", "code");
+        String groupName = resolve(grp, "group_name", "name", "Name", "GroupName", "nagr", "gname");
+        String joinGroup = "";
+        String groupExpr = "N'بدون گروه'";
+        if (invKey != null && groupId != null && groupKey != null && groupName != null) {
+            joinGroup = " LEFT JOIN dbo.kagroup g ON TRY_CONVERT(nvarchar(100),g.[" + groupKey + "])=TRY_CONVERT(nvarchar(100),i.[" + groupId + "]) ";
+            groupExpr = "COALESCE(TRY_CONVERT(nvarchar(150),g.[" + groupName + "]),N'بدون گروه')";
+        }
+        String tedvah = hasCol(d, "TEDVAH") ? "ISNULL(TRY_CONVERT(decimal(19,4),dd.TEDVAH),0)" : "0";
+        String tedjoz = hasCol(d, "TEDJOZ") ? "ISNULL(TRY_CONVERT(decimal(19,4),dd.TEDJOZ),0)" : "0";
+        String qty = (invKey != null && hasCol(inv, "mohvah")) ? "ISNULL(SUM(" + tedvah + "*ISNULL(TRY_CONVERT(decimal(19,4),i.mohvah),1)+" + tedjoz + "),0)" : "ISNULL(SUM(" + tedvah + "+" + tedjoz + "),0)";
+        String where = "WHERE h.[" + dateCol + "]=?" + activeAnd(h, "h") + activeAnd(d, "dd");
+        List<Object> params = new ArrayList<>();
+        params.add(date.trim());
+        if (sales && session != null && session.visitorId != null && hasCol(h, "vis_rdf")) { where += " AND TRY_CONVERT(int,h.vis_rdf)=?"; params.add(session.visitorId); }
+        int limit = Math.max(1, Math.min(150, top));
+        String sql = "SELECT TOP (" + limit + ") " + productCode + ", " + itemName + ", " + qty + ", ISNULL(SUM(TRY_CONVERT(decimal(19,2),dd.[" + lineAmount + "])),0), " + groupExpr + " FROM dbo.[" + detailTable + "] dd JOIN dbo.[" + header + "] h ON h.[" + numberCol + "]=dd.[" + detailNumber + "]" + joinInv + joinGroup + where + " GROUP BY " + productCode + "," + itemName + "," + groupExpr + " ORDER BY 4 DESC";
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            setParams(ps, params);
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) {
+                    JSONObject o = new JSONObject();
+                    o.put("code", stringOr(r.getString(1), ""));
+                    o.put("item", stringOr(r.getString(2), "بدون نام"));
+                    o.put("quantity", r.getDouble(3));
+                    o.put("qty", r.getDouble(3));
+                    o.put("amount", r.getDouble(4));
+                    o.put("group", stringOr(r.getString(5), "بدون گروه"));
+                    o.put("hint", stringOr(r.getString(5), "بدون گروه") + " • مقدار " + formatNumber(r.getDouble(3)));
+                    o.put("value", r.getDouble(4));
+                    arr.put(o);
+                }
+            }
+        }
         return arr;
     }
 
@@ -4683,7 +4912,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.21.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.22.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -7003,7 +7232,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.21.0\nاین نسخه هدر فشرده با آیکن‌های دایره‌ای سه‌بعدی، داشبورد خلوت‌تر، جدول مدیریتی صبح بخیر/کارهای امروز/میلو بخوان، چینش منظم تم‌ها و آماده‌سازی هوشمند گفتار فارسی میلو را اضافه می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.22.0\nاین نسخه خوشامد زمان‌محور، داشبورد خلوت‌تر، ادغام اقلام فروش/خرید روز در جدول‌های اصلی، حذف پرسش نام پس از ورود، هدر بدون دکمه اتصال و قفل سریع سه‌بعدی تم‌محور را اضافه می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
