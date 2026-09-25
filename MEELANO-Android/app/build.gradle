@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.android'
         minSdk 24
         targetSdk 35
-        versionCode 33
-        versionName '3.28.0-direct-sql-customer-personnel-fixes'
+        versionCode 34
+        versionName '3.29.0-direct-sql-personnel-receipts-smart-customers'
     }
 
     compileOptions {

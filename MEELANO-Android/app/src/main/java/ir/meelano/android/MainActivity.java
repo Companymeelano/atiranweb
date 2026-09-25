@@ -197,6 +197,7 @@ public class MainActivity extends Activity {
     private String customersCacheJson = "";
     private String customersCacheQuery = "";
     private String customersCacheFilter = "all";
+    private boolean customersCacheAllRows = false;
     private String customersSortOrder = "smart";
     private String productsCacheJson = "";
     private String productsCacheQuery = "";
@@ -482,7 +483,7 @@ public class MainActivity extends Activity {
         if ("customers".equals(key)) return "◉";
         if ("products".equals(key)) return "▣";
         if ("reports".equals(key)) return "≡";
-        if ("command".equals(key)) return "⚡";
+        if ("command".equals(key)) return "⌘";
         if ("assistant".equals(key)) return "✦";
         if ("chat".equals(key)) return "✉";
         if ("personnel".equals(key)) return "ID";
@@ -1680,7 +1681,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.28.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.29.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -4522,13 +4523,17 @@ public class MainActivity extends Activity {
             String from = fromDate == null ? "" : fromDate.trim();
             String to = toDate == null ? "" : toDate.trim();
             JSONArray invoices=new JSONArray(); JSONArray receipts=new JSONArray(); JSONArray payments=new JSONArray();
+            List<String> matchValues = personnelMatchValues(c, id, username);
             if(id!=null&&!id.trim().isEmpty()){
                 try { appendPersonnelInvoices(c, invoices, id.trim(), from, to); } catch(Exception ignored) { }
                 try { appendPersonnelChecks(c, receipts, id.trim(), true, from, to); } catch(Exception ignored) { }
                 try { appendPersonnelChecks(c, payments, id.trim(), false, from, to); } catch(Exception ignored) { }
+                try { appendPersonnelUserRegisteredRows(c, receipts, matchValues, true, from, to); } catch(Exception ignored) { }
+                try { appendPersonnelUserRegisteredRows(c, payments, matchValues, false, from, to); } catch(Exception ignored) { }
+                try { appendPersonnelPayrollRows(c, receipts, matchValues, from, to); } catch(Exception ignored) { }
                 try { out.put("assignedCustomers", queryPersonnelAssignedCustomers(c, id.trim())); } catch(Exception ignored) { out.put("assignedCustomers", new JSONArray()); }
                 try { out.put("goals", queryPersonnelGoals(c, id.trim(), from, to)); } catch(Exception ignored) { out.put("goals", new JSONArray()); }
-            } else { out.put("assignedCustomers", new JSONArray()); out.put("goals", new JSONArray()); }
+            } else { try { appendPersonnelUserRegisteredRows(c, receipts, matchValues, true, from, to); appendPersonnelUserRegisteredRows(c, payments, matchValues, false, from, to); appendPersonnelPayrollRows(c, receipts, matchValues, from, to); } catch(Exception ignored) { } out.put("assignedCustomers", new JSONArray()); out.put("goals", new JSONArray()); }
             out.put("invoices", sortLedgerRows(invoices));
             out.put("receipts", sortLedgerRows(receipts));
             out.put("payments", sortLedgerRows(payments));
@@ -4545,6 +4550,63 @@ public class MainActivity extends Activity {
     private void appendJsonArray(JSONArray target, JSONArray source) {
         if (target == null || source == null) return;
         for (int i=0;i<source.length();i++) { JSONObject o=source.optJSONObject(i); if(o!=null) target.put(o); }
+    }
+
+    private List<String> personnelMatchValues(Connection c, String id, String username) {
+        List<String> values = new ArrayList<>();
+        addUniqueValue(values, id);
+        addUniqueValue(values, username);
+        try {
+            if (tableExists(c, "sys_users")) {
+                Set<String> ucols = columns(c, "sys_users");
+                String uid = resolveFlexible(ucols, "user_id", "UserID", "id", "ID");
+                String uname = resolveFlexible(ucols, "user_name", "username", "Username", "UserName", "name", "Name");
+                if (uid != null && uname != null && username != null && !username.trim().isEmpty()) {
+                    try (PreparedStatement ps = c.prepareStatement("SELECT TOP (1) TRY_CONVERT(nvarchar(100),[" + uid + "]) FROM dbo.sys_users WHERE LOWER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(160),[" + uname + "]))))=LOWER(LTRIM(RTRIM(?)))")) {
+                        ps.setString(1, username.trim());
+                        try (ResultSet r = ps.executeQuery()) { if (r.next()) addUniqueValue(values, r.getString(1)); }
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
+        try {
+            if (tableExists(c, "sys_vis") && id != null && !id.trim().isEmpty()) {
+                Set<String> sv = columns(c, "sys_vis");
+                String uid = resolveFlexible(sv, "UserID", "user_id", "userid");
+                String shvis = resolveFlexible(sv, "shvis", "vis_rdf", "visitor", "visitor_id");
+                if (uid != null && shvis != null) {
+                    try (PreparedStatement ps = c.prepareStatement("SELECT TOP (1) TRY_CONVERT(nvarchar(100),[" + uid + "]) FROM dbo.sys_vis WHERE TRY_CONVERT(nvarchar(100),[" + shvis + "])=?")) {
+                        ps.setString(1, id.trim());
+                        try (ResultSet r = ps.executeQuery()) { if (r.next()) addUniqueValue(values, r.getString(1)); }
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
+        return values;
+    }
+
+    private void addUniqueValue(List<String> values, String value) {
+        if (values == null || value == null) return;
+        String v = value.trim();
+        if (v.isEmpty() || "—".equals(v) || "-".equals(v)) return;
+        for (String old : values) if (old != null && old.equalsIgnoreCase(v)) return;
+        values.add(v);
+    }
+
+    private String userRegisteredColumn(Set<String> cols) {
+        return resolveFlexible(cols, "user_id", "UserID", "userid", "id_user", "created_by", "CreateUser", "creator", "sabt_user", "sabtUser", "username", "user_name", "UserName", "karbar", "کاربر", "operator", "op_user", "shuser", "ShUser");
+    }
+
+    private String personnelMatchWhere(String alias, String col, List<String> values, List<Object> params) {
+        if (col == null || values == null || values.isEmpty()) return "";
+        String prefix = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
+        List<String> parts = new ArrayList<>();
+        for (String v : values) {
+            if (v == null || v.trim().isEmpty()) continue;
+            parts.add("LOWER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(160)," + prefix + "[" + col + "]))))=LOWER(LTRIM(RTRIM(?)))");
+            params.add(v.trim());
+        }
+        return parts.isEmpty() ? "" : "(" + join(parts, " OR ") + ")";
     }
 
     private String personnelDateWhere(String dateExpr, String from, String to, List<Object> params) {
@@ -4589,6 +4651,64 @@ public class MainActivity extends Activity {
         String dateExpr=date==null?null:"x.["+date+"]";
         String sql="SELECT TOP (120) "+(date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),x.["+date+"])") +", "+(number==null?"CAST(NULL AS nvarchar(80))":"TRY_CONVERT(nvarchar(80),x.["+number+"])") +", "+(shmo==null?"CAST(NULL AS nvarchar(100))":"TRY_CONVERT(nvarchar(100),x.["+shmo+"])") +", TRY_CONVERT(decimal(19,2),x.["+amount+"]), "+statusExpr+", "+(desc==null?"CAST(NULL AS nvarchar(500))":"TRY_CONVERT(nvarchar(500),x.["+desc+"])") +" FROM dbo.["+table+"] x"+join+" WHERE TRY_CONVERT(nvarchar(100),x.["+vis+"])=?"+personnelDateWhere(dateExpr,from,to,params)+" ORDER BY 1 DESC";
         try(PreparedStatement ps=c.prepareStatement(sql)){ setParams(ps,params); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("type",incoming?"چک دریافتی":"چک پرداختی"); o.put("date",stringOr(r.getString(1),"—")); o.put("title","چک "+stringOr(r.getString(2),"—")+" • مشتری "+stringOr(r.getString(3),"—")); o.put("amount",r.getDouble(4)); o.put("status",stringOr(r.getString(5),"—")); o.put("description",stringOr(r.getString(6),"")); rows.put(o);} } }
+    }
+
+    private void appendPersonnelUserRegisteredRows(Connection c, JSONArray rows, List<String> matchValues, boolean incoming, String from, String to) throws Exception {
+        if (matchValues == null || matchValues.isEmpty()) return;
+        String table = incoming ? "getchk" : "putchk";
+        if (!tableExists(c, table)) return;
+        Set<String> cols = columns(c, table); Set<String> typeCols = columns(c, "CheckTypes");
+        String userCol = userRegisteredColumn(cols);
+        if (userCol == null) return;
+        String amount = incoming ? resolveFlexible(cols,"getchkmab","mablagh","amount") : resolveFlexible(cols,"putchkmab","mablagh","amount");
+        if (amount == null) return;
+        String date = incoming ? resolveFlexible(cols,"getchkdate","chkdate","date","sarresid") : resolveFlexible(cols,"putchkdate","chkdate","date","sarresid");
+        String number = incoming ? resolveFlexible(cols,"getchknum","chknum","number","serial") : resolveFlexible(cols,"putchknum","chknum","number","serial");
+        String shmo = resolveFlexible(cols,"shmo","SHMO","customer","CustomerCode");
+        String status = incoming ? resolveFlexible(cols,"chk_satus","status","Status") : resolveFlexible(cols,"putchk_status","status","Status");
+        String desc = resolveFlexible(cols,"description","Explain","tozihat","شرح","comment","note");
+        String statusExpr = status==null ? "N'ثبت کاربر'" : (hasCol(typeCols,"ID")&&hasCol(typeCols,"Desciption") ? "COALESCE(TRY_CONVERT(nvarchar(120),t.Desciption),TRY_CONVERT(nvarchar(50),x.["+status+"]))" : "TRY_CONVERT(nvarchar(50),x.["+status+"])");
+        String join = status!=null&&hasCol(typeCols,"ID")&&hasCol(typeCols,"Desciption") ? " LEFT JOIN dbo.CheckTypes t ON t.ID=x.["+status+"]" : "";
+        List<Object> params = new ArrayList<>();
+        String match = personnelMatchWhere("x", userCol, matchValues, params);
+        if (match.isEmpty()) return;
+        String dateExpr = date==null ? null : "x.["+date+"]";
+        String sql="SELECT TOP (120) "+(date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),x.["+date+"])") +", "+(number==null?"CAST(NULL AS nvarchar(80))":"TRY_CONVERT(nvarchar(80),x.["+number+"])") +", "+(shmo==null?"CAST(NULL AS nvarchar(100))":"TRY_CONVERT(nvarchar(100),x.["+shmo+"])") +", TRY_CONVERT(decimal(19,2),x.["+amount+"]), "+statusExpr+", "+(desc==null?"CAST(NULL AS nvarchar(500))":"TRY_CONVERT(nvarchar(500),x.["+desc+"])") +" FROM dbo.["+table+"] x"+join+" WHERE "+match+personnelDateWhere(dateExpr,from,to,params)+" ORDER BY 1 DESC";
+        try(PreparedStatement ps=c.prepareStatement(sql)){ setParams(ps,params); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("type",incoming?"دریافتی ثبت‌شده توسط کاربر":"پرداختی ثبت‌شده توسط کاربر"); o.put("date",stringOr(r.getString(1),"—")); o.put("title","ثبت کاربر • "+stringOr(r.getString(2),"—")+" • مشتری "+stringOr(r.getString(3),"—")); o.put("amount",r.getDouble(4)); o.put("status",stringOr(r.getString(5),"ثبت با اکانت پرسنل")); o.put("description",stringOr(r.getString(6),"")); rows.put(o);} } }
+    }
+
+    private void appendPersonnelPayrollRows(Connection c, JSONArray rows, List<String> matchValues, String from, String to) throws Exception {
+        if (matchValues == null || matchValues.isEmpty()) return;
+        String[] tables = {"salary","Salary","payroll","Payroll","hoghoogh","Hoghoogh","hoghogh","Hoghogh","bimeh","Bimeh","insurance","Insurance","personnel_payments","PersonnelPayments","hr_payments","HRPayments","pardakht_hoghoogh","PardakhtHoghoogh","حقوق","بیمه"};
+        for (String table : tables) {
+            if (!tableExists(c, table)) continue;
+            try { appendPersonnelPayrollRowsFromTable(c, rows, table, matchValues, from, to); } catch (Exception ignored) { }
+        }
+    }
+
+    private void appendPersonnelPayrollRowsFromTable(Connection c, JSONArray rows, String table, List<String> matchValues, String from, String to) throws Exception {
+        Set<String> cols = columns(c, table);
+        if (cols == null || cols.isEmpty()) return;
+        String person = resolveFlexible(cols,"vis_rdf","shvis","visitor","visitor_id","personnel_id","person_id","employee_id","staff_id","user_id","UserID","userid","username","user_name","UserName","name","Name","karbar","کاربر","personnel","employee");
+        String amount = resolveFlexible(cols,"amount","mablagh","mab","price","salary","hoghogh","حقوق","bimeh","insurance","mablagh_nahayi","net","net_amount","payment","pay");
+        if (person == null || amount == null) return;
+        String date = resolveFlexible(cols,"date","t_date","Date","created_at","created","pay_date","salary_date","tarikh","تاریخ");
+        String title = resolveFlexible(cols,"title","subject","name","description","Explain","tozihat","شرح","type","kind");
+        String desc = resolveFlexible(cols,"description","Explain","tozihat","شرح","comment","note","notes");
+        List<Object> params = new ArrayList<>();
+        String match = personnelMatchWhere("p", person, matchValues, params);
+        if (match.isEmpty()) return;
+        String dateExpr = date == null ? null : "p.["+date+"]";
+        String label = payrollLabelFor(table);
+        String sql = "SELECT TOP (80) " + (date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),p.["+date+"])") + ", " + (title==null?"N'"+label+"'":"TRY_CONVERT(nvarchar(240),p.["+title+"])") + ", TRY_CONVERT(decimal(19,2),p.["+amount+"]), " + (desc==null?"CAST(NULL AS nvarchar(500))":"TRY_CONVERT(nvarchar(500),p.["+desc+"])") + " FROM dbo.["+table+"] p WHERE " + match + personnelDateWhere(dateExpr,from,to,params) + " ORDER BY " + (date==null?"1":"p.["+date+"] DESC");
+        try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("type", label); o.put("date", stringOr(r.getString(1), "—")); o.put("title", stringOr(r.getString(2), label)); o.put("amount", r.getDouble(3)); o.put("status", "حقوق/بیمه/مزایا"); o.put("description", stringOr(r.getString(4), "")); rows.put(o); } } }
+    }
+
+    private String payrollLabelFor(String table) {
+        String t = table == null ? "" : table.toLowerCase(Locale.US);
+        if (t.contains("bimeh") || t.contains("insurance") || t.contains("بیم")) return "دریافتی بیمه/مزایا";
+        if (t.contains("salary") || t.contains("payroll") || t.contains("hog") || t.contains("حقوق")) return "دریافتی حقوق";
+        return "دریافتی حقوق/بیمه";
     }
 
     private JSONArray queryPersonnelAssignedCustomers(Connection c, String id) throws Exception {
@@ -4793,7 +4913,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.28.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.29.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -4805,7 +4925,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.28.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.29.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -4968,24 +5088,28 @@ public class MainActivity extends Activity {
         String f = filter == null || filter.trim().isEmpty() ? "all" : filter;
         String previousFilter = customersCacheFilter == null ? "all" : customersCacheFilter;
         if (customersSortOrder == null || customersSortOrder.trim().isEmpty() || !f.equals(previousFilter)) customersSortOrder = defaultCustomerSort(f);
-        if (!force && customersCacheJson != null && !customersCacheJson.trim().isEmpty() && q.equals(customersCacheQuery) && f.equals(customersCacheFilter)) {
-            try { renderCustomersFromJson(new JSONArray(customersCacheJson), q, f); return; } catch (Exception ignored) { }
+        if (!force && customersCacheJson != null && !customersCacheJson.trim().isEmpty() && q.equals(customersCacheQuery)) {
+            try {
+                JSONArray cached = new JSONArray(customersCacheJson);
+                if (customersCacheAllRows || f.equals(customersCacheFilter)) { customersCacheFilter = f; renderCustomersFromJson(cached, q, f); return; }
+            } catch (Exception ignored) { }
         }
         content.removeAllViews();
         addHero("مشتریان", "اطلاعات مشتریان ثابت می‌ماند؛ برای داده جدید از تازه‌سازی دستی استفاده کنید.");
         addManualRefreshPanel("customers", "بروزرسانی دستی مشتریان", "بازگشت از گردش حساب دیگر لیست را دوباره فراخوانی نمی‌کند", () -> loadCustomers(q, f, true));
         addSearchBox("جستجوی مشتری…", q, qq -> loadCustomers(qq, f, true));
-        addCustomerFilterChips(q, f);
+        addCustomerFilterChips(q, f, new JSONArray());
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         content.addView(list, new LinearLayout.LayoutParams(-1, -2));
         addLoading(list, "در حال دریافت مشتریان…");
-        runDb(() -> queryCustomers(q, f), new DbCallback() {
+        runDb(() -> queryCustomers(q, "all"), new DbCallback() {
             @Override public void ok(String body) {
                 try {
                     customersCacheJson = body;
                     customersCacheQuery = q;
                     customersCacheFilter = f;
+                    customersCacheAllRows = true;
                     markRefresh("customers");
                     renderCustomersFromJson(new JSONArray(body), q, f);
                 } catch (Exception e) { showPageError("مشتریان", e, () -> loadCustomers(q, f, true)); }
@@ -4999,11 +5123,14 @@ public class MainActivity extends Activity {
         addHero("مشتریان", "فیلتر هوشمند بدهکاران، بستانکاران، بدون خرید و پرخریدها");
         addManualRefreshPanel("customers", "بروزرسانی دستی مشتریان", "آخرین لیست ثابت نگه داشته شده است", () -> loadCustomers(query, filter, true));
         addSearchBox("جستجوی مشتری…", query, q -> loadCustomers(q, filter, true));
-        addCustomerFilterChips(query, filter);
-        if (rows == null || rows.length() == 0) { LinearLayout empty = new LinearLayout(this); empty.setOrientation(LinearLayout.VERTICAL); content.addView(empty, new LinearLayout.LayoutParams(-1, -2)); addEmptyTo(empty, "مشتری مطابق فیلتر پیدا نشد."); return; }
-        addCustomerSortPanel(query, filter, rows);
+        JSONArray allRows = rows == null ? new JSONArray() : rows;
+        addCustomerFilterChips(query, filter, allRows);
+        if (allRows.length() == 0) { LinearLayout empty = new LinearLayout(this); empty.setOrientation(LinearLayout.VERTICAL); content.addView(empty, new LinearLayout.LayoutParams(-1, -2)); addEmptyTo(empty, "مشتری مطابق جستجو پیدا نشد."); return; }
+        JSONArray visibleRows = customerFilteredRows(allRows, filter);
+        if (visibleRows.length() == 0) { LinearLayout empty = new LinearLayout(this); empty.setOrientation(LinearLayout.VERTICAL); content.addView(empty, new LinearLayout.LayoutParams(-1, -2)); addEmptyTo(empty, "در این دسته مشتری قابل نمایش وجود ندارد."); return; }
+        addCustomerSortPanel(query, filter, visibleRows);
         LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list, new LinearLayout.LayoutParams(-1, -2));
-        JSONArray sorted = sortedCustomers(rows, filter, customersSortOrder);
+        JSONArray sorted = sortedCustomers(visibleRows, filter, customersSortOrder);
         for (int i = 0; i < sorted.length(); i++) addCustomerCard(list, sorted.optJSONObject(i));
     }
 
@@ -5070,6 +5197,7 @@ public class MainActivity extends Activity {
         if ("debt".equals(filter)) return new String[][]{{"smart","اولویت وصول"},{"debt_desc","بیشترین بدهی"},{"debt_asc","کمترین بدهی"},{"oldest_sale","قدیمی‌ترین خرید"},{"latest_sale","جدیدترین خرید"},{"risk_desc","ریسک بیشتر"},{"check_desc","چک بیشتر"}};
         if ("credit".equals(filter)) return new String[][]{{"smart","اولویت تسویه"},{"credit_desc","بستانکاری بیشتر"},{"credit_asc","بستانکاری کمتر"},{"latest_sale","جدیدترین خرید"},{"sales_desc","بیشترین فروش"},{"name_asc","الفبایی"}};
         if ("no_buy".equals(filter)) return new String[][]{{"smart","فرصت فروش"},{"debt_desc","مانده بالاتر"},{"risk_desc","ریسک بیشتر"},{"name_asc","الفبایی"},{"latest_sale","آخرین تعامل"}};
+        if ("settled".equals(filter)) return new String[][]{{"smart","آماده فروش"},{"latest_sale","جدیدترین خرید"},{"sales_desc","بیشترین فروش"},{"invoice_desc","فاکتور بیشتر"},{"name_asc","الفبایی"}};
         if ("top".equals(filter)) return new String[][]{{"smart","ارزشمندترین"},{"sales_desc","بیشترین فروش"},{"invoice_desc","فاکتور بیشتر"},{"latest_sale","جدیدترین خرید"},{"debt_desc","مانده بدهی"},{"risk_desc","ریسک بیشتر"}};
         return new String[][]{{"smart","پیشنهاد میلو"},{"name_asc","الفبایی"},{"debt_desc","بیشترین بدهی"},{"latest_sale","جدیدترین خرید"},{"sales_desc","بیشترین فروش"},{"risk_desc","ریسک بیشتر"}};
     }
@@ -5096,6 +5224,7 @@ public class MainActivity extends Activity {
         if ("credit".equals(filter)) return "نمایش " + formatNumber(count) + " بستانکار؛ برای تسویه یا تهاتر سریع مرتب کنید.";
         if ("no_buy".equals(filter)) return "نمایش " + formatNumber(count) + " مشتری بدون خرید؛ مناسب کمپین تماس و بازفعال‌سازی.";
         if ("top".equals(filter)) return "نمایش " + formatNumber(count) + " مشتری پرخرید؛ مناسب نگهداشت و پیشنهاد اختصاصی.";
+        if ("settled".equals(filter)) return "نمایش " + formatNumber(count) + " مشتری بدون مانده؛ مناسب فروش مجدد بدون ریسک وصول.";
         return "نمایش " + formatNumber(count) + " مشتری؛ مرتب‌سازی بدون بارگذاری دوباره انجام می‌شود.";
     }
 
@@ -5133,6 +5262,7 @@ public class MainActivity extends Activity {
         if ("top".equals(filter)) return chain(compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareInt(b.optInt("تعداد_فاکتور",0), a.optInt("تعداد_فاکتور",0)), compareLong(customerLastSaleValue(b), customerLastSaleValue(a)), compareName(a,b));
         if ("credit".equals(filter)) return chain(compareDouble(customerCreditAmount(b), customerCreditAmount(a)), compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareLong(customerLastSaleValue(b), customerLastSaleValue(a)), compareName(a,b));
         if ("no_buy".equals(filter)) return chain(compareInt(customerRiskScore(b), customerRiskScore(a)), compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareName(a,b));
+        if ("settled".equals(filter)) return chain(compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareLong(customerLastSaleValue(b), customerLastSaleValue(a)), compareName(a,b));
         if ("debt".equals(filter)) return chain(compareInt(customerRiskScore(b), customerRiskScore(a)), compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareDouble(num(b,"جمع_چک"), num(a,"جمع_چک")), compareLong(customerLastSaleValue(a), customerLastSaleValue(b)), compareName(a,b));
         return chain(compareInt(customerRiskScore(b), customerRiskScore(a)), compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareName(a,b));
     }
@@ -5163,7 +5293,35 @@ public class MainActivity extends Activity {
                 .replace('٠','0').replace('١','1').replace('٢','2').replace('٣','3').replace('٤','4').replace('٥','5').replace('٦','6').replace('٧','7').replace('٨','8').replace('٩','9');
     }
 
-    private void addCustomerFilterChips(String query, String activeFilter) {
+    private JSONArray customerFilteredRows(JSONArray rows, String filter) {
+        JSONArray out = new JSONArray();
+        if (rows == null) return out;
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject r = rows.optJSONObject(i);
+            if (r != null && customerMatchesFilter(r, filter)) out.put(r);
+        }
+        return out;
+    }
+
+    private int customerFilterCount(JSONArray rows, String filter) {
+        int count = 0;
+        if (rows != null) for (int i = 0; i < rows.length(); i++) if (customerMatchesFilter(rows.optJSONObject(i), filter)) count++;
+        return count;
+    }
+
+    private boolean customerMatchesFilter(JSONObject r, String filter) {
+        if (r == null) return false;
+        String f = filter == null || filter.trim().isEmpty() ? "all" : filter;
+        double balance = r.optDouble("مانده", 0);
+        if ("debt".equals(f)) return balance > 0.0001;
+        if ("credit".equals(f)) return balance < -0.0001;
+        if ("settled".equals(f)) return Math.abs(balance) <= 0.0001;
+        if ("no_buy".equals(f)) return r.optInt("تعداد_فاکتور", 0) <= 0;
+        if ("top".equals(f)) return r.optDouble("جمع_فروش", 0) > 0 || r.optInt("تعداد_فاکتور", 0) > 0;
+        return true;
+    }
+
+    private void addCustomerFilterChips(String query, String activeFilter, JSONArray allRows) {
         LinearLayout panel = card();
         panel.setPadding(dp(13), dp(13), dp(13), dp(13));
         panel.setBackground(gradient(new int[]{alpha(GOLD, 22), alpha(INFO, 12), alpha(SURFACE, 245)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
@@ -5178,26 +5336,31 @@ public class MainActivity extends Activity {
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(10), 0, dp(10), 0);
         copy.addView(text("فیلترهای هوشمند مشتری", 13.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        copy.addView(text("جستجو بالا مستقل است؛ این بخش نوع مشتری را انتخاب می‌کند و مرتب‌سازی پایین می‌آید.", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text("مشتری‌ها بر اساس مانده و وضعیت خرید، همین‌جا و بدون دریافت دوباره از SQL دسته‌بندی می‌شوند.", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         titleRow.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         panel.addView(titleRow, new LinearLayout.LayoutParams(-1, -2));
 
+        HorizontalScrollView filterScroll = new HorizontalScrollView(this);
+        styleHorizontalScroll(filterScroll);
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
-        String[][] filters = {{"all","همه"},{"debt","بدهکار"},{"credit","بستانکار"},{"no_buy","بدون خرید"},{"top","پرخرید"}};
+        final JSONArray rowsForFilter = allRows == null ? new JSONArray() : allRows;
+        String[][] filters = {{"all","همه"},{"debt","بدهکار"},{"credit","بستانکار"},{"settled","بدون حساب"},{"no_buy","بدون خرید"},{"top","پرخرید"}};
         for (String[] f : filters) {
             final String nextFilter = f[0];
-            Button b = activeFilter.equals(nextFilter) ? primaryButton(f[1]) : secondaryButton(f[1]);
-            b.setTextSize(10.2f);
-            b.setOnClickListener(v -> { if (!nextFilter.equals(activeFilter)) customersSortOrder = defaultCustomerSort(nextFilter); loadCustomers(query, nextFilter); });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(42), 1f);
-            lp.setMargins(dp(3), 0, dp(3), 0);
+            String label = f[1] + " " + formatNumber(customerFilterCount(rowsForFilter, nextFilter));
+            Button b = activeFilter.equals(nextFilter) ? primaryButton(label) : secondaryButton(label);
+            b.setTextSize(9.2f);
+            b.setOnClickListener(v -> { if (!nextFilter.equals(activeFilter)) customersSortOrder = defaultCustomerSort(nextFilter); customersCacheFilter = nextFilter; renderCustomersFromJson(rowsForFilter, query, nextFilter); });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(106), dp(42));
+            lp.setMargins(dp(2), 0, dp(2), 0);
             box.addView(b, lp);
         }
+        filterScroll.addView(box, new FrameLayout.LayoutParams(-2, -2));
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
         bp.setMargins(0, dp(14), 0, 0);
-        panel.addView(box, bp);
+        panel.addView(filterScroll, bp);
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, -2);
         pp.setMargins(0, dp(10), 0, dp(16));
         content.addView(panel, pp);
@@ -5258,6 +5421,7 @@ public class MainActivity extends Activity {
             String checkApply = canChecks ? "OUTER APPLY (SELECT ISNULL(SUM(TRY_CONVERT(decimal(19,2),g.[" + resolve(checkCols, "getchkmab") + "])),0) check_total FROM dbo.getchk g WHERE g.[" + resolve(checkCols, "shmo") + "]=c.[" + shmo + "]) ch " : "OUTER APPLY (SELECT CAST(0 AS decimal(19,2)) check_total) ch ";
             if ("debt".equals(filter) && balance != null) where.add("TRY_CONVERT(decimal(19,2),c.[" + balance + "])>0");
             if ("credit".equals(filter) && balance != null) where.add("TRY_CONVERT(decimal(19,2),c.[" + balance + "])<0");
+            if ("settled".equals(filter) && balance != null) where.add("ABS(ISNULL(TRY_CONVERT(decimal(19,2),c.[" + balance + "]),0))<=0.0001");
             if ("no_buy".equals(filter) && canSales) where.add("ISNULL(sf.sales_count,0)=0");
             String order = "top".equals(filter) ? " ORDER BY جمع_فروش DESC, نام" : ("debt".equals(filter) ? " ORDER BY مانده DESC, نام" : " ORDER BY نام, کد");
             String sql = "SELECT TOP (350) " + join(select, ",") + " FROM dbo.[CUSTOMERS] c " + saleApply + checkApply +
@@ -5679,14 +5843,6 @@ public class MainActivity extends Activity {
         row.addView(customerMiniMetric("ریسک", formatNumber(risk) + "٪", customerRiskAccent(risk)), weightedMiniLp());
         row.addView(customerMiniMetric("آخرین خرید", stringOr(customer.optString("آخرین_خرید", ""), "—"), INFO), weightedMiniLp());
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
-        String address = cleanCustomerAddress(customer.optString("نشانی", ""));
-        if (!address.isEmpty()) {
-            TextView addr = text("نشانی: " + address, 10.4f, alpha(TEXT, 205), Typeface.BOLD);
-            addr.setMaxLines(3); addr.setEllipsize(TextUtils.TruncateAt.END); addr.setPadding(dp(9), dp(7), dp(9), dp(7));
-            addr.setBackground(roundedStroke(alpha(SUCCESS, 12), 16, alpha(SUCCESS, 55)));
-            LinearLayout.LayoutParams adp = new LinearLayout.LayoutParams(-1, -2); adp.setMargins(0, dp(9), 0, 0); c.addView(addr, adp);
-            addCustomerAddressActions(c, address);
-        }
         TextView advice = text("پیشنهاد میلو: " + customerAdvice(customer), 10.8f, alpha(TEXT, 220), Typeface.BOLD);
         advice.setGravity(Gravity.CENTER); advice.setPadding(dp(10), dp(8), dp(10), dp(8)); advice.setBackground(roundedStroke(alpha(INFO, 18), 16, alpha(INFO, 62)));
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(10), 0, 0); c.addView(advice, ap);
@@ -6558,7 +6714,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.28.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.29.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -8882,7 +9038,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.28.0\nاین نسخه فراخوانی نشانی مشتریان، بازگشت هوشمند جزئیات مشتری، پرونده تفکیک‌شده پرسنل با فیلتر تاریخ، اهداف ویزیتور و مشتریان اختصاصی، و هماهنگی آیکن‌های صفحه اصلی را بهبود می‌دهد؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.29.0\nاین نسخه آیکن فرماندهی را هماهنگ‌تر می‌کند، فیلتر مشتریان را بدون بارگذاری دوباره و بر اساس مانده دسته‌بندی می‌کند، نشانی تکراری را از جزئیات مشتری حذف می‌کند و دریافتی‌های ثبت‌شده با اکانت پرسنل و حقوق/بیمه را بهتر شناسایی می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
