@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.android'
         minSdk 24
         targetSdk 35
-        versionCode 29
-        versionName '3.24.0-direct-sql-collab-polish'
+        versionCode 30
+        versionName '3.25.0-direct-sql-full-audit-suite'
     }
 
     compileOptions {
