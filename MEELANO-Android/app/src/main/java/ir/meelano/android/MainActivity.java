@@ -1393,13 +1393,27 @@ public class MainActivity extends Activity {
     }
 
     private void restoreQuickLogin() {
-        UserSession s = storedQuickSession();
-        if (s == null) { Toast.makeText(this, "جلسه ذخیره‌شده پیدا نشد.", Toast.LENGTH_SHORT).show(); return; }
-        session = s;
-        clearUserScopedCaches();
-        setConnectionStatus("connected");
-        Toast.makeText(this, "ورود سریع انجام شد.", Toast.LENGTH_SHORT).show();
-        showApp("dashboard");
+        UserSession saved = storedQuickSession();
+        if (saved == null) { Toast.makeText(this, "جلسه ذخیره‌شده پیدا نشد.", Toast.LENGTH_SHORT).show(); return; }
+        setConnectionStatus("loading");
+        executor.execute(() -> {
+            try (Connection c = openConnection()) {
+                UserSession fresh = withResolvedAccessRole(c, saved, saved.userName);
+                runOnUiThread(() -> {
+                    session = fresh;
+                    clearUserScopedCaches();
+                    storeQuickSession(fresh);
+                    setConnectionStatus("connected");
+                    Toast.makeText(this, "ورود سریع انجام شد و مجوزها بروزرسانی شد.", Toast.LENGTH_SHORT).show();
+                    showApp("dashboard");
+                });
+            } catch (Exception ex) {
+                runOnUiThread(() -> {
+                    setConnectionStatus("offline");
+                    showLoginError(readableError(ex), () -> restoreQuickLogin());
+                });
+            }
+        });
     }
 
     private void showLoginError(String message, Runnable retry) {
@@ -1767,7 +1781,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.34.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.35.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -5568,7 +5582,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.34.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.35.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -5580,7 +5594,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.34.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.35.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -7712,7 +7726,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.34.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.35.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -10377,7 +10391,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.34.0\nاین نسخه دکمه مدیریت دسترسی را جایگزین دکمه قبلی بالای برنامه می‌کند، بخش قبلی را حذف می‌کند و پنل کامل نقش/مجوز برای کاربران آتیران، ویزیتورها، مامور پخش، راننده و کارگر می‌سازد؛ مجوزها پس از ورود کاربر اعمال می‌شوند.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.35.0\nاین نسخه مدیریت کامل نقش/مجوز کاربران را اضافه می‌کند و حتی در ورود سریع نیز نقش و مجوز از SQL دوباره خوانده می‌شود تا تنظیمات مدیر پس از ورود اعمال گردد.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
