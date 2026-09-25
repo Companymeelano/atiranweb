@@ -122,6 +122,9 @@ public class MainActivity extends Activity {
     private static final String KEY_AI_CHATGPT = "assistant_ai_chatgpt";
     private static final String KEY_AI_GEMINI = "assistant_ai_gemini";
     private static final String KEY_AI_GROK = "assistant_ai_grok";
+    private static final String KEY_AI_GROQ = "assistant_ai_groq";
+    private static final String KEY_AI_GAPGPT = "assistant_ai_gapgpt";
+    private static final String KEY_AI_GAPGPT_BASE = "assistant_ai_gapgpt_base";
     private static final String KEY_COMPACT_UI = "meelano_compact_ui";
     private static final String KEY_REDUCED_MOTION = "meelano_reduced_motion";
     private static final String KEY_CACHE_DASHBOARD = "cache_dashboard_json";
@@ -672,13 +675,15 @@ public class MainActivity extends Activity {
 
             float moonX = w - s * 0.24f;
             float moonY = s * 0.23f;
-            p.setColor(alpha(moonColor, 62));
-            canvas.drawCircle(moonX, moonY, s * (0.20f + 0.015f * pulse), p);
-            p.setColor(moonColor);
-            canvas.drawCircle(moonX, moonY, s * 0.135f, p);
-            p.setColor(skyA);
-            canvas.drawCircle(moonX - s * 0.052f, moonY - s * 0.026f, s * 0.125f, p);
-            p.setColor(alpha(Color.WHITE, isLightTheme() ? 155 : 120));
+            p.setColor(alpha(moonColor, 92));
+            canvas.drawCircle(moonX, moonY, s * (0.245f + 0.016f * pulse), p);
+            p.setColor(alpha(mix(moonColor, GOLD, 0.20f), 225));
+            canvas.drawCircle(moonX, moonY, s * 0.165f, p);
+            p.setColor(alpha(Color.WHITE, 120));
+            canvas.drawCircle(moonX - s * 0.045f, moonY - s * 0.04f, s * 0.045f, p);
+            p.setColor(alpha(GOLD_2, 120));
+            canvas.drawCircle(moonX + s * 0.052f, moonY + s * 0.038f, s * 0.030f, p);
+            p.setColor(alpha(Color.WHITE, isLightTheme() ? 165 : 132));
             float[][] stars = {{.22f,.22f,.018f},{.38f,.15f,.012f},{.18f,.43f,.010f},{.68f,.40f,.013f},{.48f,.31f,.009f}};
             for (int i = 0; i < stars.length; i++) {
                 float twinkle = 0.65f + 0.35f * (float)Math.sin(t * 2.0f + i * 1.7f);
@@ -696,12 +701,16 @@ public class MainActivity extends Activity {
                 p.setColor(alpha(mix(mColor, Color.BLACK, 0.42f), 88 + i * 18));
                 canvas.drawText("M", mx + i * s * 0.012f, my + i * s * 0.014f, p);
             }
-            p.setColor(mColor);
+            p.setColor(mix(INFO, mColor, 0.35f));
+            canvas.drawText("M", mx - s * 0.018f, my - s * 0.010f, p);
+            p.setColor(mix(DANGER, INFO, 0.28f));
+            canvas.drawText("M", mx + s * 0.010f, my + s * 0.006f, p);
+            p.setColor(mix(mColor, moonColor, 0.36f));
             canvas.drawText("M", mx, my, p);
             p.clearShadowLayer();
             p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(Math.max(1.1f, s * 0.018f));
-            p.setColor(alpha(Color.WHITE, isLightTheme() ? 130 : 96));
+            p.setStrokeWidth(Math.max(1.1f, s * 0.019f));
+            p.setColor(alpha(Color.WHITE, isLightTheme() ? 170 : 132));
             canvas.drawText("M", mx, my, p);
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(Math.max(1.0f, s * 0.012f));
@@ -1745,7 +1754,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.31.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.32.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -4439,7 +4448,7 @@ public class MainActivity extends Activity {
         String name = resolve(v, "vis_name", "name", "Name", "MONAME", "moname", "full_name");
         String username = resolve(v, "Username", "username", "user_name", "user", "login", "UserName");
         String phone = resolve(v, "mobile", "Mobile", "tel", "Tell", "phone", "Phone", "mobile_no");
-        String balance = resolve(v, "man", "mande", "balance", "Balance", "Mandeh", "hesab");
+        String balance = resolveFlexible(v, "man", "mande", "mandeh", "mande_hesab", "mande hesab", "balance", "Balance", "Mandeh", "hesab", "account_balance", "bed", "bes", "bedehkar", "bestankar", "bedehi", "مانده", "مانده_حساب");
         String nameExpr = name == null ? "TRY_CONVERT(nvarchar(220),v.[" + id + "])" : "TRY_CONVERT(nvarchar(220),v.[" + name + "])";
         String userExpr = username == null ? "CAST(NULL AS nvarchar(120))" : "TRY_CONVERT(nvarchar(120),v.[" + username + "])";
         String phoneExpr = phone == null ? "CAST(NULL AS nvarchar(120))" : "TRY_CONVERT(nvarchar(120),v.[" + phone + "])";
@@ -4458,7 +4467,9 @@ public class MainActivity extends Activity {
         try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
             while (r.next()) {
                 String pid = stringOr(r.getString(1), ""); String u = stringOr(r.getString(3), ""); String key = u + "|" + pid; if (seen.contains(key)) continue; seen.add(key);
-                JSONObject o = new JSONObject(); o.put("id", pid); o.put("name", stringOr(r.getString(2), "پرسنل")); o.put("username", u); o.put("phone", stringOr(r.getString(4), "")); o.put("balance", r.getDouble(5)); o.put("docs", r.getLong(6)); o.put("sales", r.getDouble(7)); o.put("last", stringOr(r.getString(8), "")); o.put("source", "visitors"); arr.put(o);
+                double liveBalance = r.getDouble(5);
+                if (Math.abs(liveBalance) <= 0.0001) liveBalance = computedPersonnelBalance(c, pid, u);
+                JSONObject o = new JSONObject(); o.put("id", pid); o.put("name", stringOr(r.getString(2), "پرسنل")); o.put("username", u); o.put("phone", stringOr(r.getString(4), "")); o.put("balance", liveBalance); o.put("docs", r.getLong(6)); o.put("sales", r.getDouble(7)); o.put("last", stringOr(r.getString(8), "")); o.put("source", "visitors"); arr.put(o);
             }
         }
     }
@@ -4466,20 +4477,109 @@ public class MainActivity extends Activity {
     private void appendSysUsersPersonnel(Connection c, JSONArray arr) throws Exception {
         if (!tableExists(c, "sys_users")) return;
         Set<String> ucols = columns(c, "sys_users");
-        String uid = resolve(ucols, "user_id", "id", "ID");
-        String uname = resolve(ucols, "user_name", "username", "Username", "name", "Name");
+        String uid = resolveFlexible(ucols, "user_id", "UserID", "userid", "id", "ID");
+        String uname = resolveFlexible(ucols, "user_name", "username", "Username", "UserName", "name", "Name");
         if (uid == null || uname == null) return;
+        String phone = resolveFlexible(ucols, "mobile", "Mobile", "tel", "Tell", "phone", "Phone", "mobile_no");
+        String balance = resolveFlexible(ucols, "man", "mande", "mandeh", "mande_hesab", "balance", "Balance", "Mandeh", "hesab", "account_balance", "bed", "bes", "bedehi", "مانده", "مانده_حساب");
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < arr.length(); i++) { JSONObject o = arr.optJSONObject(i); if (o != null) { seen.add(o.optString("username", "").toLowerCase(Locale.US)); seen.add(o.optString("id", "")); } }
-        String usql = "SELECT TOP (160) TRY_CONVERT(nvarchar(100),[" + uid + "]), TRY_CONVERT(nvarchar(220),[" + uname + "]) FROM dbo.sys_users ORDER BY [" + uname + "]";
+        String phoneExpr = phone == null ? "CAST(NULL AS nvarchar(120))" : "TRY_CONVERT(nvarchar(120),[" + phone + "])";
+        String balExpr = balance == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(TRY_CONVERT(decimal(19,2),[" + balance + "]),0)";
+        String usql = "SELECT TOP (160) TRY_CONVERT(nvarchar(100),[" + uid + "]), TRY_CONVERT(nvarchar(220),[" + uname + "]), " + phoneExpr + ", " + balExpr + " FROM dbo.sys_users ORDER BY [" + uname + "]";
         try (PreparedStatement ps = c.prepareStatement(usql); ResultSet r = ps.executeQuery()) {
             while (r.next()) {
                 String id = stringOr(r.getString(1), ""); String user = stringOr(r.getString(2), "");
                 if (seen.contains(user.toLowerCase(Locale.US)) || seen.contains(id)) continue;
-                JSONObject o = new JSONObject(); o.put("id", id); o.put("name", stringOr(user, "پرسنل")); o.put("username", user); o.put("phone", ""); o.put("balance", 0); o.put("docs", 0); o.put("sales", 0); o.put("last", ""); o.put("source", "sys_users"); arr.put(o);
+                double liveBalance = r.getDouble(4);
+                if (Math.abs(liveBalance) <= 0.0001) liveBalance = computedPersonnelBalance(c, id, user);
+                JSONObject o = new JSONObject(); o.put("id", id); o.put("name", stringOr(user, "پرسنل")); o.put("username", user); o.put("phone", stringOr(r.getString(3), "")); o.put("balance", liveBalance); o.put("docs", 0); o.put("sales", 0); o.put("last", ""); o.put("source", "sys_users"); arr.put(o);
             }
         }
     }
+
+    private List<String> personnelVisitorIds(Connection c, String id, String username) {
+        List<String> ids = new ArrayList<>();
+        addUniqueValue(ids, id);
+        try {
+            if (c != null && tableExists(c, "sys_vis")) {
+                Set<String> sv = columns(c, "sys_vis");
+                String uid = resolveFlexible(sv, "UserID", "user_id", "userid", "user", "id_user");
+                String shvis = resolveFlexible(sv, "shvis", "vis_rdf", "visitor", "visitor_id", "VisitorID");
+                if (uid != null && shvis != null && id != null && !id.trim().isEmpty()) {
+                    try (PreparedStatement ps = c.prepareStatement("SELECT TOP (5) TRY_CONVERT(nvarchar(100),[" + shvis + "]) FROM dbo.sys_vis WHERE TRY_CONVERT(nvarchar(100),[" + uid + "])=?")) {
+                        ps.setString(1, id.trim());
+                        try (ResultSet r = ps.executeQuery()) { while (r.next()) addUniqueValue(ids, r.getString(1)); }
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
+        try {
+            if (c != null && tableExists(c, "visitors") && username != null && !username.trim().isEmpty()) {
+                Set<String> v = columns(c, "visitors");
+                String vid = resolveFlexible(v, "vis_rdf", "rdf", "RDF", "ID", "id", "shvis");
+                String uname = resolveFlexible(v, "Username", "username", "user_name", "user", "login", "UserName");
+                if (vid != null && uname != null) {
+                    try (PreparedStatement ps = c.prepareStatement("SELECT TOP (5) TRY_CONVERT(nvarchar(100),[" + vid + "]) FROM dbo.visitors WHERE LOWER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(160),[" + uname + "]))))=LOWER(LTRIM(RTRIM(?)))")) {
+                        ps.setString(1, username.trim());
+                        try (ResultSet r = ps.executeQuery()) { while (r.next()) addUniqueValue(ids, r.getString(1)); }
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
+        return ids;
+    }
+
+    private double computedPersonnelBalance(Connection c, String id, String username) {
+        double balance = 0;
+        try {
+            if (c == null || !tableExists(c, "CUSTOMERS")) return 0;
+            Set<String> cols = columns(c, "CUSTOMERS");
+            String vis = resolveFlexible(cols, "vis_rdf", "VisitorID", "visid", "visitor", "shvis");
+            String bal = resolveFlexible(cols, "man", "mande", "mandeh", "Balance", "Mandeh", "mande_hesab", "مانده", "مانده_حساب");
+            if (vis == null || bal == null) return 0;
+            List<String> visitorIds = personnelVisitorIds(c, id, username);
+            Set<String> used = new HashSet<>();
+            for (String vid : visitorIds) {
+                if (vid == null || vid.trim().isEmpty() || used.contains(vid.trim())) continue;
+                used.add(vid.trim());
+                try (PreparedStatement ps = c.prepareStatement("SELECT ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + bal + "])),0) FROM dbo.CUSTOMERS WHERE TRY_CONVERT(nvarchar(100),[" + vis + "])=?")) {
+                    ps.setString(1, vid.trim());
+                    try (ResultSet r = ps.executeQuery()) { if (r.next()) balance += r.getDouble(1); }
+                }
+            }
+        } catch (Exception ignored) { }
+        if (Math.abs(balance) <= 0.0001) balance = personnelSalesRemainder(c, personnelVisitorIds(c, id, username));
+        return balance;
+    }
+
+    private double personnelSalesRemainder(Connection c, List<String> visitorIds) {
+        double total = 0;
+        try {
+            if (c == null || visitorIds == null || visitorIds.isEmpty() || !tableExists(c, "sailfact")) return 0;
+            Set<String> sail = columns(c, "sailfact");
+            String visitor = resolveFlexible(sail, "vis_rdf", "visitor", "visitor_id", "shvis", "VisitorID");
+            String amount = resolveFlexible(sail, "all", "amount", "total", "Total", "mablagh", "مبلغ");
+            if (visitor == null || amount == null) return 0;
+            String paid = resolveFlexible(sail, "MabDaryaftFactor", "Daryaft", "received", "paid");
+            String discount = resolveFlexible(sail, "tdf", "tafif", "takhfif", "discount");
+            String expr = "ISNULL(TRY_CONVERT(decimal(19,2),[" + amount + "]),0)";
+            if (paid != null) expr += "-ISNULL(TRY_CONVERT(decimal(19,2),[" + paid + "]),0)";
+            if (discount != null) expr += "-ISNULL(TRY_CONVERT(decimal(19,2),[" + discount + "]),0)";
+            Set<String> used = new HashSet<>();
+            for (String vid : visitorIds) {
+                if (vid == null || vid.trim().isEmpty() || used.contains(vid.trim())) continue;
+                used.add(vid.trim());
+                String sql = "SELECT ISNULL(SUM(CASE WHEN (" + expr + ")>0 THEN (" + expr + ") ELSE 0 END),0) FROM dbo.sailfact WHERE TRY_CONVERT(nvarchar(100),[" + visitor + "])=?" + activeAnd(sail, "");
+                try (PreparedStatement ps = c.prepareStatement(sql)) {
+                    ps.setString(1, vid.trim());
+                    try (ResultSet r = ps.executeQuery()) { if (r.next()) total += r.getDouble(1); }
+                }
+            }
+        } catch (Exception ignored) { }
+        return total;
+    }
+
 
     private void renderPersonnel(JSONArray rows) {
         content.removeAllViews();
@@ -5002,7 +5102,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.31.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.32.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -5014,7 +5114,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.31.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.32.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -7140,7 +7240,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.31.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.32.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -8773,6 +8873,8 @@ public class MainActivity extends Activity {
 
     private String callAiProvider(String provider, String key, String question, String snapshot) throws Exception {
         if ("gemini".equals(provider)) return callGemini(key, question, snapshot);
+        if ("groq".equals(provider)) return callChatCompletions("https://api.groq.com/openai/v1/chat/completions", "llama-3.3-70b-versatile", key, question, snapshot);
+        if ("gapgpt".equals(provider)) return callChatCompletions(prefString(KEY_AI_GAPGPT_BASE, "https://api.gapgpt.app/v1") + "/chat/completions", "gpt-4o-mini", key, question, snapshot);
         if ("grok".equals(provider)) return callChatCompletions("https://api.x.ai/v1/chat/completions", "grok-2-latest", key, question, snapshot);
         return callChatCompletions("https://api.openai.com/v1/chat/completions", "gpt-4o-mini", key, question, snapshot);
     }
@@ -8809,7 +8911,7 @@ public class MainActivity extends Activity {
         req.put("contents", contents);
         req.put("generationConfig", new JSONObject().put("temperature", 0.35).put("maxOutputTokens", 520));
         String encoded = URLEncoder.encode(key, "UTF-8");
-        String response = httpPost("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + encoded, req.toString(), new HashMap<>());
+        String response = httpPost("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + encoded, req.toString(), new HashMap<>());
         JSONObject json = new JSONObject(response);
         JSONArray candidates = json.optJSONArray("candidates");
         if (candidates == null || candidates.length() == 0) return "";
@@ -8864,18 +8966,24 @@ public class MainActivity extends Activity {
         if (!storedAiKey(selected).isEmpty()) return selected;
         if (!storedAiKey("chatgpt").isEmpty()) return "chatgpt";
         if (!storedAiKey("gemini").isEmpty()) return "gemini";
+        if (!storedAiKey("groq").isEmpty()) return "groq";
+        if (!storedAiKey("gapgpt").isEmpty()) return "gapgpt";
         if (!storedAiKey("grok").isEmpty()) return "grok";
         return selected == null ? "" : selected;
     }
 
     private String providerDisplayName(String provider) {
+        if ("groq".equals(provider)) return "Groq";
+        if ("gapgpt".equals(provider)) return "GapGPT";
         if ("grok".equals(provider)) return "Grok";
         if ("gemini".equals(provider)) return "Gemini";
-        if ("chatgpt".equals(provider)) return "ChatGPT";
+        if ("chatgpt".equals(provider)) return "OpenAI";
         return "تحلیل داخلی";
     }
 
     private String providerPrefKey(String provider) {
+        if ("groq".equals(provider)) return KEY_AI_GROQ;
+        if ("gapgpt".equals(provider)) return KEY_AI_GAPGPT;
         if ("grok".equals(provider)) return KEY_AI_GROK;
         if ("gemini".equals(provider)) return KEY_AI_GEMINI;
         if ("chatgpt".equals(provider)) return KEY_AI_CHATGPT;
@@ -8964,7 +9072,7 @@ public class MainActivity extends Activity {
 
     private String keyStatus(String provider) {
         String key = storedAiKey(provider);
-        return providerDisplayName(provider) + ": " + (key.isEmpty() ? "ثبت نشده" : "ذخیره شده • " + key.length() + " کاراکتر");
+        return providerDisplayName(provider) + ": " + (key.isEmpty() ? "ثبت نشده" : "ذخیره‌شده • ********");
     }
 
     private void addAiSettingsCard() {
@@ -8975,22 +9083,24 @@ public class MainActivity extends Activity {
         ai.addView(text("دستیار هوش مصنوعی", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         TextView summary = text("مدل فعال: " + providerDisplayName(activeAiProvider()) + " • نام خطاب: " + displayFirstName(), 11.2f, MUTED, Typeface.NORMAL);
         ai.addView(summary, new LinearLayout.LayoutParams(-1, -2));
-        TextView status = text(keyStatus("chatgpt") + "\n" + keyStatus("gemini") + "\n" + keyStatus("grok"), 10.7f, alpha(TEXT, 205), Typeface.NORMAL);
+        TextView status = text(aiKeyStatusText(), 10.7f, alpha(TEXT, 205), Typeface.NORMAL);
         status.setLineSpacing(dp(2), 1.05f);
         LinearLayout.LayoutParams stp = new LinearLayout.LayoutParams(-1, -2); stp.setMargins(0, dp(8), 0, 0);
         ai.addView(status, stp);
 
-        EditText chatgpt = apiInput("ChatGPT / OpenAI API key", "chatgpt");
-        EditText gemini = apiInput("Gemini API key", "gemini");
-        EditText grok = apiInput("Grok / xAI API key", "grok");
-        addApiField(ai, "ChatGPT", chatgpt);
+        EditText chatgpt = apiInput("OpenAI API key • فقط ستاره‌ای ذخیره می‌شود", "chatgpt");
+        EditText gemini = apiInput("Gemini API key • فقط ستاره‌ای ذخیره می‌شود", "gemini");
+        EditText groq = apiInput("Groq API key • فقط ستاره‌ای ذخیره می‌شود", "groq");
+        EditText gapgpt = apiInput("GapGPT API key • فقط ستاره‌ای ذخیره می‌شود", "gapgpt");
+        addApiField(ai, "OpenAI", chatgpt);
         addApiField(ai, "Gemini", gemini);
-        addApiField(ai, "Grok", grok);
+        addApiField(ai, "Groq", groq);
+        addApiField(ai, "GapGPT", gapgpt);
 
         Button save = primaryButton("ذخیره کلیدهای واردشده");
         save.setOnClickListener(v -> {
-            saveEnteredAiKeys(chatgpt, gemini, grok);
-            status.setText(keyStatus("chatgpt") + "\n" + keyStatus("gemini") + "\n" + keyStatus("grok"));
+            saveEnteredAiKeys(chatgpt, gemini, groq, gapgpt);
+            status.setText(aiKeyStatusText());
             summary.setText("مدل فعال: " + providerDisplayName(activeAiProvider()) + " • نام خطاب: " + displayFirstName());
             Toast.makeText(this, "کلیدهای AI ذخیره شدند", Toast.LENGTH_SHORT).show();
         });
@@ -9001,11 +9111,11 @@ public class MainActivity extends Activity {
         tests.setOrientation(LinearLayout.HORIZONTAL);
         Button t1 = secondaryButton("تست ChatGPT");
         Button t2 = secondaryButton("تست Gemini");
-        Button t3 = secondaryButton("تست Grok");
+        Button t3 = secondaryButton("تست Groq");
         t1.setTextSize(9.8f); t2.setTextSize(9.8f); t3.setTextSize(9.8f);
         t1.setOnClickListener(v -> validateKeyFromField("chatgpt", chatgpt, status));
         t2.setOnClickListener(v -> validateKeyFromField("gemini", gemini, status));
-        t3.setOnClickListener(v -> validateKeyFromField("grok", grok, status));
+        t3.setOnClickListener(v -> validateKeyFromField("groq", groq, status));
         LinearLayout.LayoutParams bt = new LinearLayout.LayoutParams(0, dp(42), 1f); bt.setMargins(dp(3), dp(10), dp(3), 0);
         tests.addView(t1, bt);
         LinearLayout.LayoutParams bt2 = new LinearLayout.LayoutParams(0, dp(42), 1f); bt2.setMargins(dp(3), dp(10), dp(3), 0);
@@ -9013,6 +9123,11 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams bt3 = new LinearLayout.LayoutParams(0, dp(42), 1f); bt3.setMargins(dp(3), dp(10), dp(3), 0);
         tests.addView(t3, bt3);
         ai.addView(tests, new LinearLayout.LayoutParams(-1, -2));
+        Button t4 = secondaryButton("تست GapGPT");
+        t4.setTextSize(9.8f);
+        t4.setOnClickListener(v -> validateKeyFromField("gapgpt", gapgpt, status));
+        LinearLayout.LayoutParams bt4 = new LinearLayout.LayoutParams(-1, dp(42)); bt4.setMargins(dp(3), dp(8), dp(3), 0);
+        ai.addView(t4, bt4);
 
         LinearLayout more = new LinearLayout(this);
         more.setOrientation(LinearLayout.HORIZONTAL);
@@ -9021,10 +9136,11 @@ public class MainActivity extends Activity {
         Button rename = secondaryButton("تغییر نام من");
         testAll.setTextSize(10.2f); choose.setTextSize(10.2f); rename.setTextSize(10.2f);
         testAll.setOnClickListener(v -> {
-            saveEnteredAiKeys(chatgpt, gemini, grok);
+            saveEnteredAiKeys(chatgpt, gemini, groq, gapgpt);
             validateKeyFromField("chatgpt", chatgpt, status);
             validateKeyFromField("gemini", gemini, status);
-            validateKeyFromField("grok", grok, status);
+            validateKeyFromField("groq", groq, status);
+            validateKeyFromField("gapgpt", gapgpt, status);
         });
         choose.setOnClickListener(v -> showAiProviderChooser(summary));
         rename.setOnClickListener(v -> maybeAskFirstName(true));
@@ -9039,11 +9155,11 @@ public class MainActivity extends Activity {
         Button clear = secondaryButton("پاک کردن همه کلیدهای AI");
         clear.setOnClickListener(v -> new AlertDialog.Builder(this)
                 .setTitle("پاک کردن کلیدها")
-                .setMessage("کلیدهای ChatGPT، Gemini و Grok از همین دستگاه پاک شوند؟")
+                .setMessage("کلیدهای OpenAI، Gemini، Groq و GapGPT از همین دستگاه پاک شوند؟")
                 .setNegativeButton("خیر", null)
                 .setPositiveButton("بله، پاک کن", (d, w) -> {
-                    prefs.edit().remove(KEY_AI_CHATGPT).remove(KEY_AI_GEMINI).remove(KEY_AI_GROK).apply();
-                    status.setText(keyStatus("chatgpt") + "\n" + keyStatus("gemini") + "\n" + keyStatus("grok"));
+                    prefs.edit().remove(KEY_AI_CHATGPT).remove(KEY_AI_GEMINI).remove(KEY_AI_GROK).remove(KEY_AI_GROQ).remove(KEY_AI_GAPGPT).apply();
+                    status.setText(aiKeyStatusText());
                     Toast.makeText(this, "کلیدها پاک شدند", Toast.LENGTH_SHORT).show();
                 }).show());
         LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-1, dp(42)); clp.setMargins(0, dp(10), 0, 0);
@@ -9058,15 +9174,22 @@ public class MainActivity extends Activity {
         parent.addView(input, new LinearLayout.LayoutParams(-1, dp(50)));
     }
 
-    private boolean saveEnteredAiKeys(EditText chatgpt, EditText gemini, EditText grok) {
+    private String aiKeyStatusText() {
+        return keyStatus("chatgpt") + "\n" + keyStatus("gemini") + "\n" + keyStatus("groq") + "\n" + keyStatus("gapgpt");
+    }
+
+    private boolean saveEnteredAiKeys(EditText chatgpt, EditText gemini, EditText groq, EditText gapgpt) {
         SharedPreferences.Editor ed = prefs.edit();
+        if (prefString(KEY_AI_GAPGPT_BASE, "").trim().isEmpty()) ed.putString(KEY_AI_GAPGPT_BASE, "https://api.gapgpt.app/v1");
         boolean changed = false;
         String c = chatgpt == null ? "" : chatgpt.getText().toString().trim();
         String g = gemini == null ? "" : gemini.getText().toString().trim();
-        String x = grok == null ? "" : grok.getText().toString().trim();
+        String q = groq == null ? "" : groq.getText().toString().trim();
+        String gp = gapgpt == null ? "" : gapgpt.getText().toString().trim();
         if (!c.isEmpty()) { ed.putString(KEY_AI_CHATGPT, protectSecret(c)); if (activeAiProvider().isEmpty()) ed.putString(KEY_AI_PROVIDER, "chatgpt"); changed = true; chatgpt.setText(""); }
         if (!g.isEmpty()) { ed.putString(KEY_AI_GEMINI, protectSecret(g)); if (activeAiProvider().isEmpty()) ed.putString(KEY_AI_PROVIDER, "gemini"); changed = true; gemini.setText(""); }
-        if (!x.isEmpty()) { ed.putString(KEY_AI_GROK, protectSecret(x)); if (activeAiProvider().isEmpty()) ed.putString(KEY_AI_PROVIDER, "grok"); changed = true; grok.setText(""); }
+        if (!q.isEmpty()) { ed.putString(KEY_AI_GROQ, protectSecret(q)); if (activeAiProvider().isEmpty()) ed.putString(KEY_AI_PROVIDER, "groq"); changed = true; groq.setText(""); }
+        if (!gp.isEmpty()) { ed.putString(KEY_AI_GAPGPT, protectSecret(gp)); if (activeAiProvider().isEmpty()) ed.putString(KEY_AI_PROVIDER, "gapgpt"); changed = true; gapgpt.setText(""); }
         ed.apply();
         return changed;
     }
@@ -9089,9 +9212,9 @@ public class MainActivity extends Activity {
                 String answer = callAiProvider(provider, key, "فقط کلمه OK را برگردان.", "{}");
                 if (answer == null || answer.trim().isEmpty()) throw new Exception("پاسخ معتبر دریافت نشد");
                 prefs.edit().putString(KEY_AI_PROVIDER, provider).apply();
-                result = "✅ " + providerDisplayName(provider) + " معتبر است و به‌عنوان مدل فعال انتخاب شد.\n" + keyStatus("chatgpt") + "\n" + keyStatus("gemini") + "\n" + keyStatus("grok");
+                result = "✅ " + providerDisplayName(provider) + " معتبر است و به‌عنوان مدل فعال انتخاب شد.\n" + aiKeyStatusText();
             } catch (Exception ex) {
-                result = "❌ اعتبارسنجی " + providerDisplayName(provider) + " ناموفق بود: " + shortError(ex) + "\n" + keyStatus("chatgpt") + "\n" + keyStatus("gemini") + "\n" + keyStatus("grok");
+                result = "❌ اعتبارسنجی " + providerDisplayName(provider) + " ناموفق بود: " + shortError(ex) + "\n" + aiKeyStatusText();
             }
             final String finalResult = result;
             runOnUiThread(() -> { if (status != null) status.setText(finalResult); });
@@ -9099,8 +9222,8 @@ public class MainActivity extends Activity {
     }
 
     private void showAiProviderChooser(TextView summary) {
-        String[] ids = {"chatgpt", "gemini", "grok"};
-        String[] labels = {"ChatGPT", "Gemini", "Grok"};
+        String[] ids = {"chatgpt", "gemini", "groq", "gapgpt"};
+        String[] labels = {"OpenAI", "Gemini", "Groq", "GapGPT"};
         String active = activeAiProvider();
         int checked = 0;
         for (int i = 0; i < ids.length; i++) if (ids[i].equals(active)) checked = i;
@@ -9464,7 +9587,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.31.0\nاین نسخه نمایش سرجمع کالاهای فروخته‌شده روز را با تشخیص منعطف‌تر ریزاقلام فروش فعال‌تر می‌کند، آیکن ماه و M سه‌بعدی و لوگوی زنده تم‌محور را اضافه می‌کند، آیکن‌های اصلی مشتریان/کالا/فرماندهی/دوربین/دزدگیر را هماهنگ‌تر می‌کند و امکانات دوربین و دزدگیر را کامل‌تر می‌سازد؛ جزئیات اتصال SQL همچنان در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.32.0\nاین نسخه آیکن M و ماه را پررنگ‌تر و سه‌بعدی‌تر می‌کند، مانده پرسنل را با fallback از مشتریان اختصاصی و مانده فاکتورهای فروش محاسبه می‌کند، تنظیمات دستیار هوشمند را با کلیدهای ستاره‌ای و تست سلامت برای OpenAI/Gemini/Groq/GapGPT کامل‌تر می‌سازد؛ جزئیات اتصال SQL همچنان در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
