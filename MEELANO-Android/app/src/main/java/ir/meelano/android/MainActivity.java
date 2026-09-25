@@ -82,6 +82,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -192,6 +194,7 @@ public class MainActivity extends Activity {
     private String customersCacheJson = "";
     private String customersCacheQuery = "";
     private String customersCacheFilter = "all";
+    private String customersSortOrder = "smart";
     private String productsCacheJson = "";
     private String productsCacheQuery = "";
     private String productsCacheFilter = "all";
@@ -1542,7 +1545,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.25.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.26.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -4333,7 +4336,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.25.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.26.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -4345,7 +4348,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.25.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.26.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -4474,6 +4477,8 @@ public class MainActivity extends Activity {
     private void loadCustomers(String query, String filter, boolean force) {
         String q = query == null ? "" : query;
         String f = filter == null || filter.trim().isEmpty() ? "all" : filter;
+        String previousFilter = customersCacheFilter == null ? "all" : customersCacheFilter;
+        if (customersSortOrder == null || customersSortOrder.trim().isEmpty() || !f.equals(previousFilter)) customersSortOrder = defaultCustomerSort(f);
         if (!force && customersCacheJson != null && !customersCacheJson.trim().isEmpty() && q.equals(customersCacheQuery) && f.equals(customersCacheFilter)) {
             try { renderCustomersFromJson(new JSONArray(customersCacheJson), q, f); return; } catch (Exception ignored) { }
         }
@@ -4506,9 +4511,167 @@ public class MainActivity extends Activity {
         addManualRefreshPanel("customers", "بروزرسانی دستی مشتریان", "آخرین لیست ثابت نگه داشته شده است", () -> loadCustomers(query, filter, true));
         addSearchBox("جستجوی مشتری…", query, q -> loadCustomers(q, filter, true));
         addCustomerFilterChips(query, filter);
+        if (rows == null || rows.length() == 0) { LinearLayout empty = new LinearLayout(this); empty.setOrientation(LinearLayout.VERTICAL); content.addView(empty, new LinearLayout.LayoutParams(-1, -2)); addEmptyTo(empty, "مشتری مطابق فیلتر پیدا نشد."); return; }
+        addCustomerSortPanel(query, filter, rows);
         LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list, new LinearLayout.LayoutParams(-1, -2));
-        if (rows == null || rows.length() == 0) { addEmptyTo(list, "مشتری مطابق فیلتر پیدا نشد."); return; }
-        for (int i = 0; i < rows.length(); i++) addCustomerCard(list, rows.optJSONObject(i));
+        JSONArray sorted = sortedCustomers(rows, filter, customersSortOrder);
+        for (int i = 0; i < sorted.length(); i++) addCustomerCard(list, sorted.optJSONObject(i));
+    }
+
+    private void addCustomerSortPanel(String query, String filter, JSONArray rows) {
+        LinearLayout panel = card();
+        panel.setPadding(dp(12), dp(12), dp(12), dp(11));
+        panel.setBackground(gradient(new int[]{alpha(INFO, 22), alpha(GOLD, 13), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        LinearLayout titleRow = new LinearLayout(this);
+        titleRow.setOrientation(LinearLayout.HORIZONTAL);
+        titleRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView icon = text("⇅", 17, Color.WHITE, Typeface.BOLD);
+        icon.setGravity(Gravity.CENTER);
+        icon.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, 120));
+        icon.setBackground(gradient(new int[]{mix(INFO, Color.WHITE, 0.15f), INFO, alpha(GOLD_2, 140)}, GradientDrawable.Orientation.TL_BR, 17));
+        titleRow.addView(icon, new LinearLayout.LayoutParams(dp(40), dp(40)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(10), 0, dp(8), 0);
+        copy.addView(text("مرتب کردن این لیست", 13.8f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text("هوشمند و بدون شلوغی؛ فقط ترتیب کارت‌های همین لیست عوض می‌شود.", 10.1f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        titleRow.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView active = text(customerSortLabel(customersSortOrder), 9.8f, INFO, Typeface.BOLD);
+        active.setGravity(Gravity.CENTER);
+        active.setPadding(dp(9), dp(5), dp(9), dp(5));
+        active.setSingleLine(true);
+        active.setBackground(roundedStroke(alpha(INFO, 24), 999, alpha(INFO, 85)));
+        titleRow.addView(active, new LinearLayout.LayoutParams(-2, -2));
+        panel.addView(titleRow, new LinearLayout.LayoutParams(-1, -2));
+
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout chips = new LinearLayout(this);
+        chips.setOrientation(LinearLayout.HORIZONTAL);
+        String[][] options = customerSortOptions(filter);
+        for (String[] opt : options) {
+            final String key = opt[0];
+            Button b = key.equals(customersSortOrder) ? primaryButton(opt[1]) : secondaryButton(opt[1]);
+            b.setTextSize(9.6f);
+            b.setMinWidth(0);
+            b.setPadding(dp(9), 0, dp(9), 0);
+            b.setOnClickListener(v -> { customersSortOrder = key; renderCustomersFromJson(rows, query, filter); });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, dp(38));
+            lp.setMargins(dp(3), 0, dp(3), 0);
+            chips.addView(b, lp);
+        }
+        scroll.addView(chips, new FrameLayout.LayoutParams(-2, -2));
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2);
+        sp.setMargins(0, dp(11), 0, 0);
+        panel.addView(scroll, sp);
+
+        TextView hint = text(customerSortHint(filter, rows), 9.7f, alpha(TEXT, 185), Typeface.NORMAL);
+        hint.setGravity(Gravity.RIGHT);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2);
+        hp.setMargins(0, dp(8), 0, 0);
+        panel.addView(hint, hp);
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, -2);
+        pp.setMargins(0, dp(8), 0, dp(10));
+        content.addView(panel, pp);
+    }
+
+    private String defaultCustomerSort(String filter) { return "smart"; }
+
+    private String[][] customerSortOptions(String filter) {
+        if ("debt".equals(filter)) return new String[][]{{"smart","اولویت وصول"},{"debt_desc","بیشترین بدهی"},{"debt_asc","کمترین بدهی"},{"oldest_sale","قدیمی‌ترین خرید"},{"latest_sale","جدیدترین خرید"},{"risk_desc","ریسک بیشتر"},{"check_desc","چک بیشتر"}};
+        if ("credit".equals(filter)) return new String[][]{{"smart","اولویت تسویه"},{"credit_desc","بستانکاری بیشتر"},{"credit_asc","بستانکاری کمتر"},{"latest_sale","جدیدترین خرید"},{"sales_desc","بیشترین فروش"},{"name_asc","الفبایی"}};
+        if ("no_buy".equals(filter)) return new String[][]{{"smart","فرصت فروش"},{"debt_desc","مانده بالاتر"},{"risk_desc","ریسک بیشتر"},{"name_asc","الفبایی"},{"latest_sale","آخرین تعامل"}};
+        if ("top".equals(filter)) return new String[][]{{"smart","ارزشمندترین"},{"sales_desc","بیشترین فروش"},{"invoice_desc","فاکتور بیشتر"},{"latest_sale","جدیدترین خرید"},{"debt_desc","مانده بدهی"},{"risk_desc","ریسک بیشتر"}};
+        return new String[][]{{"smart","پیشنهاد میلو"},{"name_asc","الفبایی"},{"debt_desc","بیشترین بدهی"},{"latest_sale","جدیدترین خرید"},{"sales_desc","بیشترین فروش"},{"risk_desc","ریسک بیشتر"}};
+    }
+
+    private String customerSortLabel(String sort) {
+        if ("debt_desc".equals(sort)) return "بیشترین بدهی";
+        if ("debt_asc".equals(sort)) return "کمترین بدهی";
+        if ("credit_desc".equals(sort)) return "بستانکاری بیشتر";
+        if ("credit_asc".equals(sort)) return "بستانکاری کمتر";
+        if ("oldest_sale".equals(sort)) return "قدیمی‌ترین خرید";
+        if ("latest_sale".equals(sort)) return "جدیدترین خرید";
+        if ("sales_desc".equals(sort)) return "بیشترین فروش";
+        if ("sales_asc".equals(sort)) return "کمترین فروش";
+        if ("invoice_desc".equals(sort)) return "فاکتور بیشتر";
+        if ("check_desc".equals(sort)) return "چک بیشتر";
+        if ("risk_desc".equals(sort)) return "ریسک بیشتر";
+        if ("name_asc".equals(sort)) return "الفبایی";
+        return "هوشمند";
+    }
+
+    private String customerSortHint(String filter, JSONArray rows) {
+        int count = rows == null ? 0 : rows.length();
+        if ("debt".equals(filter)) return "نمایش " + formatNumber(count) + " بدهکار؛ اولویت وصول ترکیبی از مانده، ریسک، چک و قدیمی‌بودن خرید است.";
+        if ("credit".equals(filter)) return "نمایش " + formatNumber(count) + " بستانکار؛ برای تسویه یا تهاتر سریع مرتب کنید.";
+        if ("no_buy".equals(filter)) return "نمایش " + formatNumber(count) + " مشتری بدون خرید؛ مناسب کمپین تماس و بازفعال‌سازی.";
+        if ("top".equals(filter)) return "نمایش " + formatNumber(count) + " مشتری پرخرید؛ مناسب نگهداشت و پیشنهاد اختصاصی.";
+        return "نمایش " + formatNumber(count) + " مشتری؛ مرتب‌سازی بدون بارگذاری دوباره انجام می‌شود.";
+    }
+
+    private JSONArray sortedCustomers(JSONArray rows, String filter, String sort) {
+        JSONArray out = new JSONArray();
+        if (rows == null) return out;
+        final String f = filter == null ? "all" : filter;
+        final String s = (sort == null || sort.trim().isEmpty()) ? defaultCustomerSort(f) : sort;
+        List<JSONObject> list = new ArrayList<>();
+        for (int i = 0; i < rows.length(); i++) { JSONObject o = rows.optJSONObject(i); if (o != null) list.add(o); }
+        Collections.sort(list, new Comparator<JSONObject>() {
+            @Override public int compare(JSONObject a, JSONObject b) { return compareCustomersForSort(a, b, f, s); }
+        });
+        for (JSONObject o : list) out.put(o);
+        return out;
+    }
+
+    private int compareCustomersForSort(JSONObject a, JSONObject b, String filter, String sort) {
+        if ("debt_desc".equals(sort)) return chain(compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareName(a,b));
+        if ("debt_asc".equals(sort)) return chain(compareDouble(customerPositiveBalance(a), customerPositiveBalance(b)), compareName(a,b));
+        if ("credit_desc".equals(sort)) return chain(compareDouble(customerCreditAmount(b), customerCreditAmount(a)), compareName(a,b));
+        if ("credit_asc".equals(sort)) return chain(compareDouble(customerCreditAmount(a), customerCreditAmount(b)), compareName(a,b));
+        if ("oldest_sale".equals(sort)) return chain(compareLong(customerLastSaleValue(a), customerLastSaleValue(b)), compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareName(a,b));
+        if ("latest_sale".equals(sort)) return chain(compareLong(customerLastSaleValue(b), customerLastSaleValue(a)), compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareName(a,b));
+        if ("sales_desc".equals(sort)) return chain(compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareName(a,b));
+        if ("sales_asc".equals(sort)) return chain(compareDouble(num(a,"جمع_فروش"), num(b,"جمع_فروش")), compareName(a,b));
+        if ("invoice_desc".equals(sort)) return chain(compareInt(b.optInt("تعداد_فاکتور",0), a.optInt("تعداد_فاکتور",0)), compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareName(a,b));
+        if ("check_desc".equals(sort)) return chain(compareDouble(num(b,"جمع_چک"), num(a,"جمع_چک")), compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareName(a,b));
+        if ("risk_desc".equals(sort)) return chain(compareInt(customerRiskScore(b), customerRiskScore(a)), compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareName(a,b));
+        if ("name_asc".equals(sort)) return compareName(a,b);
+        return compareCustomersSmart(a, b, filter);
+    }
+
+    private int compareCustomersSmart(JSONObject a, JSONObject b, String filter) {
+        if ("top".equals(filter)) return chain(compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareInt(b.optInt("تعداد_فاکتور",0), a.optInt("تعداد_فاکتور",0)), compareLong(customerLastSaleValue(b), customerLastSaleValue(a)), compareName(a,b));
+        if ("credit".equals(filter)) return chain(compareDouble(customerCreditAmount(b), customerCreditAmount(a)), compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareLong(customerLastSaleValue(b), customerLastSaleValue(a)), compareName(a,b));
+        if ("no_buy".equals(filter)) return chain(compareInt(customerRiskScore(b), customerRiskScore(a)), compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareName(a,b));
+        if ("debt".equals(filter)) return chain(compareInt(customerRiskScore(b), customerRiskScore(a)), compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareDouble(num(b,"جمع_چک"), num(a,"جمع_چک")), compareLong(customerLastSaleValue(a), customerLastSaleValue(b)), compareName(a,b));
+        return chain(compareInt(customerRiskScore(b), customerRiskScore(a)), compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareName(a,b));
+    }
+
+    private int chain(int... values) { for (int v : values) if (v != 0) return v; return 0; }
+    private int compareDouble(double left, double right) { return left < right ? -1 : (left > right ? 1 : 0); }
+    private int compareLong(long left, long right) { return left < right ? -1 : (left > right ? 1 : 0); }
+    private int compareInt(int left, int right) { return left < right ? -1 : (left > right ? 1 : 0); }
+    private int compareName(JSONObject a, JSONObject b) { return txt(a,"نام").compareToIgnoreCase(txt(b,"نام")); }
+    private double customerPositiveBalance(JSONObject r) { return Math.max(0, num(r, "مانده")); }
+    private double customerCreditAmount(JSONObject r) { return Math.max(0, -num(r, "مانده")); }
+    private double num(JSONObject r, String key) { return r == null ? 0 : r.optDouble(key, 0); }
+    private String txt(JSONObject r, String key) { return r == null ? "" : stringOr(r.optString(key, ""), ""); }
+
+    private long customerLastSaleValue(JSONObject r) {
+        String raw = r == null ? "" : r.optString("آخرین_خرید", "");
+        String norm = normalizeDigits(raw);
+        StringBuilder digits = new StringBuilder();
+        for (int i = 0; i < norm.length(); i++) { char ch = norm.charAt(i); if (ch >= '0' && ch <= '9') digits.append(ch); }
+        if (digits.length() == 0) return 0;
+        String d = digits.length() >= 8 ? digits.substring(0, 8) : digits.toString();
+        try { return Long.parseLong(d); } catch (Exception ignored) { return 0; }
+    }
+
+    private String normalizeDigits(String value) {
+        if (value == null) return "";
+        return value.replace('۰','0').replace('۱','1').replace('۲','2').replace('۳','3').replace('۴','4').replace('۵','5').replace('۶','6').replace('۷','7').replace('۸','8').replace('۹','9')
+                .replace('٠','0').replace('١','1').replace('٢','2').replace('٣','3').replace('٤','4').replace('٥','5').replace('٦','6').replace('٧','7').replace('٨','8').replace('٩','9');
     }
 
     private void addCustomerFilterChips(String query, String activeFilter) {
@@ -4526,7 +4689,7 @@ public class MainActivity extends Activity {
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(10), 0, dp(10), 0);
         copy.addView(text("فیلترهای هوشمند مشتری", 13.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        copy.addView(text("جستجو بالا مستقل است؛ این بخش فقط نوع مشتری را مرتب می‌کند.", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text("جستجو بالا مستقل است؛ این بخش نوع مشتری را انتخاب می‌کند و مرتب‌سازی پایین می‌آید.", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         titleRow.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         panel.addView(titleRow, new LinearLayout.LayoutParams(-1, -2));
 
@@ -4535,9 +4698,10 @@ public class MainActivity extends Activity {
         box.setGravity(Gravity.CENTER_VERTICAL);
         String[][] filters = {{"all","همه"},{"debt","بدهکار"},{"credit","بستانکار"},{"no_buy","بدون خرید"},{"top","پرخرید"}};
         for (String[] f : filters) {
-            Button b = activeFilter.equals(f[0]) ? primaryButton(f[1]) : secondaryButton(f[1]);
+            final String nextFilter = f[0];
+            Button b = activeFilter.equals(nextFilter) ? primaryButton(f[1]) : secondaryButton(f[1]);
             b.setTextSize(10.2f);
-            b.setOnClickListener(v -> loadCustomers(query, f[0]));
+            b.setOnClickListener(v -> { if (!nextFilter.equals(activeFilter)) customersSortOrder = defaultCustomerSort(nextFilter); loadCustomers(query, nextFilter); });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(42), 1f);
             lp.setMargins(dp(3), 0, dp(3), 0);
             box.addView(b, lp);
@@ -4604,7 +4768,7 @@ public class MainActivity extends Activity {
             if ("credit".equals(filter) && balance != null) where.add("TRY_CONVERT(decimal(19,2),c.[" + balance + "])<0");
             if ("no_buy".equals(filter) && canSales) where.add("ISNULL(sf.sales_count,0)=0");
             String order = "top".equals(filter) ? " ORDER BY جمع_فروش DESC, نام" : ("debt".equals(filter) ? " ORDER BY مانده DESC, نام" : " ORDER BY نام, کد");
-            String sql = "SELECT TOP (200) " + join(select, ",") + " FROM dbo.[CUSTOMERS] c " + saleApply + checkApply +
+            String sql = "SELECT TOP (350) " + join(select, ",") + " FROM dbo.[CUSTOMERS] c " + saleApply + checkApply +
                     (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + order;
             try (PreparedStatement ps = c.prepareStatement(sql)) {
                 setParams(ps, params);
@@ -5790,7 +5954,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.25.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.26.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -8110,7 +8274,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.25.0\nاین نسخه عیب‌یابی کامل پروژه، رفع نمایش پرسنل، داشبورد مدیریتی تیم، جستجوی گفتگو، خروجی CSV/PDF حضور، قوانین مرخصی و امنیت بهتر ثبت حضور را اضافه می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.26.0\nاین نسخه مرتب‌سازی هوشمند لیست مشتریان پس از فیلتر بدهکار/بستانکار/بدون خرید/پرخرید را اضافه می‌کند؛ مرتب‌سازی بدون بارگذاری دوباره انجام می‌شود و جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
