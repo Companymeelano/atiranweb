@@ -511,8 +511,8 @@ public class MainActivity extends Activity {
 
     private String navGlyph(String key) {
         if ("dashboard".equals(key)) return "⌂";
-        if ("customers".equals(key)) return "◉";
-        if ("products".equals(key)) return "▣";
+        if ("customers".equals(key)) return "♙";
+        if ("products".equals(key)) return "◍";
         if ("reports".equals(key)) return "≡";
         if ("command".equals(key)) return "⌘";
         if ("assistant".equals(key)) return "✦";
@@ -520,8 +520,8 @@ public class MainActivity extends Activity {
         if ("personnel".equals(key)) return "ID";
         if ("attendance".equals(key)) return "⏱";
         if ("taxpayers".equals(key)) return "٪";
-        if ("cameras".equals(key)) return "◎";
-        if ("alarm".equals(key)) return "⌁";
+        if ("cameras".equals(key)) return "▣";
+        if ("alarm".equals(key)) return "◬";
         return "◆";
     }
 
@@ -535,8 +535,8 @@ public class MainActivity extends Activity {
         if (t.contains("تازه") || t.contains("بروزرسان")) return "⟳";
         if (t.contains("تم")) return "✺";
         if (t.contains("مودیان") || t.contains("مالیات")) return "٪";
-        if (t.contains("دوربین") || t.contains("DVR")) return "◎";
-        if (t.contains("دزدگیر") || t.contains("امنیت")) return "⌁";
+        if (t.contains("دوربین") || t.contains("DVR")) return "▣";
+        if (t.contains("دزدگیر") || t.contains("امنیت")) return "◬";
         if (t.contains("مرخصی")) return "☘";
         if (t.contains("ورود")) return "↘";
         if (t.contains("خروج")) return "↗";
@@ -544,8 +544,8 @@ public class MainActivity extends Activity {
         if (t.contains("فروش")) return "↗";
         if (t.contains("خرید")) return "↙";
         if (t.contains("چک")) return "✓";
-        if (t.contains("کالا")) return "▦";
-        if (t.contains("مشتری")) return "م";
+        if (t.contains("کالا")) return "◍";
+        if (t.contains("مشتری")) return "♙";
         return "◆";
     }
 
@@ -653,53 +653,69 @@ public class MainActivity extends Activity {
             boolean moving = motionAllowed();
             float t = moving ? (System.currentTimeMillis() - startMs) / 1000f : 0f;
             float s = Math.min(w, h);
-            float cx = w / 2f, cy = h / 2f;
-            float pulse = (float) Math.sin(t * 2.4f);
+            float pulse = (float) Math.sin(t * 2.2f);
+            float drift = (float) Math.sin(t * 1.35f);
+            int skyA = mix(HEADER_START, INFO, isLightTheme() ? 0.18f : 0.08f);
+            int skyB = mix(NAVY, themeAccent(activePage), isLightTheme() ? 0.20f : 0.13f);
+            int moonColor = mix(GOLD_2, Color.WHITE, isLightTheme() ? 0.45f : 0.28f);
+            int mColor = mix(GOLD, themeAccent(activePage), isLightTheme() ? 0.36f : 0.22f);
+            RectF outer = new RectF(s * 0.06f, s * 0.06f, w - s * 0.06f, h - s * 0.06f);
             p.setStyle(Paint.Style.FILL);
-            p.setColor(alpha(GOLD_2, compact ? 24 : 35));
-            canvas.drawCircle(cx, cy, s * (0.56f + pulse * 0.025f), p);
-            p.setColor(alpha(INFO, compact ? 26 : 36));
-            canvas.drawCircle(cx - s * 0.16f, cy + s * 0.14f, s * (0.44f - pulse * 0.02f), p);
-
-            RectF outer = new RectF(s * 0.07f, s * 0.07f, w - s * 0.07f, h - s * 0.07f);
-            p.setShadowLayer(s * 0.07f, 0, s * 0.025f, alpha(Color.BLACK, 120));
-            p.setColor(mix(HEADER_START, GOLD, 0.08f));
-            canvas.drawRoundRect(outer, s * 0.23f, s * 0.23f, p);
+            p.setShadowLayer(s * 0.08f, 0, s * 0.028f, alpha(Color.BLACK, 145));
+            p.setColor(skyA);
+            canvas.drawRoundRect(outer, s * 0.24f, s * 0.24f, p);
             p.clearShadowLayer();
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(Math.max(2f, s * 0.035f));
-            p.setStrokeCap(Paint.Cap.ROUND);
-            p.setColor(alpha(GOLD_2, 190));
-            RectF ring = new RectF(s * 0.14f, s * 0.14f, w - s * 0.14f, h - s * 0.14f);
-            canvas.drawArc(ring, t * 75f, 230, false, p);
-            p.setColor(alpha(INFO, 165));
-            canvas.drawArc(ring, 210 + t * 58f, 90, false, p);
+            p.setColor(alpha(skyB, 205));
+            canvas.drawCircle(s * 0.24f, s * 0.88f, s * 0.72f, p);
+            p.setColor(alpha(INFO, isLightTheme() ? 44 : 34));
+            canvas.drawCircle(s * 0.82f, s * 0.15f, s * 0.45f, p);
 
-            canvas.save();
-            canvas.rotate(pulse * 2.6f, cx, cy);
-            p.setStyle(Paint.Style.FILL);
+            float moonX = w - s * 0.24f;
+            float moonY = s * 0.23f;
+            p.setColor(alpha(moonColor, 62));
+            canvas.drawCircle(moonX, moonY, s * (0.20f + 0.015f * pulse), p);
+            p.setColor(moonColor);
+            canvas.drawCircle(moonX, moonY, s * 0.135f, p);
+            p.setColor(skyA);
+            canvas.drawCircle(moonX - s * 0.052f, moonY - s * 0.026f, s * 0.125f, p);
+            p.setColor(alpha(Color.WHITE, isLightTheme() ? 155 : 120));
+            float[][] stars = {{.22f,.22f,.018f},{.38f,.15f,.012f},{.18f,.43f,.010f},{.68f,.40f,.013f},{.48f,.31f,.009f}};
+            for (int i = 0; i < stars.length; i++) {
+                float twinkle = 0.65f + 0.35f * (float)Math.sin(t * 2.0f + i * 1.7f);
+                canvas.drawCircle(stars[i][0] * w, stars[i][1] * h, Math.max(1.2f, s * stars[i][2] * twinkle), p);
+            }
+
+            float mx = s * (0.48f + drift * 0.035f);
+            float my = s * (0.73f - (0.05f + 0.035f * pulse));
             p.setTextAlign(Paint.Align.CENTER);
             p.setTypeface(Typeface.DEFAULT_BOLD);
-            p.setTextSize(s * (compact ? 0.53f : 0.55f));
-            p.setColor(GOLD);
-            p.setShadowLayer(s * 0.05f, 0, s * 0.018f, alpha(Color.BLACK, 155));
-            canvas.drawText("M", cx, cy + s * 0.20f, p);
-            p.clearShadowLayer();
-            p.setTextSize(s * 0.39f);
-            p.setColor(alpha(Color.WHITE, compact ? 62 : 74));
-            canvas.drawText("Λ", cx + s * 0.075f, cy + s * 0.17f, p);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(Math.max(1.5f, s * 0.018f));
-            p.setColor(alpha(Color.WHITE, 82));
-            canvas.drawLine(cx - s * 0.25f, cy + s * 0.28f, cx + s * 0.26f, cy + s * 0.28f + pulse * s * 0.018f, p);
-            canvas.restore();
-
+            p.setTextSize(s * (compact ? 0.60f : 0.62f));
             p.setStyle(Paint.Style.FILL);
-            p.setColor(alpha(Color.WHITE, 205));
-            float dotAngle = t * 2.1f;
-            canvas.drawCircle(cx + (float)Math.cos(dotAngle) * s * 0.34f, cy + (float)Math.sin(dotAngle) * s * 0.34f, Math.max(2f, s * 0.04f), p);
-            p.setColor(alpha(GOLD_2, 210));
-            canvas.drawCircle(cx + (float)Math.cos(dotAngle + 2.2f) * s * 0.32f, cy + (float)Math.sin(dotAngle + 2.2f) * s * 0.32f, Math.max(2f, s * 0.028f), p);
+            p.setShadowLayer(s * 0.07f, 0, s * 0.025f, alpha(Color.BLACK, 170));
+            for (int i = 5; i >= 1; i--) {
+                p.setColor(alpha(mix(mColor, Color.BLACK, 0.42f), 88 + i * 18));
+                canvas.drawText("M", mx + i * s * 0.012f, my + i * s * 0.014f, p);
+            }
+            p.setColor(mColor);
+            canvas.drawText("M", mx, my, p);
+            p.clearShadowLayer();
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(1.1f, s * 0.018f));
+            p.setColor(alpha(Color.WHITE, isLightTheme() ? 130 : 96));
+            canvas.drawText("M", mx, my, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(1.0f, s * 0.012f));
+            p.setColor(alpha(moonColor, 115));
+            p.setStrokeCap(Paint.Cap.ROUND);
+            canvas.drawLine(mx + s * 0.18f, my - s * 0.16f, moonX - s * 0.10f, moonY + s * 0.06f, p);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(alpha(moonColor, 190));
+            canvas.drawCircle(mx + s * 0.20f, my - s * 0.17f, Math.max(1.2f, s * 0.022f), p);
+
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(1.2f, s * 0.018f));
+            p.setColor(alpha(mix(mColor, moonColor, 0.45f), 150));
+            canvas.drawRoundRect(outer, s * 0.24f, s * 0.24f, p);
             if (moving) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) postInvalidateOnAnimation(); else postInvalidateDelayed(40);
             }
@@ -1729,7 +1745,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.30.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.31.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -3701,50 +3717,75 @@ public class MainActivity extends Activity {
         JSONArray arr = new JSONArray();
         if (c == null || date == null || date.trim().isEmpty()) return arr;
         String header = sales ? "sailfact" : "buyfact";
-        String detailTable = sales ? "subsailfact" : "subbuyfact";
+        String[] detailCandidates = sales
+                ? new String[]{"subsailfact", "sub_sailfact", "sailfact_sub", "sail_items", "sailitem", "sale_items", "subsailfact_pish"}
+                : new String[]{"subbuyfact", "sub_buyfact", "buyfact_sub", "buy_items", "buyitem", "purchase_items"};
         Set<String> h = columns(c, header);
-        Set<String> d = columns(c, detailTable);
+        String detailTable = "";
+        Set<String> d = new HashSet<>();
+        for (String candidate : detailCandidates) {
+            try {
+                Set<String> cc = columns(c, candidate);
+                if (cc != null && !cc.isEmpty()) { detailTable = candidate; d = cc; break; }
+            } catch (Exception ignored) { }
+        }
+        if (detailTable.isEmpty() || d == null || d.isEmpty()) return arr;
         Set<String> inv = columns(c, "inventory");
         Set<String> grp = columns(c, "kagroup");
-        String dateCol = sales ? resolve(h, "date") : resolve(h, "DATE", "date");
-        String numberCol = sales ? resolve(h, "shfacfo") : resolve(h, "shfackh");
-        String detailNumber = sales ? resolve(d, "shfacfo") : resolve(d, "shfackh");
-        String key = sales ? resolve(d, "SHKA", "shka") : resolve(d, "shka", "SHKA");
-        String lineAmount = sales ? resolve(d, "LINESUM", "LineSum", "tamam_joz", "amount", "mablagh", "Mablagh", "all", "kol") : resolve(d, "tamam_joz", "LINESUM", "LineSum", "amount", "mablagh", "Mablagh", "all", "kol");
-        String unitPrice = resolve(d, "FI", "fi", "fee", "Fee", "price", "Price", "gimat", "Gheymat", "mablagh_vah", "price_vah");
-        if (dateCol == null || numberCol == null || detailNumber == null || key == null || (lineAmount == null && unitPrice == null)) return arr;
-
-        String detailName = sales ? resolve(d, "naka", "name", "Desc_Naka", "KalaName") : resolve(d, "Desc_Naka", "naka", "name", "KalaName");
-        String invKey = resolve(inv, "shka", "SHKA");
-        String invName = resolve(inv, "naka", "Name", "KalaName");
+        String dateCol = sales ? resolveFlexible(h, "date", "DATE", "tarikh", "Date", "t_date", "تاریخ", "tarikh_factor") : resolveFlexible(h, "DATE", "date", "tarikh", "Date", "t_date", "تاریخ", "tarikh_factor");
+        String detailDate = resolveFlexible(d, "date", "DATE", "tarikh", "Date", "t_date", "تاریخ", "tarikh_factor");
+        String numberCol = sales ? resolveFlexible(h, "shfacfo", "shfac", "shfacfor", "factor_no", "invoice_no", "fac_no", "number", "serial", "شماره") : resolveFlexible(h, "shfackh", "shfac", "buy_no", "factor_no", "invoice_no", "fac_no", "number", "serial", "شماره");
+        String detailNumber = sales ? resolveFlexible(d, "shfacfo", "shfac", "shfacfor", "factor_no", "invoice_no", "fac_no", "number", "serial", "شماره") : resolveFlexible(d, "shfackh", "shfac", "buy_no", "factor_no", "invoice_no", "fac_no", "number", "serial", "شماره");
+        String key = resolveFlexible(d, "SHKA", "shka", "KalaCode", "kala", "item_code", "product_code", "code", "کدکالا", "کد_کالا");
+        String detailName = sales ? resolveFlexible(d, "naka", "Naka", "name", "Name", "Desc_Naka", "KalaName", "item_name", "product_name", "نام_کالا") : resolveFlexible(d, "Desc_Naka", "naka", "Naka", "name", "Name", "KalaName", "item_name", "product_name", "نام_کالا");
+        if (key == null && detailName == null) return arr;
+        String lineAmount = sales ? resolveFlexible(d, "LINESUM", "LineSum", "line_sum", "tamam_joz", "amount", "mablagh", "Mablagh", "all", "kol", "total", "Total", "mabkol", "مبلغ") : resolveFlexible(d, "tamam_joz", "LINESUM", "LineSum", "line_sum", "amount", "mablagh", "Mablagh", "all", "kol", "total", "Total", "mabkol", "مبلغ");
+        String unitPrice = resolveFlexible(d, "FI", "fi", "fee", "Fee", "price", "Price", "gimat", "Gheymat", "mablagh_vah", "price_vah", "unit_price", "فی");
+        String qtyCol = resolveFlexible(d, "tedad", "Tedad", "TEDAD", "qty", "Qty", "quantity", "Quantity", "meghdar", "Meghdar", "ted", "TED", "tedadkol", "count", "Count", "مقدار", "تعداد");
+        String invKey = resolveFlexible(inv, "shka", "SHKA", "KalaCode", "code");
+        String invName = resolveFlexible(inv, "naka", "Name", "KalaName", "item_name", "product_name", "نام_کالا");
         String itemName;
-        if (detailName != null && invName != null && invKey != null) itemName = "COALESCE(NULLIF(TRY_CONVERT(nvarchar(500),dd.[" + detailName + "]),N''),TRY_CONVERT(nvarchar(500),i.[" + invName + "]),N'بدون نام')";
+        if (detailName != null && invName != null && invKey != null && key != null) itemName = "COALESCE(NULLIF(TRY_CONVERT(nvarchar(500),dd.[" + detailName + "]),N''),TRY_CONVERT(nvarchar(500),i.[" + invName + "]),N'بدون نام')";
         else if (detailName != null) itemName = "COALESCE(NULLIF(TRY_CONVERT(nvarchar(500),dd.[" + detailName + "]),N''),N'بدون نام')";
-        else if (invName != null && invKey != null) itemName = "COALESCE(TRY_CONVERT(nvarchar(500),i.[" + invName + "]),N'بدون نام')";
+        else if (invName != null && invKey != null && key != null) itemName = "COALESCE(TRY_CONVERT(nvarchar(500),i.[" + invName + "]),N'بدون نام')";
         else itemName = "N'بدون نام'";
-
-        String joinInv = invKey == null ? "" : " LEFT JOIN dbo.inventory i ON TRY_CONVERT(nvarchar(100),i.[" + invKey + "])=TRY_CONVERT(nvarchar(100),dd.[" + key + "]) ";
-        String productCode = invKey == null ? "TRY_CONVERT(nvarchar(100),dd.[" + key + "])" : "COALESCE(TRY_CONVERT(nvarchar(100),i.[" + invKey + "]),TRY_CONVERT(nvarchar(100),dd.[" + key + "]))";
-        String groupId = resolve(inv, "group_rdf", "GroupID", "VarietyID", "variety_rdf");
-        String groupKey = resolve(grp, "group_rdf", "ID", "GroupID", "rdf", "code");
-        String groupName = resolve(grp, "group_name", "name", "Name", "GroupName", "nagr", "gname");
+        String joinInv = (invKey == null || key == null) ? "" : " LEFT JOIN dbo.inventory i ON TRY_CONVERT(nvarchar(100),i.[" + invKey + "])=TRY_CONVERT(nvarchar(100),dd.[" + key + "]) ";
+        String productCode = key == null ? itemName : ((invKey == null) ? "TRY_CONVERT(nvarchar(100),dd.[" + key + "])" : "COALESCE(TRY_CONVERT(nvarchar(100),i.[" + invKey + "]),TRY_CONVERT(nvarchar(100),dd.[" + key + "]))");
+        String groupId = resolveFlexible(inv, "group_rdf", "GroupID", "VarietyID", "variety_rdf", "groupid");
+        String groupKey = resolveFlexible(grp, "group_rdf", "ID", "GroupID", "rdf", "code");
+        String groupName = resolveFlexible(grp, "group_name", "name", "Name", "GroupName", "nagr", "gname");
         String joinGroup = "";
         String groupExpr = "N'بدون گروه'";
-        if (invKey != null && groupId != null && groupKey != null && groupName != null) {
+        if (key != null && invKey != null && groupId != null && groupKey != null && groupName != null) {
             joinGroup = " LEFT JOIN dbo.kagroup g ON TRY_CONVERT(nvarchar(100),g.[" + groupKey + "])=TRY_CONVERT(nvarchar(100),i.[" + groupId + "]) ";
             groupExpr = "COALESCE(TRY_CONVERT(nvarchar(150),g.[" + groupName + "]),N'بدون گروه')";
         }
         String tedvah = hasCol(d, "TEDVAH") ? "ISNULL(TRY_CONVERT(decimal(19,4),dd.TEDVAH),0)" : "0";
         String tedjoz = hasCol(d, "TEDJOZ") ? "ISNULL(TRY_CONVERT(decimal(19,4),dd.TEDJOZ),0)" : "0";
-        String qtyEach = (invKey != null && hasCol(inv, "mohvah")) ? "(" + tedvah + "*ISNULL(TRY_CONVERT(decimal(19,4),i.mohvah),1)+" + tedjoz + ")" : "(" + tedvah + "+" + tedjoz + ")";
+        String qtyEach;
+        if (qtyCol != null) qtyEach = "ISNULL(TRY_CONVERT(decimal(19,4),dd.[" + qtyCol + "]),0)";
+        else if (hasCol(d, "TEDVAH") || hasCol(d, "TEDJOZ")) qtyEach = (invKey != null && hasCol(inv, "mohvah") && key != null) ? "(" + tedvah + "*ISNULL(TRY_CONVERT(decimal(19,4),i.mohvah),1)+" + tedjoz + ")" : "(" + tedvah + "+" + tedjoz + ")";
+        else qtyEach = "1";
         String qty = "ISNULL(SUM(" + qtyEach + "),0)";
-        String amountExpr = lineAmount != null ? "ISNULL(SUM(TRY_CONVERT(decimal(19,2),dd.[" + lineAmount + "])),0)" : "ISNULL(SUM(" + qtyEach + "*ISNULL(TRY_CONVERT(decimal(19,2),dd.[" + unitPrice + "]),0)),0)";
-        String where = "WHERE h.[" + dateCol + "]=?" + activeAnd(h, "h") + activeAnd(d, "dd");
-        List<Object> params = new ArrayList<>();
-        params.add(date.trim());
-        if (sales && session != null && session.visitorId != null && hasCol(h, "vis_rdf")) { where += " AND TRY_CONVERT(int,h.vis_rdf)=?"; params.add(session.visitorId); }
-        int limit = Math.max(1, Math.min(150, top));
-        String sql = "SELECT TOP (" + limit + ") " + productCode + ", " + itemName + ", " + qty + ", " + amountExpr + ", " + groupExpr + " FROM dbo.[" + detailTable + "] dd JOIN dbo.[" + header + "] h ON h.[" + numberCol + "]=dd.[" + detailNumber + "]" + joinInv + joinGroup + where + " GROUP BY " + productCode + "," + itemName + "," + groupExpr + " ORDER BY 4 DESC";
+        String amountExpr;
+        if (lineAmount != null) amountExpr = "ISNULL(SUM(TRY_CONVERT(decimal(19,2),dd.[" + lineAmount + "])),0)";
+        else if (unitPrice != null) amountExpr = "ISNULL(SUM(" + qtyEach + "*ISNULL(TRY_CONVERT(decimal(19,2),dd.[" + unitPrice + "]),0)),0)";
+        else amountExpr = "CAST(0 AS decimal(19,2))";
+        boolean canJoinHeader = numberCol != null && detailNumber != null && dateCol != null;
+        String from = " FROM dbo.[" + detailTable + "] dd";
+        String dateExpr;
+        if (canJoinHeader) {
+            from += " JOIN dbo.[" + header + "] h ON TRY_CONVERT(nvarchar(100),h.[" + numberCol + "])=TRY_CONVERT(nvarchar(100),dd.[" + detailNumber + "])";
+            dateExpr = "h.[" + dateCol + "]";
+        } else if (detailDate != null) {
+            dateExpr = "dd.[" + detailDate + "]";
+        } else return arr;
+        from += joinInv + joinGroup;
+        String where = " WHERE (TRY_CONVERT(nvarchar(30)," + dateExpr + ")=? OR LEFT(TRY_CONVERT(nvarchar(30)," + dateExpr + "),10)=LEFT(?,10))";
+        if (canJoinHeader) where += activeAnd(h, "h");
+        List<Object> params = new ArrayList<>(); params.add(date.trim()); params.add(date.trim());
+        int limit = Math.max(1, Math.min(180, top));
+        String sql = "SELECT TOP (" + limit + ") " + productCode + ", " + itemName + ", " + qty + ", " + amountExpr + ", " + groupExpr + from + where + " GROUP BY " + productCode + "," + itemName + "," + groupExpr + " ORDER BY 4 DESC, 3 DESC";
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             setParams(ps, params);
             try (ResultSet r = ps.executeQuery()) {
@@ -3795,8 +3836,8 @@ public class MainActivity extends Activity {
 
     private String kpiGlyph(String title, int index) {
         String t = title == null ? "" : title;
-        if (t.contains("مشتری")) return "م";
-        if (t.contains("کالا")) return "◼";
+        if (t.contains("مشتری")) return "♙";
+        if (t.contains("کالا")) return "◍";
         if (t.contains("فروش") || t.contains("فاکتور")) return "₿";
         if (t.contains("چک")) return "✓";
         if (t.contains("ویزیت")) return "⌾";
@@ -4961,7 +5002,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.30.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.31.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -4973,7 +5014,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.30.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.31.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -5416,7 +5457,18 @@ public class MainActivity extends Activity {
         LinearLayout tile=new LinearLayout(this); tile.setOrientation(LinearLayout.VERTICAL); tile.setGravity(Gravity.CENTER); tile.setPadding(dp(8),dp(8),dp(8),dp(8)); tile.setBackground(roundedStroke(alpha(navAccent("cameras"),18),18,alpha(navAccent("cameras"),70))); tile.addView(report3dIcon("◎",navAccent("cameras")),new LinearLayout.LayoutParams(dp(46),dp(46))); TextView name=text("دوربین " + formatNumber(ch),10.5f,TEXT,Typeface.BOLD); name.setGravity(Gravity.CENTER); tile.addView(name,new LinearLayout.LayoutParams(-1,-2)); Button live=secondaryButton("پخش"); live.setTextSize(8.2f); live.setOnClickListener(v->showCameraPlayer(ch,false)); tile.addView(live,new LinearLayout.LayoutParams(-1,dp(36))); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(142),1f); lp.setMargins(dp(3),0,dp(3),0); if(row!=null)row.addView(tile,lp);
     }
 
-    private void addCameraReplayCard(){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(INFO,14),alpha(GOLD,12),alpha(SURFACE,248)},GradientDrawable.Orientation.TL_BR,22)); c.addView(text("بازپخش و مرور فیلم‌ها",15.5f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("کانال را انتخاب کنید؛ در صورت پشتیبانی DVR، لینک بازپخش با همان قالب ذخیره‌شده باز می‌شود. کنترل زمان دقیق وابسته به مدل DVR است.",10.4f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); Button b=primaryButton(withIcon("◷","ورود به بازپخش کانال ۱")); b.setOnClickListener(v->showCameraPlayer(1,true)); LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(44)); bp.setMargins(0,dp(10),0,0); c.addView(b,bp); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
+    private void addCameraReplayCard(){
+        LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(INFO,14),alpha(GOLD,12),alpha(SURFACE,248)},GradientDrawable.Orientation.TL_BR,22));
+        c.addView(text("بازپخش و مرور فیلم‌ها",15.5f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        c.addView(text("کانال و قالب بازپخش قابل تنظیم است؛ اگر DVR پارامتر زمان را لازم داشته باشد آن را داخل قالب replay با متغیرهای دستگاه وارد کنید.",10.4f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
+        EditText ch=input("شماره کانال برای بازپخش", "1", false); LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,dp(46)); cp.setMargins(0,dp(9),0,0); c.addView(ch,cp);
+        LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        Button b=primaryButton(withIcon("◷","بازپخش")); Button live=secondaryButton(withIcon("▣","پخش همان کانال")); b.setTextSize(9.2f); live.setTextSize(9.2f);
+        b.setOnClickListener(v->{ int channel=1; try{channel=Integer.parseInt(ch.getText().toString().trim());}catch(Exception ignored){} showCameraPlayer(Math.max(1,channel),true); });
+        live.setOnClickListener(v->{ int channel=1; try{channel=Integer.parseInt(ch.getText().toString().trim());}catch(Exception ignored){} showCameraPlayer(Math.max(1,channel),false); });
+        row.addView(b,weightedButtonLp()); row.addView(live,weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(9),0,0); c.addView(row,rp);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp);
+    }
 
     private void testCameraConnection(){ String host=prefString(KEY_CAMERA_HOST,"").trim(); int port=prefIntText(KEY_CAMERA_PORT,554); if(host.isEmpty()){Toast.makeText(this,"IP دوربین را ثبت کنید.",Toast.LENGTH_SHORT).show();return;} runNetworkJob("camera-test",()->testTcp(host,port),new NetworkCallback(){@Override public void ok(String b){Toast.makeText(MainActivity.this,"ارتباط با DVR برقرار شد.",Toast.LENGTH_LONG).show();}@Override public void fail(Exception e){showPageError("تست دوربین",e,()->renderCamerasPage());}}); }
 
@@ -5425,7 +5477,10 @@ public class MainActivity extends Activity {
     private String cameraUrl(int ch, boolean replay){ String tpl=prefString(replay?KEY_CAMERA_REPLAY_TEMPLATE:KEY_CAMERA_TEMPLATE, replay?"rtsp://{user}:{pass}@{host}:{port}/cam/playback?channel={ch}":"rtsp://{user}:{pass}@{host}:{port}/cam/realmonitor?channel={ch}&subtype=0"); return tpl.replace("{host}",prefString(KEY_CAMERA_HOST,"")).replace("{port}",prefString(KEY_CAMERA_PORT,"554")).replace("{user}",urlPart(prefString(KEY_CAMERA_USER,""))).replace("{pass}",urlPart(prefSecret(KEY_CAMERA_PASS))).replace("{ch}",String.valueOf(ch)); }
     private String urlPart(String v){ try{return URLEncoder.encode(v==null?"":v,"UTF-8");}catch(Exception ignored){return v==null?"":v;} }
 
-    private void showCameraPlayer(int ch, boolean replay){ String url=cameraUrl(ch,replay); if(prefString(KEY_CAMERA_HOST,"").trim().isEmpty()){Toast.makeText(this,"ابتدا تنظیمات DVR را ثبت کنید.",Toast.LENGTH_SHORT).show();return;} LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(8),dp(8),dp(8),dp(4)); box.addView(text((replay?"بازپخش ":"پخش زنده ")+"دوربین "+formatNumber(ch),16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); VideoView video=new VideoView(this); MediaController mc=new MediaController(this); mc.setAnchorView(video); video.setMediaController(mc); video.setVideoURI(Uri.parse(url)); FrameLayout wrap=new FrameLayout(this); wrap.setBackgroundColor(Color.BLACK); wrap.addView(video,new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER)); LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,dp(280)); vp.setMargins(0,dp(8),0,dp(8)); box.addView(wrap,vp); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button play=primaryButton("شروع پخش"); Button zoom=secondaryButton("زوم ×۱.۳"); final float[] scale={1f}; play.setOnClickListener(v->{ try{video.start();}catch(Exception ex){Toast.makeText(this,"پخش شروع نشد: "+shortError(ex),Toast.LENGTH_LONG).show();} }); zoom.setOnClickListener(v->{ scale[0]=scale[0]<1.6f?scale[0]+0.3f:1f; video.setScaleX(scale[0]); video.setScaleY(scale[0]); zoom.setText("زوم ×"+String.format(Locale.US,"%.1f",scale[0])); }); row.addView(play,weightedButtonLp()); row.addView(zoom,weightedButtonLp()); box.addView(row,new LinearLayout.LayoutParams(-1,-2)); AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",(d,w)->{try{video.stopPlayback();}catch(Exception ignored){}}).create(); styleMeelanoDialog(dlg,navAccent("cameras")); dlg.setOnShowListener(d-> { try{ video.start(); }catch(Exception ignored){} }); dlg.show(); }
+    private void showCameraPlayer(int ch, boolean replay){ String url=cameraUrl(ch,replay); if(prefString(KEY_CAMERA_HOST,"").trim().isEmpty()){Toast.makeText(this,"ابتدا تنظیمات DVR را ثبت کنید.",Toast.LENGTH_SHORT).show();return;} LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(8),dp(8),dp(8),dp(4)); box.addView(text((replay?"بازپخش ":"پخش زنده ")+"دوربین "+formatNumber(ch),16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); VideoView video=new VideoView(this); MediaController mc=new MediaController(this); mc.setAnchorView(video); video.setMediaController(mc); video.setVideoURI(Uri.parse(url)); FrameLayout wrap=new FrameLayout(this); wrap.setBackgroundColor(Color.BLACK); wrap.addView(video,new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER)); LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,dp(280)); vp.setMargins(0,dp(8),0,dp(8)); box.addView(wrap,vp); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button play=primaryButton("شروع پخش"); Button zoom=secondaryButton("زوم ×۱.۳"); Button external=secondaryButton("پلیر خارجی"); final float[] scale={1f}; play.setOnClickListener(v->{ try{video.start();}catch(Exception ex){Toast.makeText(this,"پخش شروع نشد: "+shortError(ex),Toast.LENGTH_LONG).show();} }); zoom.setOnClickListener(v->{ scale[0]=scale[0]<1.6f?scale[0]+0.3f:1f; video.setScaleX(scale[0]); video.setScaleY(scale[0]); zoom.setText("زوم ×"+String.format(Locale.US,"%.1f",scale[0])); }); external.setOnClickListener(v->openExternalStream(url)); row.addView(play,weightedButtonLp()); row.addView(zoom,weightedButtonLp()); row.addView(external,weightedButtonLp()); box.addView(row,new LinearLayout.LayoutParams(-1,-2)); AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",(d,w)->{try{video.stopPlayback();}catch(Exception ignored){}}).create(); styleMeelanoDialog(dlg,navAccent("cameras")); dlg.setOnShowListener(d-> { try{ video.start(); }catch(Exception ignored){} }); dlg.show(); }
+
+
+    private void openExternalStream(String url){ try{ Intent i=new Intent(Intent.ACTION_VIEW, Uri.parse(url)); i.setDataAndType(Uri.parse(url), "video/*"); startActivity(Intent.createChooser(i,"باز کردن تصویر دوربین")); }catch(Exception ex){ Toast.makeText(this,"پلیر سازگار پیدا نشد.",Toast.LENGTH_LONG).show(); } }
 
     private void renderAlarmPage(){ content.removeAllViews(); addHero("دزدگیر", "مدیریت حرفه‌ای دو دستگاه دزدگیر Z4 و Extra G1 با ذخیره امن مشخصات، تست ارتباط و فرمان‌های سریع."); addAlarmOverviewCard(); addAlarmDeviceCard(1); addAlarmDeviceCard(2); }
 
@@ -5435,13 +5490,13 @@ public class MainActivity extends Activity {
 
     private void addAlarmOverviewCard(){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(navAccent("alarm"),26),alpha(SURFACE,248)},GradientDrawable.Orientation.TL_BR,24)); c.addView(text("کنسول امنیت فروشگاه",16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("آخرین رویداد: "+prefString(KEY_ALARM_LOG,"ثبت نشده"),10.6f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button d1=alarmActiveDevice==1?primaryButton("دزدگیر ۱"):secondaryButton("دزدگیر ۱"); Button d2=alarmActiveDevice==2?primaryButton("دزدگیر ۲"):secondaryButton("دزدگیر ۲"); d1.setOnClickListener(v->{alarmActiveDevice=1;renderAlarmPage();}); d2.setOnClickListener(v->{alarmActiveDevice=2;renderAlarmPage();}); row.addView(d1,weightedButtonLp()); row.addView(d2,weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(10),0,0); c.addView(row,rp); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
 
-    private void addAlarmDeviceCard(int index){ boolean active=index==alarmActiveDevice; int accent=active?navAccent("alarm"):INFO; LinearLayout c=card(); c.setBackground(roundedStroke(alpha(accent,active?28:14),22,alpha(accent,active?95:55))); c.addView(text("دزدگیر "+formatNumber(index)+" • "+alarmString(index,"model",index==1?"Z4":"Extra G1"),15.5f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("IP: "+stringOr(alarmString(index,"host",""),"ثبت نشده")+" • Port: "+alarmString(index,"port","80")+" • مسیرها قابل تنظیم هستند",10.4f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); LinearLayout row1=new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL); Button set=secondaryButton(withIcon("⚙","تعریف/تنظیم")); Button test=secondaryButton(withIcon("⌁","تست")); set.setTextSize(8.7f); test.setTextSize(8.7f); set.setOnClickListener(v->showAlarmSettingsDialog(index)); test.setOnClickListener(v->sendAlarmCommand(index,"status")); row1.addView(set,weightedButtonLp()); row1.addView(test,weightedButtonLp()); LinearLayout.LayoutParams r1=new LinearLayout.LayoutParams(-1,-2); r1.setMargins(0,dp(9),0,0); c.addView(row1,r1); LinearLayout row2=new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL); Button arm=primaryButton(withIcon("⌁","فعال")); Button home=secondaryButton(withIcon("◐","نیمه")); Button off=secondaryButton(withIcon("○","غیرفعال")); arm.setTextSize(8.4f); home.setTextSize(8.4f); off.setTextSize(8.4f); arm.setOnClickListener(v->sendAlarmCommand(index,"arm")); home.setOnClickListener(v->sendAlarmCommand(index,"home")); off.setOnClickListener(v->sendAlarmCommand(index,"disarm")); row2.addView(arm,weightedButtonLp()); row2.addView(home,weightedButtonLp()); row2.addView(off,weightedButtonLp()); LinearLayout.LayoutParams r2=new LinearLayout.LayoutParams(-1,-2); r2.setMargins(0,dp(8),0,0); c.addView(row2,r2); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
+    private void addAlarmDeviceCard(int index){ boolean active=index==alarmActiveDevice; int accent=active?navAccent("alarm"):INFO; LinearLayout c=card(); c.setBackground(roundedStroke(alpha(accent,active?28:14),22,alpha(accent,active?95:55))); c.addView(text("دزدگیر "+formatNumber(index)+" • "+alarmString(index,"model",index==1?"Z4":"Extra G1"),15.5f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("IP: "+stringOr(alarmString(index,"host",""),"ثبت نشده")+" • Port: "+alarmString(index,"port","80")+" • مسیرها قابل تنظیم هستند",10.4f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); LinearLayout row1=new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL); Button set=secondaryButton(withIcon("⚙","تعریف/تنظیم")); Button test=secondaryButton(withIcon("⌁","تست")); set.setTextSize(8.7f); test.setTextSize(8.7f); set.setOnClickListener(v->showAlarmSettingsDialog(index)); test.setOnClickListener(v->sendAlarmCommand(index,"status")); row1.addView(set,weightedButtonLp()); row1.addView(test,weightedButtonLp()); LinearLayout.LayoutParams r1=new LinearLayout.LayoutParams(-1,-2); r1.setMargins(0,dp(9),0,0); c.addView(row1,r1); LinearLayout row2=new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL); Button arm=primaryButton(withIcon("⌁","فعال")); Button home=secondaryButton(withIcon("◐","نیمه")); Button off=secondaryButton(withIcon("○","غیرفعال")); arm.setTextSize(8.4f); home.setTextSize(8.4f); off.setTextSize(8.4f); arm.setOnClickListener(v->sendAlarmCommand(index,"arm")); home.setOnClickListener(v->sendAlarmCommand(index,"home")); off.setOnClickListener(v->sendAlarmCommand(index,"disarm")); row2.addView(arm,weightedButtonLp()); row2.addView(home,weightedButtonLp()); row2.addView(off,weightedButtonLp()); LinearLayout.LayoutParams r2=new LinearLayout.LayoutParams(-1,-2); r2.setMargins(0,dp(8),0,0); c.addView(row2,r2); LinearLayout row3=new LinearLayout(this); row3.setOrientation(LinearLayout.HORIZONTAL); Button panic=secondaryButton(withIcon("!","آژیر/هشدار")); Button sirenOff=secondaryButton(withIcon("×","قطع آژیر")); panic.setTextSize(8.4f); sirenOff.setTextSize(8.4f); panic.setOnClickListener(v->sendAlarmCommand(index,"panic")); sirenOff.setOnClickListener(v->sendAlarmCommand(index,"sirenOff")); row3.addView(panic,weightedButtonLp()); row3.addView(sirenOff,weightedButtonLp()); LinearLayout.LayoutParams r3=new LinearLayout.LayoutParams(-1,-2); r3.setMargins(0,dp(8),0,0); c.addView(row3,r3); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
 
-    private void showAlarmSettingsDialog(int index){ LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(10),dp(8),dp(10),dp(4)); box.addView(text("تعریف دزدگیر "+formatNumber(index),16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); EditText model=input("مدل: Z4 یا Extra G1",alarmString(index,"model",index==1?"Z4":"Extra G1"),false); EditText host=input("IP یا دامنه دستگاه",alarmString(index,"host",""),false); EditText port=input("Port",alarmString(index,"port","80"),false); EditText user=input("نام کاربری",alarmString(index,"user",""),false); EditText pass=input("کلمه عبور"+(alarmSecret(index,"pass").isEmpty()?"":" • ذخیره‌شده"),"",true); EditText token=input("Token/کلید"+(alarmSecret(index,"token").isEmpty()?"":" • ذخیره‌شده"),"",true); EditText arm=input("مسیر فعال‌سازی",alarmString(index,"arm","/arm"),false); EditText dis=input("مسیر غیرفعال",alarmString(index,"disarm","/disarm"),false); EditText home=input("مسیر نیمه‌فعال",alarmString(index,"home","/home"),false); EditText status=input("مسیر وضعیت",alarmString(index,"status","/status"),false); for(EditText e:new EditText[]{model,host,port,user,pass,token,arm,dis,home,status}){ LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,dp(48)); ep.setMargins(0,dp(7),0,0); box.addView(e,ep);} AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("ذخیره",null).create(); dlg.setOnShowListener(di->{ styleMeelanoDialog(dlg,navAccent("alarm")); Button ok=dlg.getButton(AlertDialog.BUTTON_POSITIVE); if(ok!=null)ok.setOnClickListener(v->{ SharedPreferences.Editor ed=prefs.edit(); ed.putString(alarmKey(index,"model"),model.getText().toString().trim()); ed.putString(alarmKey(index,"host"),host.getText().toString().trim()); ed.putString(alarmKey(index,"port"),port.getText().toString().trim()); ed.putString(alarmKey(index,"user"),user.getText().toString().trim()); ed.putString(alarmKey(index,"arm"),arm.getText().toString().trim()); ed.putString(alarmKey(index,"disarm"),dis.getText().toString().trim()); ed.putString(alarmKey(index,"home"),home.getText().toString().trim()); ed.putString(alarmKey(index,"status"),status.getText().toString().trim()); if(pass.getText()!=null&&pass.getText().toString().trim().length()>0)putSecret(ed,alarmKey(index,"pass"),pass.getText().toString()); if(token.getText()!=null&&token.getText().toString().trim().length()>0)putSecret(ed,alarmKey(index,"token"),token.getText().toString()); ed.apply(); dlg.dismiss(); renderAlarmPage(); }); }); dlg.show(); }
+    private void showAlarmSettingsDialog(int index){ LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(10),dp(8),dp(10),dp(4)); box.addView(text("تعریف دزدگیر "+formatNumber(index),16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); EditText model=input("مدل: Z4 یا Extra G1",alarmString(index,"model",index==1?"Z4":"Extra G1"),false); EditText host=input("IP یا دامنه دستگاه",alarmString(index,"host",""),false); EditText port=input("Port",alarmString(index,"port","80"),false); EditText user=input("نام کاربری",alarmString(index,"user",""),false); EditText pass=input("کلمه عبور"+(alarmSecret(index,"pass").isEmpty()?"":" • ذخیره‌شده"),"",true); EditText token=input("Token/کلید"+(alarmSecret(index,"token").isEmpty()?"":" • ذخیره‌شده"),"",true); EditText arm=input("مسیر فعال‌سازی",alarmString(index,"arm","/arm"),false); EditText dis=input("مسیر غیرفعال",alarmString(index,"disarm","/disarm"),false); EditText home=input("مسیر نیمه‌فعال",alarmString(index,"home","/home"),false); EditText status=input("مسیر وضعیت",alarmString(index,"status","/status"),false); EditText panic=input("مسیر آژیر/هشدار",alarmString(index,"panic","/panic"),false); EditText sirenOff=input("مسیر قطع آژیر",alarmString(index,"sirenOff","/siren-off"),false); for(EditText e:new EditText[]{model,host,port,user,pass,token,arm,dis,home,status,panic,sirenOff}){ LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,dp(48)); ep.setMargins(0,dp(7),0,0); box.addView(e,ep);} AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("ذخیره",null).create(); dlg.setOnShowListener(di->{ styleMeelanoDialog(dlg,navAccent("alarm")); Button ok=dlg.getButton(AlertDialog.BUTTON_POSITIVE); if(ok!=null)ok.setOnClickListener(v->{ SharedPreferences.Editor ed=prefs.edit(); ed.putString(alarmKey(index,"model"),model.getText().toString().trim()); ed.putString(alarmKey(index,"host"),host.getText().toString().trim()); ed.putString(alarmKey(index,"port"),port.getText().toString().trim()); ed.putString(alarmKey(index,"user"),user.getText().toString().trim()); ed.putString(alarmKey(index,"arm"),arm.getText().toString().trim()); ed.putString(alarmKey(index,"disarm"),dis.getText().toString().trim()); ed.putString(alarmKey(index,"home"),home.getText().toString().trim()); ed.putString(alarmKey(index,"status"),status.getText().toString().trim()); ed.putString(alarmKey(index,"panic"),panic.getText().toString().trim()); ed.putString(alarmKey(index,"sirenOff"),sirenOff.getText().toString().trim()); if(pass.getText()!=null&&pass.getText().toString().trim().length()>0)putSecret(ed,alarmKey(index,"pass"),pass.getText().toString()); if(token.getText()!=null&&token.getText().toString().trim().length()>0)putSecret(ed,alarmKey(index,"token"),token.getText().toString()); ed.apply(); dlg.dismiss(); renderAlarmPage(); }); }); dlg.show(); }
 
     private void sendAlarmCommand(int index,String cmd){ String host=alarmString(index,"host","").trim(); if(host.isEmpty()){Toast.makeText(this,"ابتدا دستگاه "+index+" را تعریف کنید.",Toast.LENGTH_SHORT).show();return;} String path=alarmString(index,cmd,"/"+cmd); String url="http://"+host+":"+alarmString(index,"port","80")+(path.startsWith("/")?path:"/"+path); String token=alarmSecret(index,"token"); runNetworkJob("alarm",()->httpRequestWithBasic(url,"GET",null,token,alarmString(index,"user",""),alarmSecret(index,"pass"),10000),new NetworkCallback(){@Override public void ok(String b){String msg="دزدگیر "+index+" • "+alarmCommandFa(cmd)+" موفق • "+nowText(); prefs.edit().putString(KEY_ALARM_LOG,msg).apply(); Toast.makeText(MainActivity.this,msg,Toast.LENGTH_LONG).show(); renderAlarmPage();}@Override public void fail(Exception e){String msg="دزدگیر "+index+" ناموفق: "+shortError(e); prefs.edit().putString(KEY_ALARM_LOG,msg).apply(); showPageError("دزدگیر",e,()->renderAlarmPage());}}); }
 
-    private String alarmCommandFa(String c){ if("arm".equals(c))return "فعال‌سازی"; if("disarm".equals(c))return "غیرفعال‌سازی"; if("home".equals(c))return "نیمه‌فعال"; return "استعلام وضعیت"; }
+    private String alarmCommandFa(String c){ if("arm".equals(c))return "فعال‌سازی"; if("disarm".equals(c))return "غیرفعال‌سازی"; if("home".equals(c))return "نیمه‌فعال"; if("panic".equals(c))return "آژیر/هشدار"; if("sirenOff".equals(c))return "قطع آژیر"; return "استعلام وضعیت"; }
 
     private String httpRequestWithBasic(String target,String method,String body,String bearer,String user,String pass,int timeoutMs)throws Exception{ HttpURLConnection con=(HttpURLConnection)new URL(target).openConnection(); con.setConnectTimeout(timeoutMs); con.setReadTimeout(timeoutMs); con.setRequestMethod(method==null?"GET":method); con.setRequestProperty("Accept","application/json,text/plain,*/*"); if(bearer!=null&&!bearer.trim().isEmpty())con.setRequestProperty("Authorization","Bearer "+bearer.trim()); else if(user!=null&&!user.trim().isEmpty()){ String raw=user+":"+(pass==null?"":pass); con.setRequestProperty("Authorization","Basic "+Base64.encodeToString(raw.getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP)); } if(body!=null){con.setDoOutput(true); try(OutputStream os=con.getOutputStream()){os.write(body.getBytes(StandardCharsets.UTF_8));}} int code=con.getResponseCode(); String resp=readStreamText(code>=200&&code<300?con.getInputStream():con.getErrorStream()); if(code<200||code>=300)throw new DbException("HTTP "+code+" • "+limitText(resp,160)); return resp; }
 
@@ -7085,7 +7140,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.30.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.31.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -9409,7 +9464,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.30.0\nاین نسخه سه دکمه اصلی مودیان، دوربین و دزدگیر را با آیکن‌های هماهنگ اضافه می‌کند؛ تنظیمات مودیان، تست اتصال، انتخاب/عدم‌ارسال فاکتورها، مانیتورینگ DVR و مدیریت دو دزدگیر Z4/Extra G1 به صورت native فراهم شده و جزئیات اتصال SQL همچنان در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.31.0\nاین نسخه نمایش سرجمع کالاهای فروخته‌شده روز را با تشخیص منعطف‌تر ریزاقلام فروش فعال‌تر می‌کند، آیکن ماه و M سه‌بعدی و لوگوی زنده تم‌محور را اضافه می‌کند، آیکن‌های اصلی مشتریان/کالا/فرماندهی/دوربین/دزدگیر را هماهنگ‌تر می‌کند و امکانات دوربین و دزدگیر را کامل‌تر می‌سازد؛ جزئیات اتصال SQL همچنان در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
