@@ -1030,6 +1030,30 @@ public class MainActivity extends Activity {
         return b;
     }
 
+    private Button themedActionButton(String label, int accent, boolean primary) {
+        Button b = new Button(this);
+        b.setText(label);
+        b.setAllCaps(false);
+        b.setTextColor(primary ? onColorFor(accent) : TEXT);
+        b.setTextSize(compactUi() ? 10.7f : 11.6f);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setMinHeight(dp(44));
+        b.setPadding(dp(9), 0, dp(9), dp(1));
+        b.setShadowLayer(dp(primary ? 3 : 1), 0, dp(1), alpha(Color.BLACK, isLightTheme() ? 80 : 150));
+        b.setBackground(luxuryButtonBg(accent, primary, primary ? 999 : 19));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) { b.setElevation(dp(primary ? 7 : 3)); b.setLetterSpacing(0.01f); }
+        applyTouchFeedback(b);
+        return b;
+    }
+
+    private GradientDrawable themedSectionBg(String page, float radius) {
+        int accent = navAccent(page);
+        int glow = mix(accent, GOLD_2, isLightTheme() ? 0.16f : 0.24f);
+        GradientDrawable d = gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 92 : 20), alpha(glow, isLightTheme() ? 34 : 48), alpha(mix(SURFACE, accent, isLightTheme() ? 0.05f : 0.16f), 250)}, GradientDrawable.Orientation.TL_BR, radius);
+        d.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.35f), isLightTheme() ? 105 : 86));
+        return d;
+    }
+
     private EditText input(String hint, String value, boolean password) {
         EditText e = new EditText(this);
         e.setSingleLine(true);
@@ -1819,7 +1843,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.37.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.38.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -2216,73 +2240,178 @@ public class MainActivity extends Activity {
     }
 
     private UserSession authenticate(String meelanoUser, String meelanoPassword) throws Exception {
-        String user = cleanText(meelanoUser);
+        String user = normalizeDigits(cleanText(meelanoUser));
         String pass = meelanoPassword == null ? "" : meelanoPassword;
+        boolean[] foundUser = new boolean[]{false};
         try (Connection c = openConnection()) {
-            String visitorSql = "SELECT TOP (1) v.vis_rdf, v.vis_name, v.UserID FROM dbo.visitors AS v " +
-                    "WHERE LTRIM(RTRIM(CONVERT(nvarchar(100),v.Username)))=? " +
-                    "AND (CONVERT(nvarchar(200),v.Password)=? OR LTRIM(RTRIM(CONVERT(nvarchar(200),v.Password)))=?) " +
-                    "AND (v.active='1' OR v.active='Y' OR v.active='y') ORDER BY v.vis_rdf";
-            try (PreparedStatement ps = c.prepareStatement(visitorSql)) {
-                ps.setString(1, user);
-                ps.setString(2, pass);
-                ps.setString(3, pass.trim());
-                try (ResultSet r = ps.executeQuery()) {
-                    if (r.next()) {
-                        Integer uid = r.getObject(3) == null ? null : r.getInt(3);
-                        return withResolvedAccessRole(c, new UserSession(uid, r.getObject(1) == null ? null : r.getInt(1), stringOr(r.getString(2), user)), user);
-                    }
-                }
-            }
-
-            // Users created in the back-office user-management screen are stored in sys_users.
-            // user_password may be VARBINARY encoded as ANSI bytes, Unicode bytes, or a text value.
-            // We fetch candidate rows by user name and compare the password locally in several
-            // compatible encodings instead of relying on one CONVERT(varchar, varbinary) shape.
-            String userSql = "SELECT TOP (5) u.user_id, u.user_name, u.user_password, sv.shvis FROM dbo.sys_users AS u " +
-                    "LEFT JOIN dbo.sys_vis AS sv ON sv.UserID=u.user_id " +
-                    "WHERE LOWER(LTRIM(RTRIM(CONVERT(nvarchar(100),u.user_name))))=LOWER(LTRIM(RTRIM(?))) " +
-                    "ORDER BY CASE WHEN sv.shvis IS NULL THEN 1 ELSE 0 END";
-            boolean foundUser = false;
-            try (PreparedStatement ps = c.prepareStatement(userSql)) {
-                ps.setString(1, user);
-                try (ResultSet r = ps.executeQuery()) {
-                    while (r.next()) {
-                        foundUser = true;
-                        byte[] rawPassword = r.getBytes(3);
-                        String textPassword = r.getString(3);
-                        if (passwordMatches(rawPassword, textPassword, pass)) {
-                            Integer visitor = r.getObject(4) == null ? null : r.getInt(4);
-                            return withResolvedAccessRole(c, new UserSession(r.getInt(1), visitor, stringOr(r.getString(2), user)), user);
-                        }
-                    }
-                }
-            }
-            if (foundUser) throw new DbException("رمز عبور Meelano برای این کاربر تطبیق پیدا نکرد.");
+            UserSession visitor = authenticateVisitorFlexible(c, user, pass, foundUser);
+            if (visitor != null) return visitor;
+            UserSession sys = authenticateSysUserFlexible(c, user, pass, foundUser);
+            if (sys != null) return sys;
+            if (foundUser[0]) throw new DbException("رمز عبور Meelano برای این کاربر تطبیق پیدا نکرد.");
         }
         throw new DbException("نام کاربری یا رمز عبور Meelano معتبر نیست.");
     }
 
+    private UserSession authenticateVisitorFlexible(Connection c, String user, String pass, boolean[] foundUser) throws Exception {
+        if (c == null || !tableExists(c, "visitors")) return null;
+        Set<String> cols = columns(c, "visitors");
+        String vid = resolveFlexible(cols, "vis_rdf", "visitor_id", "VisitorID", "shvis", "id", "ID");
+        String name = resolveFlexible(cols, "vis_name", "visitor_name", "Name", "name", "FullName", "نام", "نام_ویزیتور");
+        String uid = resolveFlexible(cols, "UserID", "user_id", "userid", "sys_user_id");
+        String active = resolveFlexible(cols, "active", "Active", "is_active", "enabled", "Enable", "status", "lock", "Locked");
+        List<String> loginCols = uniqueColumns(cols, "Username", "UserName", "username", "user_name", "login", "login_name", "mobile", "Mobile", "cell", "Phone", "vis_user", "vis_username", "vis_code", "code", "Code", "vis_rdf", "shvis", "vis_name");
+        List<String> passCols = uniqueColumns(cols, "Password", "password", "Pass", "pass", "pwd", "PWD", "user_password", "vis_pass", "vis_password", "رمز", "رمزعبور", "کلمه_عبور");
+        if (loginCols.isEmpty() || passCols.isEmpty()) return null;
+        List<String> select = new ArrayList<>();
+        select.add(vid == null ? "CAST(NULL AS int)" : "TRY_CONVERT(int,v.[" + vid + "])");
+        select.add(name == null ? "CAST(NULL AS nvarchar(250))" : "TRY_CONVERT(nvarchar(250),v.[" + name + "])");
+        select.add(uid == null ? "CAST(NULL AS int)" : "TRY_CONVERT(int,v.[" + uid + "])");
+        for (String p : passCols) select.add("v.[" + p + "]");
+        select.add(active == null ? "CAST(NULL AS nvarchar(60))" : "TRY_CONVERT(nvarchar(60),v.[" + active + "])");
+        List<String> where = new ArrayList<>();
+        for (String col : loginCols) where.add("LOWER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(250),v.[" + col + "]))))=LOWER(LTRIM(RTRIM(?)))");
+        String sql = "SELECT TOP (12) " + join(select, ",") + " FROM dbo.visitors v WHERE " + join(where, " OR ") + (vid == null ? "" : " ORDER BY TRY_CONVERT(int,v.[" + vid + "])");
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            for (int i = 0; i < loginCols.size(); i++) ps.setString(i + 1, user);
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) {
+                    foundUser[0] = true;
+                    int activeIndex = 4 + passCols.size();
+                    if (isInactiveLoginValue(r.getString(activeIndex))) continue;
+                    for (int i = 0; i < passCols.size(); i++) {
+                        int ix = 4 + i;
+                        if (passwordMatches(resultBytesOrNull(r, ix), resultStringOrNull(r, ix), pass)) {
+                            Integer uidValue = resultIntOrNull(r, 3);
+                            Integer visitorId = resultIntOrNull(r, 1);
+                            String display = stringOr(r.getString(2), user);
+                            return withResolvedAccessRole(c, new UserSession(uidValue, visitorId, display), user);
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private UserSession authenticateSysUserFlexible(Connection c, String user, String pass, boolean[] foundUser) throws Exception {
+        if (c == null || !tableExists(c, "sys_users")) return null;
+        Set<String> cols = columns(c, "sys_users");
+        String uid = resolveFlexible(cols, "user_id", "UserID", "userid", "id", "ID", "rdf");
+        String name = resolveFlexible(cols, "user_name", "UserName", "username", "name", "Name", "FullName", "display_name", "نام", "نام_کاربر");
+        String active = resolveFlexible(cols, "active", "Active", "is_active", "enabled", "Enable", "status", "lock", "Locked");
+        List<String> loginCols = uniqueColumns(cols, "user_name", "UserName", "username", "Username", "login", "login_name", "name", "Name", "mobile", "Mobile", "cell", "user_id", "UserID", "id");
+        List<String> passCols = uniqueColumns(cols, "user_password", "Password", "password", "Pass", "pass", "pwd", "PWD", "user_pass", "UserPass", "رمز", "رمزعبور", "کلمه_عبور");
+        if (loginCols.isEmpty() || passCols.isEmpty()) return null;
+        List<String> select = new ArrayList<>();
+        select.add(uid == null ? "CAST(NULL AS int)" : "TRY_CONVERT(int,u.[" + uid + "])");
+        select.add(name == null ? "CAST(NULL AS nvarchar(250))" : "TRY_CONVERT(nvarchar(250),u.[" + name + "])");
+        for (String p : passCols) select.add("u.[" + p + "]");
+        select.add(active == null ? "CAST(NULL AS nvarchar(60))" : "TRY_CONVERT(nvarchar(60),u.[" + active + "])");
+        List<String> where = new ArrayList<>();
+        for (String col : loginCols) where.add("LOWER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(250),u.[" + col + "]))))=LOWER(LTRIM(RTRIM(?)))");
+        String sql = "SELECT TOP (12) " + join(select, ",") + " FROM dbo.sys_users u WHERE " + join(where, " OR ") + (uid == null ? "" : " ORDER BY TRY_CONVERT(int,u.[" + uid + "])");
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            for (int i = 0; i < loginCols.size(); i++) ps.setString(i + 1, user);
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) {
+                    foundUser[0] = true;
+                    int activeIndex = 3 + passCols.size();
+                    if (isInactiveLoginValue(r.getString(activeIndex))) continue;
+                    for (int i = 0; i < passCols.size(); i++) {
+                        int ix = 3 + i;
+                        if (passwordMatches(resultBytesOrNull(r, ix), resultStringOrNull(r, ix), pass)) {
+                            Integer uidValue = resultIntOrNull(r, 1);
+                            String display = stringOr(r.getString(2), user);
+                            Integer visitor = resolveVisitorIdForAccount(c, user, display, uidValue);
+                            return withResolvedAccessRole(c, new UserSession(uidValue, visitor, display), user);
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private List<String> uniqueColumns(Set<String> cols, String... candidates) {
+        List<String> out = new ArrayList<>();
+        if (cols == null || candidates == null) return out;
+        for (String candidate : candidates) {
+            String col = resolveFlexible(cols, candidate);
+            if (col != null && !out.contains(col)) out.add(col);
+        }
+        return out;
+    }
+
+    private Integer resultIntOrNull(ResultSet r, int index) {
+        try { Object o = r.getObject(index); return o == null ? null : r.getInt(index); }
+        catch (Exception ignored) { return null; }
+    }
+
+    private byte[] resultBytesOrNull(ResultSet r, int index) {
+        try { return r.getBytes(index); } catch (Exception ignored) { return null; }
+    }
+
+    private String resultStringOrNull(ResultSet r, int index) {
+        try { return r.getString(index); } catch (Exception ignored) { return ""; }
+    }
+
+    private boolean isInactiveLoginValue(String value) {
+        if (value == null || value.trim().isEmpty()) return false;
+        String v = normalizeDigits(value).trim().toLowerCase(Locale.US).replace('ي','ی').replace('ك','ک');
+        return v.equals("0") || v.equals("false") || v.equals("f") || v.equals("n") || v.equals("no") ||
+                v.equals("disabled") || v.equals("inactive") || v.equals("locked") || v.equals("lock") ||
+                v.contains("غیرفعال") || v.contains("غيرفعال") || v.contains("مسدود") || v.contains("قفل");
+    }
+
     private boolean passwordMatches(byte[] rawPassword, String textPassword, String enteredPassword) {
         String entered = normalizePassword(enteredPassword);
+        String enteredDigits = normalizeDigits(entered);
         if (entered.isEmpty() && (enteredPassword == null || enteredPassword.isEmpty())) return false;
-        if (textPassword != null && normalizePassword(textPassword).equals(entered)) return true;
+        String stored = normalizePassword(textPassword);
+        if (!stored.isEmpty() && (stored.equals(entered) || stored.equals(enteredDigits))) return true;
+        if (!stored.isEmpty() && (matchesPasswordHash(stored, entered) || matchesPasswordHash(stored, enteredDigits))) return true;
         if (rawPassword == null) return false;
 
-        if (bytesEqual(rawPassword, enteredPassword.getBytes(StandardCharsets.UTF_8))) return true;
-        if (bytesEqual(rawPassword, enteredPassword.getBytes(StandardCharsets.UTF_16LE))) return true;
-        if (bytesEqual(rawPassword, enteredPassword.getBytes(StandardCharsets.ISO_8859_1))) return true;
-        try {
-            if (bytesEqual(rawPassword, enteredPassword.getBytes(Charset.forName("windows-1256")))) return true;
-        } catch (Exception ignored) { }
+        if (bytesEqual(rawPassword, entered.getBytes(StandardCharsets.UTF_8))) return true;
+        if (bytesEqual(rawPassword, enteredDigits.getBytes(StandardCharsets.UTF_8))) return true;
+        if (bytesEqual(rawPassword, entered.getBytes(StandardCharsets.UTF_16LE))) return true;
+        if (bytesEqual(rawPassword, entered.getBytes(StandardCharsets.ISO_8859_1))) return true;
+        try { if (bytesEqual(rawPassword, entered.getBytes(Charset.forName("windows-1256")))) return true; } catch (Exception ignored) { }
 
+        for (String alg : new String[]{"MD5", "SHA-1", "SHA-256", "SHA-512"}) {
+            byte[] dig = digestBytes(alg, entered);
+            byte[] dig2 = digestBytes(alg, enteredDigits);
+            if (bytesEqual(rawPassword, dig) || bytesEqual(rawPassword, dig2)) return true;
+        }
         if (normalizePassword(new String(rawPassword, StandardCharsets.UTF_8)).equals(entered)) return true;
+        if (normalizePassword(new String(rawPassword, StandardCharsets.UTF_8)).equals(enteredDigits)) return true;
         if (normalizePassword(new String(rawPassword, StandardCharsets.UTF_16LE)).equals(entered)) return true;
         if (normalizePassword(new String(rawPassword, StandardCharsets.ISO_8859_1)).equals(entered)) return true;
-        try {
-            if (normalizePassword(new String(rawPassword, Charset.forName("windows-1256"))).equals(entered)) return true;
-        } catch (Exception ignored) { }
+        try { if (normalizePassword(new String(rawPassword, Charset.forName("windows-1256"))).equals(entered)) return true; } catch (Exception ignored) { }
         return false;
+    }
+
+    private boolean matchesPasswordHash(String stored, String entered) {
+        if (stored == null || entered == null || entered.isEmpty()) return false;
+        String clean = stored.trim().toLowerCase(Locale.US).replace("0x", "");
+        for (String alg : new String[]{"MD5", "SHA-1", "SHA-256", "SHA-512"}) {
+            String h = hexOf(digestBytes(alg, entered));
+            if (!h.isEmpty() && clean.equals(h)) return true;
+        }
+        return false;
+    }
+
+    private byte[] digestBytes(String algorithm, String value) {
+        try { return java.security.MessageDigest.getInstance(algorithm).digest(value.getBytes(StandardCharsets.UTF_8)); }
+        catch (Exception ignored) { return new byte[0]; }
+    }
+
+    private String hexOf(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) return "";
+        StringBuilder b = new StringBuilder(bytes.length * 2);
+        for (byte x : bytes) b.append(String.format(Locale.US, "%02x", x & 0xff));
+        return b.toString();
     }
 
     private boolean bytesEqual(byte[] a, byte[] b) {
@@ -5702,7 +5831,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.37.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.38.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -5714,7 +5843,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.37.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.38.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -7196,7 +7325,7 @@ public class MainActivity extends Activity {
         addManualRefreshPanel("visitor_dashboard", "بروزرسانی داشبورد ویزیتور", "آخرین بروزرسانی: " + lastRefreshText("visitor_dashboard"), () -> loadVisitorDashboard());
         JSONObject sales = data.optJSONObject("sales");
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(navAccent("visitor_dashboard"), 30), alpha(GOLD, 16), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 26));
+        c.setBackground(themedSectionBg("visitor_dashboard", 26));
         c.addView(text("عملکرد فروش من", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
         row.addView(dashboardMiniMetric("فروش روز", money(sales == null ? 0 : sales.opt("total")), "جمع", GOLD), dashboardMiniLp());
@@ -7204,8 +7333,8 @@ public class MainActivity extends Activity {
         row.addView(dashboardMiniMetric("مشتری", formatNumber(sales == null ? 0 : sales.opt("customers")), "خریدار", SUCCESS), dashboardMiniLp());
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
         LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
-        Button showcase = primaryButton("ورود به ویترین"); showcase.setOnClickListener(v -> showApp("showcase"));
-        Button cart = secondaryButton("سبد خرید " + formatNumber(visitorCartItems.length())); cart.setOnClickListener(v -> showApp("cart"));
+        Button showcase = themedActionButton("ورود به ویترین ✦", navAccent("showcase"), true); showcase.setOnClickListener(v -> showApp("showcase"));
+        Button cart = themedActionButton("سبد خرید " + formatNumber(visitorCartItems.length()), navAccent("cart"), false); cart.setOnClickListener(v -> showApp("cart"));
         row2.addView(showcase, weightedButtonLp()); row2.addView(cart, weightedButtonLp());
         LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(10), 0, 0); c.addView(row2, r2p);
         LinearLayout row3 = new LinearLayout(this); row3.setOrientation(LinearLayout.HORIZONTAL);
@@ -7225,7 +7354,7 @@ public class MainActivity extends Activity {
 
     private void addVisitorGoalsCard(JSONArray goals) {
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(SUCCESS, 20), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        c.setBackground(themedSectionBg("visitor_dashboard", 22));
         c.addView(text("اهداف فروش ویزیتور", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         if (goals == null || goals.length() == 0) { c.addView(text("هدف ثبت‌شده‌ای برای این ویزیتور پیدا نشد؛ مدیر می‌تواند در جدول اهداف، هدف روزانه/ماهانه تعریف کند.", 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2)); }
         for (int i = 0; goals != null && i < goals.length(); i++) {
@@ -7298,7 +7427,7 @@ public class MainActivity extends Activity {
     private void addShowcaseFloatingCartBar() {
         LinearLayout c = card();
         c.setPadding(dp(10), dp(9), dp(10), dp(9));
-        c.setBackground(gradient(new int[]{alpha(navAccent("cart"), 70), alpha(GOLD, 28), alpha(SURFACE, 252)}, GradientDrawable.Orientation.LEFT_RIGHT, 22));
+        c.setBackground(themedSectionBg("cart", 22));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
         row.addView(text("سبد: " + formatNumber(visitorCartItems.length()) + " قلم • " + money(cartTotal()), 12.0f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(0, -2, 1f));
         Button b = primaryButton("رفتن به سبد"); b.setTextSize(9.8f); b.setOnClickListener(v -> showApp("cart")); row.addView(b, new LinearLayout.LayoutParams(dp(118), dp(42)));
@@ -7309,7 +7438,7 @@ public class MainActivity extends Activity {
     private void addShowcaseProductCard(LinearLayout parent, JSONObject r, int index, String query, String filter) {
         if (r == null) return;
         int accent = index % 3 == 0 ? navAccent("showcase") : (index % 3 == 1 ? SUCCESS : GOLD);
-        LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(Color.WHITE, isLightTheme()?66:16), alpha(accent, isLightTheme()?30:44), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 28));
+        LinearLayout c = card(); c.setBackground(themedSectionBg("showcase", 28));
         LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
         ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setPadding(dp(5), dp(5), dp(5), dp(5)); img.setBackground(roundedStroke(alpha(accent, 40), 18, alpha(accent, 95))); applyProductImage(img, r);
         head.addView(img, new LinearLayout.LayoutParams(dp(74), dp(74)));
@@ -7330,9 +7459,9 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams m2p = new LinearLayout.LayoutParams(-1, -2); m2p.setMargins(0, dp(6), 0, 0); c.addView(metrics2, m2p);
         LinearLayout action = new LinearLayout(this); action.setOrientation(LinearLayout.HORIZONTAL);
         EditText qty = input("تعداد/وزن", cartQtyFor(r.optString("کد", "")), false); qty.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        Button add = primaryButton(cartFindIndex(r.optString("کد", "")) >= 0 ? "بروزرسانی ۱" : "قیمت ۱"); add.setTextSize(8.7f); add.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "سبد بروزرسانی شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
-        Button add2 = secondaryButton("قیمت ۲"); add2.setTextSize(8.7f); add2.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
-        Button remove = secondaryButton("حذف"); remove.setTextSize(8.7f); remove.setOnClickListener(v -> { removeCartItem(r.optString("کد", "")); loadShowcase(query, filter); });
+        Button add = themedActionButton(cartFindIndex(r.optString("کد", "")) >= 0 ? "✦ بروزرسانی سبد" : "＋ افزودن قیمت ۱", navAccent("cart"), true); add.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "سبد بروزرسانی شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
+        Button add2 = themedActionButton("＋ افزودن قیمت ۲", navAccent("showcase"), false); add2.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
+        Button remove = themedActionButton("حذف", DANGER, false); remove.setTextSize(8.7f); remove.setOnClickListener(v -> { removeCartItem(r.optString("کد", "")); loadShowcase(query, filter); });
         action.addView(qty, new LinearLayout.LayoutParams(0, dp(44), 1f)); action.addView(add, weightedButtonLp()); action.addView(add2, weightedButtonLp()); if (cartFindIndex(r.optString("کد", "")) >= 0) action.addView(remove, weightedButtonLp());
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(10), 0, 0); c.addView(action, ap);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(10)); parent.addView(c, lp);
@@ -7409,7 +7538,7 @@ public class MainActivity extends Activity {
     }
 
     private void addCartWorkflowButtons() {
-        LinearLayout c = card(); c.setPadding(dp(10), dp(10), dp(10), dp(10)); c.setBackground(gradient(new int[]{alpha(navAccent("cart"), 26), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        LinearLayout c = card(); c.setPadding(dp(10), dp(10), dp(10), dp(10)); c.setBackground(themedSectionBg("cart", 22));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
         Button mine = secondaryButton("پیش‌فاکتورهای من"); mine.setTextSize(9.3f); mine.setOnClickListener(v -> loadMyPrefactors());
         Button route = secondaryButton("مسیر بازدید"); route.setTextSize(9.3f); route.setOnClickListener(v -> loadVisitRoutePage(""));
@@ -7420,7 +7549,7 @@ public class MainActivity extends Activity {
     }
 
     private void addCartCustomerCard() {
-        LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(navAccent("cart"), 24), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        LinearLayout c = card(); c.setBackground(themedSectionBg("cart", 24));
         c.addView(text("مشتری پیش‌فاکتور", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         if (visitorCartCustomer == null) c.addView(text("هنوز مشتری انتخاب نشده است. برای ویزیتور فقط مشتریان مرتبط با خودش نمایش داده می‌شود.", 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         else {
@@ -7435,8 +7564,8 @@ public class MainActivity extends Activity {
             if (!visitorCartCustomer.optString("address", "").trim().isEmpty()) c.addView(text("آدرس پیش‌فرض: " + visitorCartCustomer.optString("address", ""), 10.3f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         }
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button pick = primaryButton("انتخاب/جستجوی مشتری"); pick.setOnClickListener(v -> { if (ensurePermission("customer_select", "انتخاب مشتری")) showCartCustomerPicker(""); });
-        Button showcase = secondaryButton("افزودن محصول"); showcase.setOnClickListener(v -> showApp("showcase"));
+        Button pick = themedActionButton("👤 انتخاب/جستجوی مشتری", navAccent("cart"), true); pick.setOnClickListener(v -> { if (ensurePermission("customer_select", "انتخاب مشتری")) showCartCustomerPicker(""); });
+        Button showcase = themedActionButton("＋ افزودن محصول", navAccent("showcase"), false); showcase.setOnClickListener(v -> showApp("showcase"));
         row.addView(pick, weightedButtonLp()); row.addView(showcase, weightedButtonLp());
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
@@ -7463,7 +7592,7 @@ public class MainActivity extends Activity {
     private String finalCartStatus() { return cartApprovalReason().trim().isEmpty() ? "sent" : "pending_approval"; }
 
     private void addCartItemsCard() {
-        LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(GOLD, 22), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        LinearLayout c = card(); c.setBackground(themedSectionBg("cart", 24));
         c.addView(text("اقلام انتخاب‌شده", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         if (visitorCartItems.length() == 0) addEmptyTo(c, "سبد خالی است؛ از ویترین محصول اضافه کنید.");
         for (int i = 0; i < visitorCartItems.length(); i++) {
@@ -7519,7 +7648,7 @@ public class MainActivity extends Activity {
     }
 
     private void addCartTermsCard() {
-        LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(INFO, 18), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        LinearLayout c = card(); c.setBackground(themedSectionBg("cart", 24));
         c.addView(text("شرایط فروش و تحویل", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         HorizontalScrollView hs = new HorizontalScrollView(this); styleHorizontalScroll(hs); LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
         for (String opt : new String[]{"نقدی", "کارت‌خوان", "حواله", "چکی", "اعتباری"}) {
@@ -7551,7 +7680,7 @@ public class MainActivity extends Activity {
     }
 
     private void addCartNotesAndActions() {
-        LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(INFO, 20), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        LinearLayout c = card(); c.setBackground(themedSectionBg("cart", 24));
         c.addView(text("توضیحات، امضا و ثبت", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         cartNotesInput = input("توضیحات مشتری یا اقلام انتخابی", visitorCartNotes, false); cartNotesInput.setSingleLine(false); cartNotesInput.setMinLines(3);
         LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, dp(88)); np.setMargins(0, dp(8), 0, dp(8)); c.addView(cartNotesInput, np);
@@ -7568,7 +7697,7 @@ public class MainActivity extends Activity {
     }
 
     private void addCartDraftsAndOfflineCard() {
-        LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(WARNING, 16), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        LinearLayout c = card(); c.setBackground(themedSectionBg("cart", 24));
         c.addView(text("پیش‌نویس‌ها و صف ارسال", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         c.addView(text("پیش‌نویس‌های چندتایی و سفارش‌های ارسال‌نشده در گوشی نگهداری می‌شوند تا در اتصال بعدی ارسال شوند.", 10.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
@@ -8725,7 +8854,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.37.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.38.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -11390,7 +11519,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.37.0\nاین نسخه گردش نهایی ویزیتور را کامل می‌کند: پیش‌فاکتورهای من، مسیر بازدید، ویرایش سبد، انتخاب قیمت ۱/۲، تخفیف، مالیات، شرایط تسویه، کنترل موجودی، صف آفلاین، PDF، گزارش پایان روز و رفع مشکل اتصال هنگام فعال بودن VPN.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.38.0\nاین نسخه ورود ویزیتور/کاربران را با تشخیص انعطاف‌پذیر ستون‌های نام کاربری و رمز در SQL اصلاح می‌کند و ظاهر ویترین، دکمه افزودن به سبد، انتخاب مشتری، سبد خرید و داشبورد ویزیتور را کاملاً هماهنگ‌تر با تم انتخابی می‌سازد.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
