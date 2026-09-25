@@ -62,6 +62,8 @@ import android.widget.ScrollView;
 import android.widget.Space;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.MediaController;
+import android.widget.VideoView;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -72,6 +74,8 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.sql.Connection;
@@ -132,6 +136,25 @@ public class MainActivity extends Activity {
     private static final String KEY_WIDGET_SUMMARY = "widget_summary";
     private static final String KEY_LAST_CONNECTION_OK = "last_connection_ok";
     private static final String KEY_LAST_CONNECTION_ERROR = "last_connection_error";
+    private static final String KEY_TAX_BASE_URL = "taxpayer_base_url";
+    private static final String KEY_TAX_MEMORY_ID = "taxpayer_memory_id";
+    private static final String KEY_TAX_ECONOMIC_ID = "taxpayer_economic_id";
+    private static final String KEY_TAX_CLIENT_ID = "taxpayer_client_id";
+    private static final String KEY_TAX_AUTH_KEY = "taxpayer_auth_key";
+    private static final String KEY_TAX_PRIVATE_KEY = "taxpayer_private_key";
+    private static final String KEY_TAX_SENT = "taxpayer_sent_invoice_keys";
+    private static final String KEY_TAX_EXCLUDED = "taxpayer_excluded_invoice_keys";
+    private static final String KEY_TAX_FAILED = "taxpayer_failed_invoice_keys";
+    private static final String KEY_TAX_LAST_REPORT = "taxpayer_last_report";
+    private static final String KEY_CAMERA_HOST = "camera_dvr_host";
+    private static final String KEY_CAMERA_PORT = "camera_dvr_port";
+    private static final String KEY_CAMERA_USER = "camera_dvr_user";
+    private static final String KEY_CAMERA_PASS = "camera_dvr_pass";
+    private static final String KEY_CAMERA_CHANNELS = "camera_dvr_channels";
+    private static final String KEY_CAMERA_TEMPLATE = "camera_stream_template";
+    private static final String KEY_CAMERA_REPLAY_TEMPLATE = "camera_replay_template";
+    private static final String KEY_CAMERA_LAYOUT = "camera_grid_layout";
+    private static final String KEY_ALARM_LOG = "alarm_last_log";
     private static final String KEY_REMIND_CHECKS = "remind_checks";
     private static final String KEY_REMIND_DEBTORS = "remind_debtors";
     private static final String KEY_REMIND_INACTIVE = "remind_inactive";
@@ -204,6 +227,11 @@ public class MainActivity extends Activity {
     private String productsCacheFilter = "all";
     private String pendingChatAttachmentKind = "file";
     private String chatSearchQuery = "";
+    private String taxPeriod = "day";
+    private String taxDocType = "all";
+    private JSONArray taxCurrentInvoices = new JSONArray();
+    private final Set<String> taxSelectedKeys = new HashSet<>();
+    private int alarmActiveDevice = 1;
     private final Map<String, String> customerLedgerCache = new HashMap<>();
 
     private static final Set<String> SAFE_TABLES = new HashSet<>(Arrays.asList(
@@ -436,6 +464,9 @@ public class MainActivity extends Activity {
         if (k.contains("debt") || k.contains("danger") || k.contains("risk") || k.contains("مطالب")) return DANGER;
         if (k.contains("warning") || k.contains("check") || k.contains("چک")) return WARNING;
         if (k.contains("success") || k.contains("customer") || k.contains("مشتری")) return SUCCESS;
+        if (k.contains("tax") || k.contains("مودیان") || k.contains("مالیات")) return mix(GOLD, INFO, 0.24f);
+        if (k.contains("camera") || k.contains("دوربین") || k.contains("dvr")) return mix(INFO, SUCCESS, 0.28f);
+        if (k.contains("alarm") || k.contains("دزدگیر") || k.contains("امنیت")) return mix(DANGER, GOLD, 0.32f);
         if (k.contains("attendance") || k.contains("حضور")) return mix(GOLD, SUCCESS, 0.32f);
         if (k.contains("chat") || k.contains("گفتگو")) return mix(GOLD_2, INFO, 0.62f);
         if (k.contains("personnel") || k.contains("پرسنل")) return mix(SUCCESS, INFO, 0.38f);
@@ -488,6 +519,9 @@ public class MainActivity extends Activity {
         if ("chat".equals(key)) return "✉";
         if ("personnel".equals(key)) return "ID";
         if ("attendance".equals(key)) return "⏱";
+        if ("taxpayers".equals(key)) return "٪";
+        if ("cameras".equals(key)) return "◎";
+        if ("alarm".equals(key)) return "⌁";
         return "◆";
     }
 
@@ -500,6 +534,9 @@ public class MainActivity extends Activity {
         if (t.contains("PDF")) return "PDF";
         if (t.contains("تازه") || t.contains("بروزرسان")) return "⟳";
         if (t.contains("تم")) return "✺";
+        if (t.contains("مودیان") || t.contains("مالیات")) return "٪";
+        if (t.contains("دوربین") || t.contains("DVR")) return "◎";
+        if (t.contains("دزدگیر") || t.contains("امنیت")) return "⌁";
         if (t.contains("مرخصی")) return "☘";
         if (t.contains("ورود")) return "↘";
         if (t.contains("خروج")) return "↗";
@@ -1385,7 +1422,7 @@ public class MainActivity extends Activity {
         navStrip.setGravity(Gravity.CENTER);
         navStrip.setPadding(dp(8), dp(7), dp(8), dp(7));
         navStrip.setBackground(gradient(new int[]{alpha(HEADER_START, 238), alpha(SURFACE_2, 210)}, GradientDrawable.Orientation.LEFT_RIGHT, 0));
-        shell.addView(navStrip, new LinearLayout.LayoutParams(-1, dp(162)));
+        shell.addView(navStrip, new LinearLayout.LayoutParams(-1, dp(212)));
 
         ScrollView scroll = new ScrollView(this);
         styleVerticalScroll(scroll);
@@ -1406,9 +1443,11 @@ public class MainActivity extends Activity {
         LinearLayout row1 = navRow();
         LinearLayout row2 = navRow();
         LinearLayout row3 = navRow();
+        LinearLayout row4 = navRow();
         navStrip.addView(row1, new LinearLayout.LayoutParams(-1, 0, 1f));
         navStrip.addView(row2, new LinearLayout.LayoutParams(-1, 0, 1f));
         navStrip.addView(row3, new LinearLayout.LayoutParams(-1, 0, 1f));
+        navStrip.addView(row4, new LinearLayout.LayoutParams(-1, 0, 1f));
         addNav(row1, "dashboard", "داشبورد", navGlyph("dashboard"));
         addNav(row1, "customers", "مشتریان", navGlyph("customers"));
         addNav(row1, "products", "کالا", navGlyph("products"));
@@ -1418,6 +1457,9 @@ public class MainActivity extends Activity {
         addNav(row3, "chat", "گفتگو", navGlyph("chat"));
         addNav(row3, "personnel", "پرسنل", navGlyph("personnel"));
         addNav(row3, "attendance", "حضور", navGlyph("attendance"));
+        addNav(row4, "taxpayers", "مودیان", navGlyph("taxpayers"));
+        addNav(row4, "cameras", "دوربین", navGlyph("cameras"));
+        addNav(row4, "alarm", "دزدگیر", navGlyph("alarm"));
     }
 
     private LinearLayout navRow() {
@@ -1467,6 +1509,9 @@ public class MainActivity extends Activity {
         if ("chat".equals(key)) return mix(GOLD_2, INFO, 0.62f);
         if ("personnel".equals(key)) return mix(SUCCESS, INFO, 0.35f);
         if ("attendance".equals(key)) return mix(GOLD, SUCCESS, 0.30f);
+        if ("taxpayers".equals(key)) return mix(GOLD, INFO, 0.28f);
+        if ("cameras".equals(key)) return mix(INFO, SUCCESS, 0.30f);
+        if ("alarm".equals(key)) return mix(DANGER, GOLD, 0.30f);
         return GOLD;
     }
 
@@ -1479,6 +1524,9 @@ public class MainActivity extends Activity {
             case "chat": loadChatRoom(); break;
             case "personnel": loadPersonnel(); break;
             case "attendance": loadAttendance(); break;
+            case "taxpayers": loadTaxpayers(); break;
+            case "cameras": renderCamerasPage(); break;
+            case "alarm": renderAlarmPage(); break;
             case "customers": loadCustomers(customersCacheQuery == null ? "" : customersCacheQuery, customersCacheFilter == null ? "all" : customersCacheFilter); break;
             case "products": loadProducts(productsCacheQuery == null ? "" : productsCacheQuery, productsCacheFilter == null ? "all" : productsCacheFilter); break;
             case "sales": loadTable("فروش و اسناد", "نمای مستقیم از جدول فروش", "sailfact", ""); break;
@@ -1681,7 +1729,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.29.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.30.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -4913,7 +4961,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.29.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.30.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -4925,7 +4973,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.29.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.30.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -5073,6 +5121,329 @@ public class MainActivity extends Activity {
     }
 
     private void decideLeave(long id, boolean approve){ runDb(() -> { try(Connection c=openConnection()){ ensureMeelanoCollabTables(c); try(PreparedStatement ps=c.prepareStatement("UPDATE dbo.meelano_leave_requests SET status=?, decided_at=SYSDATETIME(), manager_note=? WHERE id=?")){ ps.setString(1,approve?"approved":"rejected"); ps.setString(2,approve?"تأیید مدیر":"رد مدیر"); ps.setLong(3,id); ps.executeUpdate(); } } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ loadAttendance(); } @Override public void fail(Exception e){ showPageError("مرخصی",e,()->loadAttendance()); }}); }
+
+    private interface NetworkJob { String run() throws Exception; }
+    private interface NetworkCallback { void ok(String body); void fail(Exception e); }
+
+    private void runNetworkJob(String title, NetworkJob job, NetworkCallback callback) {
+        setConnectionStatus("loading");
+        executor.execute(() -> {
+            try {
+                String result = job.run();
+                runOnUiThread(() -> { setConnectionStatus("connected"); if (callback != null) callback.ok(result); });
+            } catch (Exception e) {
+                runOnUiThread(() -> { setConnectionStatus("offline"); if (callback != null) callback.fail(e); else Toast.makeText(MainActivity.this, shortError(e), Toast.LENGTH_LONG).show(); });
+            }
+        });
+    }
+
+    private String prefString(String key, String def) { return prefs == null ? def : prefs.getString(key, def); }
+    private int prefIntText(String key, int def) { try { return Integer.parseInt(prefString(key, String.valueOf(def)).trim()); } catch (Exception ignored) { return def; } }
+    private String prefSecret(String key) { return prefs == null ? "" : unprotectSecret(prefs.getString(key, "")); }
+    private void putSecret(SharedPreferences.Editor e, String key, String value) { if (e != null) e.putString(key, protectSecret(value == null ? "" : value)); }
+    private Set<String> prefSetCopy(String key) { return prefs == null ? new HashSet<>() : new HashSet<>(prefs.getStringSet(key, new HashSet<String>())); }
+    private void savePrefSet(String key, Set<String> set) { if (prefs != null) prefs.edit().putStringSet(key, set == null ? new HashSet<String>() : new HashSet<>(set)).apply(); }
+
+    private void loadTaxpayers() {
+        content.removeAllViews();
+        addHero("مودیان", "اتصال مدیریتی سامانه مودیان، آماده‌سازی فاکتورهای فروش و برگشت، کنترل ارسال‌نشده‌ها و جلوگیری از ارسال اشتباه.");
+        addTaxpayerStatusCard();
+        addTaxpayerFilterCard();
+        addTaxpayerReportCard();
+        addLoading(content, "در حال فراخوانی فاکتورهای قابل ارسال…");
+        runDb(() -> queryTaxInvoices(taxPeriod, taxDocType), new DbCallback() {
+            @Override public void ok(String body) { try { renderTaxInvoices(new JSONArray(body)); } catch (Exception e) { showPageError("مودیان", e, () -> loadTaxpayers()); } }
+            @Override public void fail(Exception e) { showPageError("مودیان", e, () -> loadTaxpayers()); }
+        });
+    }
+
+    private void addTaxpayerStatusCard() {
+        LinearLayout c = card();
+        int accent = navAccent("taxpayers");
+        c.setBackground(gradient(new int[]{alpha(accent, 32), alpha(SURFACE, 248)}, GradientDrawable.Orientation.TL_BR, 24));
+        c.addView(text("اتصال سامانه مودیان", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        String base = prefString(KEY_TAX_BASE_URL, "");
+        String mem = prefString(KEY_TAX_MEMORY_ID, "");
+        String eco = prefString(KEY_TAX_ECONOMIC_ID, "");
+        String last = prefString(KEY_TAX_LAST_REPORT, "گزارشی ثبت نشده است.");
+        c.addView(text((base.trim().isEmpty() ? "آدرس سرویس ثبت نشده" : "سرویس: " + base) + "\nشناسه حافظه: " + stringOr(mem, "ثبت نشده") + " • اقتصادی: " + stringOr(eco, "ثبت نشده") + "\nآخرین گزارش: " + last, 10.6f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        Button settings = primaryButton(withIcon("⚙", "تنظیمات دقیق")); settings.setTextSize(9.4f); settings.setOnClickListener(v -> { if (ensureManagerOnly()) showTaxpayerSettingsDialog(); });
+        Button test = secondaryButton(withIcon("✓", "تست اتصال")); test.setTextSize(9.4f); test.setOnClickListener(v -> { if (ensureManagerOnly()) testTaxpayerConnection(); });
+        row.addView(settings, weightedButtonLp()); row.addView(test, weightedButtonLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private boolean ensureManagerOnly() {
+        if (isAdminUser()) return true;
+        Toast.makeText(this, "این عملیات فقط برای مدیر اصلی admin فعال است.", Toast.LENGTH_LONG).show();
+        return false;
+    }
+
+    private void addTaxpayerFilterCard() {
+        LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(GOLD, 18), alpha(INFO, 16), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        c.addView(text("فراخوانی فاکتورها", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("بازه و نوع سند را انتخاب کن؛ فروش و برگشت از فروش جداگانه و با وضعیت ارسال نمایش داده می‌شوند.", 10.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout period = new LinearLayout(this); period.setOrientation(LinearLayout.HORIZONTAL);
+        addTaxChip(period, "day", "روزانه", true); addTaxChip(period, "week", "هفتگی", true); addTaxChip(period, "month", "ماهانه", true);
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, -2); pp.setMargins(0, dp(10), 0, dp(7)); c.addView(period, pp);
+        LinearLayout type = new LinearLayout(this); type.setOrientation(LinearLayout.HORIZONTAL);
+        addTaxChip(type, "all", "همه", false); addTaxChip(type, "sale", "فروش", false); addTaxChip(type, "return", "برگشت", false);
+        c.addView(type, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addTaxChip(LinearLayout row, String key, String label, boolean periodMode) {
+        boolean active = periodMode ? key.equals(taxPeriod) : key.equals(taxDocType);
+        Button b = active ? primaryButton(label) : secondaryButton(label);
+        b.setTextSize(9.4f);
+        b.setOnClickListener(v -> { if (periodMode) taxPeriod = key; else taxDocType = key; taxSelectedKeys.clear(); loadTaxpayers(); });
+        row.addView(b, weightedButtonLp());
+    }
+
+    private void addTaxpayerReportCard() {
+        Set<String> sent = prefSetCopy(KEY_TAX_SENT), excluded = prefSetCopy(KEY_TAX_EXCLUDED), failed = prefSetCopy(KEY_TAX_FAILED);
+        LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(SUCCESS, 16), alpha(WARNING, 14), alpha(SURFACE, 248)}, GradientDrawable.Orientation.TL_BR, 22));
+        c.addView(text("کنترل ارسال و عدم ارسال", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("ارسالی: " + formatNumber(sent.size()) + " • ارسال‌نشده/ناتمام: " + formatNumber(failed.size()) + " • کنارگذاشته‌شده: " + formatNumber(excluded.size()), 10.6f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        Button retry = primaryButton(withIcon("⟳", "ارسال مجدد ناقص‌ها")); retry.setTextSize(9.0f); retry.setOnClickListener(v -> retryFailedTaxInvoices());
+        Button excludedBtn = secondaryButton(withIcon("⊘", "لیست کنارگذاشته")); excludedBtn.setTextSize(9.0f); excludedBtn.setOnClickListener(v -> showTaxKeyList("فاکتورهای کنارگذاشته‌شده", KEY_TAX_EXCLUDED));
+        row.addView(retry, weightedButtonLp()); row.addView(excludedBtn, weightedButtonLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void renderTaxInvoices(JSONArray rows) {
+        taxCurrentInvoices = rows == null ? new JSONArray() : rows;
+        content.removeAllViews();
+        addHero("مودیان", "انتخاب امن فاکتورهای فروش و برگشت از فروش برای ارسال به سامانه.");
+        addTaxpayerStatusCard(); addTaxpayerFilterCard(); addTaxpayerReportCard(); addTaxBatchActions();
+        if (taxCurrentInvoices.length() == 0) { addEmptyTo(content, "در این بازه فاکتور قابل نمایش پیدا نشد یا همه در لیست کنارگذاشته‌شده هستند."); return; }
+        for (int i = 0; i < taxCurrentInvoices.length(); i++) addTaxInvoiceCard(taxCurrentInvoices.optJSONObject(i));
+    }
+
+    private void addTaxBatchActions() {
+        LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(navAccent("taxpayers"), 24), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        c.addView(text("عملیات گروهی", 15, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("انتخاب‌شده: " + formatNumber(taxSelectedKeys.size()) + " سند", 10.6f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row1 = new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL);
+        Button all = primaryButton(withIcon("✓", "انتخاب همه فیلتر")); all.setTextSize(8.8f); all.setOnClickListener(v -> { for (int i=0;i<taxCurrentInvoices.length();i++){ JSONObject o=taxCurrentInvoices.optJSONObject(i); if(o!=null && !"sent".equals(o.optString("status"))) taxSelectedKeys.add(o.optString("key")); } renderTaxInvoices(taxCurrentInvoices); });
+        Button none = secondaryButton(withIcon("×", "لغو انتخاب")); none.setTextSize(8.8f); none.setOnClickListener(v -> { taxSelectedKeys.clear(); renderTaxInvoices(taxCurrentInvoices); });
+        row1.addView(all, weightedButtonLp()); row1.addView(none, weightedButtonLp()); c.addView(row1, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
+        Button send = primaryButton(withIcon("⇧", "ارسال انتخابی")); send.setTextSize(8.8f); send.setOnClickListener(v -> sendSelectedTaxInvoices());
+        Button hide = secondaryButton(withIcon("⊘", "عدم ارسال")); hide.setTextSize(8.8f); hide.setOnClickListener(v -> excludeSelectedTaxInvoices());
+        row2.addView(send, weightedButtonLp()); row2.addView(hide, weightedButtonLp()); LinearLayout.LayoutParams r2p=new LinearLayout.LayoutParams(-1,-2); r2p.setMargins(0,dp(8),0,0); c.addView(row2,r2p);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addTaxInvoiceCard(JSONObject o) {
+        if (o == null) return;
+        String key = o.optString("key");
+        boolean selected = taxSelectedKeys.contains(key);
+        boolean sent = "sent".equals(o.optString("status"));
+        boolean failed = "failed".equals(o.optString("status"));
+        int accent = "return".equals(o.optString("type")) ? WARNING : SUCCESS;
+        LinearLayout c = card(); c.setBackground(roundedStroke(alpha(accent, selected ? 34 : 16), 20, alpha(selected ? GOLD : accent, selected ? 120 : 65)));
+        LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView glyph = report3dIcon("return".equals(o.optString("type")) ? "↩" : "٪", accent); head.addView(glyph, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(9),0,dp(9),0);
+        copy.addView(text(o.optString("typeFa") + " • شماره " + o.optString("number", "—") + (selected ? "  ✓" : ""), 12.7f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(o.optString("date", "—") + " • " + o.optString("party", "بدون نام") + " • " + money(o.opt("amount")), 10.3f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView badge = text(sent ? "ارسال‌شده" : (failed ? "ناقص" : "آماده"), 9.2f, sent ? SUCCESS : (failed ? DANGER : GOLD), Typeface.BOLD); badge.setGravity(Gravity.CENTER); badge.setBackground(roundedStroke(alpha(sent ? SUCCESS : (failed ? DANGER : GOLD), 16), 999, alpha(sent ? SUCCESS : (failed ? DANGER : GOLD), 70))); head.addView(badge, new LinearLayout.LayoutParams(dp(82), dp(32)));
+        c.addView(head, new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("مالیات: " + money(o.opt("tax")) + " • تخفیف: " + money(o.opt("discount")) + " • دریافتی: " + money(o.opt("paid")), 10.1f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        Button pick = selected ? primaryButton(withIcon("✓", "انتخاب شد")) : secondaryButton(withIcon("□", "انتخاب")); pick.setTextSize(8.8f); pick.setOnClickListener(v -> { if (taxSelectedKeys.contains(key)) taxSelectedKeys.remove(key); else if (!sent) taxSelectedKeys.add(key); renderTaxInvoices(taxCurrentInvoices); });
+        Button hide = secondaryButton(withIcon("⊘", "عدم ارسال")); hide.setTextSize(8.8f); hide.setOnClickListener(v -> { taxSelectedKeys.clear(); taxSelectedKeys.add(key); excludeSelectedTaxInvoices(); });
+        row.addView(pick, weightedButtonLp()); row.addView(hide, weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(8),0,0); c.addView(row,rp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(9)); content.addView(c, lp);
+    }
+
+    private String queryTaxInvoices(String period, String type) throws Exception {
+        JSONArray arr = new JSONArray();
+        Set<String> excluded = prefSetCopy(KEY_TAX_EXCLUDED), sent = prefSetCopy(KEY_TAX_SENT), failed = prefSetCopy(KEY_TAX_FAILED);
+        try (Connection c = openConnection()) {
+            if (!"return".equals(type)) appendTaxInvoicesFromTable(c, arr, "sailfact", "sale", period, excluded, sent, failed);
+            if (!"sale".equals(type)) {
+                String[] tables = {"retsailfact","ret_sailfact","return_sailfact","bargsailfact","barge_sailfact","sailback","backsailfact","sale_return","sales_return","marjoei_sailfact","برگشت_فروش"};
+                for (String t : tables) if (tableExists(c, t)) { appendTaxInvoicesFromTable(c, arr, t, "return", period, excluded, sent, failed); break; }
+            }
+        }
+        return arr.toString();
+    }
+
+    private void appendTaxInvoicesFromTable(Connection c, JSONArray arr, String table, String kind, String period, Set<String> excluded, Set<String> sent, Set<String> failed) throws Exception {
+        Set<String> cols = columns(c, table); if (cols == null || cols.isEmpty()) return;
+        String date = resolveFlexible(cols, "date", "DATE", "tarikh", "Date", "t_date", "تاریخ");
+        String number = resolveFlexible(cols, "shfacfo", "shfac", "factor_no", "invoice_no", "number", "serial", "شماره");
+        String amount = resolveFlexible(cols, "all", "amount", "mablagh", "total", "Total", "sum", "جمع");
+        if (number == null || amount == null) return;
+        String shmo = resolveFlexible(cols, "shmo", "SHMO", "customer", "CustomerCode");
+        String partyLocal = resolveFlexible(cols, "moname", "MONAME", "customer_name", "name", "Name");
+        String tax = resolveFlexible(cols, "tax", "Tax", "maliat", "مالیات");
+        String discount = resolveFlexible(cols, "tafif", "takhfif", "discount", "تخفیف");
+        String paid = resolveFlexible(cols, "MabDaryaftFactor", "Daryaft", "received", "paid");
+        String desc = resolveFlexible(cols, "description", "Explain", "tozihat", "شرح");
+        Set<String> cust = columns(c, "CUSTOMERS");
+        String join = ""; String partyExpr = partyLocal == null ? "N'بدون نام'" : "TRY_CONVERT(nvarchar(250),h.[" + partyLocal + "])";
+        if (shmo != null && hasCol(cust, "SHMO") && hasCol(cust, "MONAME")) { join = " LEFT JOIN dbo.CUSTOMERS cu ON TRY_CONVERT(nvarchar(100),cu.SHMO)=TRY_CONVERT(nvarchar(100),h.[" + shmo + "])"; partyExpr = "COALESCE(TRY_CONVERT(nvarchar(250),cu.MONAME)," + partyExpr + ",N'بدون نام')"; }
+        String latest = date == null ? "" : latestDate(c, table, date);
+        int dateLimit = "month".equals(period) ? 31 : ("week".equals(period) ? 7 : 1);
+        int top = "month".equals(period) ? 420 : ("week".equals(period) ? 180 : 80);
+        String sql = "SELECT TOP (" + top + ") " + (date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),h.["+date+"])") + ", TRY_CONVERT(nvarchar(80),h.["+number+"]), " + partyExpr + ", TRY_CONVERT(decimal(19,2),h.["+amount+"]), " + (tax==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),h.["+tax+"])") + ", " + (discount==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),h.["+discount+"])") + ", " + (paid==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),h.["+paid+"])") + ", " + (desc==null?"CAST(NULL AS nvarchar(500))":"TRY_CONVERT(nvarchar(500),h.["+desc+"])") + " FROM dbo.["+table+"] h" + join + activeWhereForAlias(cols, "h") + " ORDER BY " + (date==null?"1":"h.["+date+"] DESC") + ", h.["+number+"] DESC";
+        Set<String> seenDates = new HashSet<>();
+        try (PreparedStatement ps = c.prepareStatement(sql)) { try (ResultSet r = ps.executeQuery()) { while (r.next()) {
+            String d = stringOr(r.getString(1), "—");
+            if (dateLimit == 1 && !latest.isEmpty() && !latest.equals(d)) continue;
+            if (!d.equals("—")) { seenDates.add(d); if (seenDates.size() > dateLimit) break; }
+            String no = stringOr(r.getString(2), "—"); String key = kind + "|" + d + "|" + no;
+            if (excluded != null && excluded.contains(key)) continue;
+            JSONObject o = new JSONObject(); o.put("key", key); o.put("type", kind); o.put("typeFa", "return".equals(kind) ? "برگشت از فروش" : "فروش"); o.put("date", d); o.put("number", no); o.put("party", stringOr(r.getString(3), "بدون نام")); o.put("amount", r.getDouble(4)); o.put("tax", r.getDouble(5)); o.put("discount", r.getDouble(6)); o.put("paid", r.getDouble(7)); o.put("description", stringOr(r.getString(8), "")); o.put("status", sent.contains(key) ? "sent" : (failed.contains(key) ? "failed" : "ready")); arr.put(o);
+        } } }
+    }
+
+    private String activeWhereForAlias(Set<String> cols, String alias) {
+        String w = activeWhere(cols, alias);
+        return w == null || w.trim().isEmpty() ? "" : " " + w;
+    }
+
+    private void showTaxpayerSettingsDialog() {
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(10), dp(8), dp(10), dp(4));
+        box.addView(text("تنظیمات سامانه مودیان", 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        EditText base = input("آدرس سرویس/درگاه ارسال سامانه مودیان", prefString(KEY_TAX_BASE_URL, ""), false);
+        EditText mem = input("شناسه حافظه مالیاتی", prefString(KEY_TAX_MEMORY_ID, ""), false);
+        EditText eco = input("شناسه اقتصادی/ملی", prefString(KEY_TAX_ECONOMIC_ID, ""), false);
+        EditText client = input("Client ID / شناسه کاربری سرویس", prefString(KEY_TAX_CLIENT_ID, ""), false);
+        EditText auth = input("کلید احراز / Token" + (prefSecret(KEY_TAX_AUTH_KEY).isEmpty()?"":" • ذخیره‌شده"), "", true);
+        EditText pk = input("کلید خصوصی/امضای دیجیتال" + (prefSecret(KEY_TAX_PRIVATE_KEY).isEmpty()?"":" • ذخیره‌شده"), "", true);
+        for (EditText e : new EditText[]{base,mem,eco,client,auth,pk}) { LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1, dp(48)); ep.setMargins(0, dp(8), 0, 0); box.addView(e, ep); }
+        AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).setPositiveButton("ذخیره", null).create();
+        dlg.setOnShowListener(di -> { styleMeelanoDialog(dlg, navAccent("taxpayers")); Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE); if (ok != null) ok.setOnClickListener(v -> { SharedPreferences.Editor ed=prefs.edit(); ed.putString(KEY_TAX_BASE_URL, base.getText().toString().trim()); ed.putString(KEY_TAX_MEMORY_ID, mem.getText().toString().trim()); ed.putString(KEY_TAX_ECONOMIC_ID, eco.getText().toString().trim()); ed.putString(KEY_TAX_CLIENT_ID, client.getText().toString().trim()); if(auth.getText()!=null && auth.getText().toString().trim().length()>0) putSecret(ed, KEY_TAX_AUTH_KEY, auth.getText().toString()); if(pk.getText()!=null && pk.getText().toString().trim().length()>0) putSecret(ed, KEY_TAX_PRIVATE_KEY, pk.getText().toString()); ed.apply(); dlg.dismiss(); Toast.makeText(this,"تنظیمات مودیان ذخیره شد.",Toast.LENGTH_SHORT).show(); loadTaxpayers(); }); });
+        dlg.show();
+    }
+
+    private void testTaxpayerConnection() {
+        String url = prefString(KEY_TAX_BASE_URL, "").trim(); if (url.isEmpty()) { Toast.makeText(this,"ابتدا آدرس سرویس سامانه مودیان را وارد کنید.",Toast.LENGTH_LONG).show(); return; }
+        runNetworkJob("tax-test", () -> httpRequest(url, "GET", null, prefSecret(KEY_TAX_AUTH_KEY), 9000), new NetworkCallback(){ @Override public void ok(String b){ prefs.edit().putString(KEY_TAX_LAST_REPORT, "تست اتصال موفق • " + nowText()).apply(); Toast.makeText(MainActivity.this,"اتصال سامانه مودیان موفق بود.",Toast.LENGTH_LONG).show(); loadTaxpayers(); } @Override public void fail(Exception e){ prefs.edit().putString(KEY_TAX_LAST_REPORT, "تست ناموفق • " + shortError(e)).apply(); showPageError("تست مودیان", e, () -> loadTaxpayers()); }});
+    }
+
+    private void sendSelectedTaxInvoices() {
+        if (!ensureManagerOnly()) return;
+        if (taxSelectedKeys.isEmpty()) { Toast.makeText(this,"هیچ فاکتوری انتخاب نشده است.",Toast.LENGTH_SHORT).show(); return; }
+        JSONArray selected = selectedTaxRows(taxSelectedKeys);
+        runNetworkJob("tax-send", () -> sendTaxRows(selected), new NetworkCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this,b,Toast.LENGTH_LONG).show(); taxSelectedKeys.clear(); loadTaxpayers(); } @Override public void fail(Exception e){ showPageError("ارسال مودیان", e, () -> loadTaxpayers()); }});
+    }
+
+    private JSONArray selectedTaxRows(Set<String> keys) {
+        JSONArray arr = new JSONArray(); if (keys == null) return arr;
+        for (int i=0;i<taxCurrentInvoices.length();i++){ JSONObject o=taxCurrentInvoices.optJSONObject(i); if(o!=null && keys.contains(o.optString("key"))) arr.put(o); }
+        return arr;
+    }
+
+    private String sendTaxRows(JSONArray rows) throws Exception {
+        String endpoint = prefString(KEY_TAX_BASE_URL, "").trim(); if (endpoint.isEmpty()) throw new DbException("آدرس سرویس مودیان تنظیم نشده است.");
+        Set<String> sent = prefSetCopy(KEY_TAX_SENT), failed = prefSetCopy(KEY_TAX_FAILED); int ok=0, bad=0;
+        for (int i=0;i<rows.length();i++) { JSONObject row = rows.optJSONObject(i); if(row==null) continue; String key=row.optString("key"); try { JSONObject payload = buildTaxPayload(row); httpRequest(endpoint, "POST", payload.toString(), prefSecret(KEY_TAX_AUTH_KEY), 20000); sent.add(key); failed.remove(key); ok++; } catch(Exception ex){ failed.add(key); bad++; } }
+        savePrefSet(KEY_TAX_SENT, sent); savePrefSet(KEY_TAX_FAILED, failed); String report = "ارسال موفق: " + formatNumber(ok) + " • ناقص: " + formatNumber(bad) + " • " + nowText(); prefs.edit().putString(KEY_TAX_LAST_REPORT, report).apply(); return report;
+    }
+
+    private JSONObject buildTaxPayload(JSONObject row) throws Exception {
+        JSONObject payload = new JSONObject(); payload.put("memoryId", prefString(KEY_TAX_MEMORY_ID, "")); payload.put("economicId", prefString(KEY_TAX_ECONOMIC_ID, "")); payload.put("clientId", prefString(KEY_TAX_CLIENT_ID, "")); payload.put("signedByDevice", true); payload.put("createdAt", nowText()); payload.put("invoice", row); return payload;
+    }
+
+    private void excludeSelectedTaxInvoices() {
+        if (taxSelectedKeys.isEmpty()) { Toast.makeText(this,"برای انتقال به عدم ارسال، ابتدا سند را انتخاب کنید.",Toast.LENGTH_SHORT).show(); return; }
+        Set<String> excluded = prefSetCopy(KEY_TAX_EXCLUDED); excluded.addAll(taxSelectedKeys); savePrefSet(KEY_TAX_EXCLUDED, excluded); taxSelectedKeys.clear(); Toast.makeText(this,"به لیست عدم ارسال منتقل شد و از جستجوهای بعدی حذف می‌شود.",Toast.LENGTH_LONG).show(); loadTaxpayers();
+    }
+
+    private void retryFailedTaxInvoices() {
+        Set<String> failed = prefSetCopy(KEY_TAX_FAILED); if (failed.isEmpty()) { Toast.makeText(this,"ارسال ناقصی برای تلاش مجدد ثبت نشده است.",Toast.LENGTH_SHORT).show(); return; }
+        taxSelectedKeys.clear(); taxSelectedKeys.addAll(failed); Toast.makeText(this,"اسناد ناقص انتخاب شدند؛ اگر در لیست بازه فعلی باشند می‌توانید ارسال مجدد بزنید.",Toast.LENGTH_LONG).show(); loadTaxpayers();
+    }
+
+    private void showTaxKeyList(String title, String prefKey) {
+        Set<String> set = prefSetCopy(prefKey); LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(12),dp(10),dp(12),dp(6)); box.addView(text(title,16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        TextView body=text(set.isEmpty()?"موردی ثبت نشده است.":join(new ArrayList<>(set), "\n"),10.5f,MUTED,Typeface.NORMAL); body.setLineSpacing(dp(2),1.05f); box.addView(body,new LinearLayout.LayoutParams(-1,-2));
+        AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("پاک کردن لیست",(d,w)->{ savePrefSet(prefKey,new HashSet<String>()); loadTaxpayers(); }).create(); styleMeelanoDialog(dlg, navAccent("taxpayers")); dlg.show();
+    }
+
+    private String httpRequest(String target, String method, String body, String bearer, int timeoutMs) throws Exception {
+        String u = target.startsWith("http://") || target.startsWith("https://") ? target : "http://" + target;
+        HttpURLConnection con = (HttpURLConnection) new URL(u).openConnection(); con.setConnectTimeout(timeoutMs); con.setReadTimeout(timeoutMs); con.setRequestMethod(method == null ? "GET" : method); con.setRequestProperty("Accept", "application/json,text/plain,*/*");
+        if (bearer != null && !bearer.trim().isEmpty()) con.setRequestProperty("Authorization", "Bearer " + bearer.trim());
+        String mem = prefString(KEY_TAX_MEMORY_ID, ""); if (!mem.isEmpty()) con.setRequestProperty("X-Tax-Memory-Id", mem);
+        if (body != null) { con.setDoOutput(true); con.setRequestProperty("Content-Type", "application/json; charset=utf-8"); try(OutputStream os=con.getOutputStream()){ os.write(body.getBytes(StandardCharsets.UTF_8)); } }
+        int code = con.getResponseCode(); InputStream in = code >= 200 && code < 300 ? con.getInputStream() : con.getErrorStream(); String resp = readStreamText(in); if (code < 200 || code >= 300) throw new DbException("HTTP " + code + " • " + limitText(resp, 160)); return resp;
+    }
+
+    private String readStreamText(InputStream in) throws Exception {
+        if (in == null) return ""; ByteArrayOutputStream bos = new ByteArrayOutputStream(); byte[] buf = new byte[4096]; int n; while((n=in.read(buf))>0) bos.write(buf,0,n); return new String(bos.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    private void renderCamerasPage() {
+        content.removeAllViews();
+        addHero("دوربین", "پخش زنده DVR/NVR با ذخیره امن مشخصات، چیدمان دلخواه، صدا، بزرگ‌نمایی و ورود سریع به بازپخش.");
+        addCameraSettingsCard(); addCameraGridCard(); addCameraReplayCard();
+    }
+
+    private void addCameraSettingsCard() {
+        LinearLayout c=card(); int accent=navAccent("cameras"); c.setBackground(gradient(new int[]{alpha(accent,30),alpha(SURFACE,248)},GradientDrawable.Orientation.TL_BR,24));
+        c.addView(text("تنظیمات DVR",15.5f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        c.addView(text("IP: "+stringOr(prefString(KEY_CAMERA_HOST,""),"ثبت نشده")+" • Port: "+prefString(KEY_CAMERA_PORT,"554")+" • کانال‌ها: "+prefString(KEY_CAMERA_CHANNELS,"4")+" • چیدمان: "+prefString(KEY_CAMERA_LAYOUT,"2"),10.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button set=primaryButton(withIcon("⚙","تنظیم DVR")); Button test=secondaryButton(withIcon("⌁","تست پورت")); set.setTextSize(9.2f); test.setTextSize(9.2f); set.setOnClickListener(v->showCameraSettingsDialog()); test.setOnClickListener(v->testCameraConnection()); row.addView(set,weightedButtonLp()); row.addView(test,weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(10),0,0); c.addView(row,rp); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp);
+    }
+
+    private void showCameraSettingsDialog() {
+        LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(10),dp(8),dp(10),dp(4)); box.addView(text("تنظیمات دوربین مداربسته",16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        EditText host=input("IP یا دامنه DVR",prefString(KEY_CAMERA_HOST,""),false); EditText port=input("Port RTSP/HTTP",prefString(KEY_CAMERA_PORT,"554"),false); EditText user=input("نام کاربری DVR",prefString(KEY_CAMERA_USER,""),false); EditText pass=input("کلمه عبور"+(prefSecret(KEY_CAMERA_PASS).isEmpty()?"":" • ذخیره‌شده"),"",true); EditText channels=input("تعداد کانال",prefString(KEY_CAMERA_CHANNELS,"4"),false); EditText tpl=input("قالب پخش زنده",prefString(KEY_CAMERA_TEMPLATE,"rtsp://{user}:{pass}@{host}:{port}/cam/realmonitor?channel={ch}&subtype=0"),false); EditText replay=input("قالب بازپخش",prefString(KEY_CAMERA_REPLAY_TEMPLATE,"rtsp://{user}:{pass}@{host}:{port}/cam/playback?channel={ch}"),false);
+        for(EditText e:new EditText[]{host,port,user,pass,channels,tpl,replay}){ LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,dp(48)); ep.setMargins(0,dp(8),0,0); box.addView(e,ep); }
+        AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("ذخیره",null).create(); dlg.setOnShowListener(di->{ styleMeelanoDialog(dlg,navAccent("cameras")); Button ok=dlg.getButton(AlertDialog.BUTTON_POSITIVE); if(ok!=null)ok.setOnClickListener(v->{ SharedPreferences.Editor ed=prefs.edit(); ed.putString(KEY_CAMERA_HOST,host.getText().toString().trim()); ed.putString(KEY_CAMERA_PORT,port.getText().toString().trim()); ed.putString(KEY_CAMERA_USER,user.getText().toString().trim()); ed.putString(KEY_CAMERA_CHANNELS,channels.getText().toString().trim()); ed.putString(KEY_CAMERA_TEMPLATE,tpl.getText().toString().trim()); ed.putString(KEY_CAMERA_REPLAY_TEMPLATE,replay.getText().toString().trim()); if(pass.getText()!=null&&pass.getText().toString().trim().length()>0)putSecret(ed,KEY_CAMERA_PASS,pass.getText().toString()); ed.apply(); dlg.dismiss(); renderCamerasPage(); }); }); dlg.show();
+    }
+
+    private void addCameraGridCard() {
+        int channels=Math.max(1,Math.min(32,prefIntText(KEY_CAMERA_CHANNELS,4))); int cols=Math.max(1,Math.min(4,prefIntText(KEY_CAMERA_LAYOUT,2)));
+        LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(navAccent("cameras"),18),alpha(SURFACE,248)},GradientDrawable.Orientation.RIGHT_LEFT,22)); c.addView(text("مانیتورینگ زنده",15.5f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout layoutRow=new LinearLayout(this); layoutRow.setOrientation(LinearLayout.HORIZONTAL); for(int k=1;k<=4;k++){ final int kk=k; Button b=(kk==cols?primaryButton(kk+" ستونه"):secondaryButton(kk+" ستونه")); b.setTextSize(8.4f); b.setOnClickListener(v->{ prefs.edit().putString(KEY_CAMERA_LAYOUT,String.valueOf(kk)).apply(); renderCamerasPage(); }); layoutRow.addView(b,weightedButtonLp()); } LinearLayout.LayoutParams lr=new LinearLayout.LayoutParams(-1,-2); lr.setMargins(0,dp(8),0,dp(8)); c.addView(layoutRow,lr);
+        LinearLayout current=null; for(int i=1;i<=channels;i++){ if((i-1)%cols==0){ current=new LinearLayout(this); current.setOrientation(LinearLayout.HORIZONTAL); LinearLayout.LayoutParams cr=new LinearLayout.LayoutParams(-1,-2); cr.setMargins(0,dp(6),0,0); c.addView(current,cr);} addCameraTile(current,i); }
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp);
+    }
+
+    private void addCameraTile(LinearLayout row, int ch) {
+        LinearLayout tile=new LinearLayout(this); tile.setOrientation(LinearLayout.VERTICAL); tile.setGravity(Gravity.CENTER); tile.setPadding(dp(8),dp(8),dp(8),dp(8)); tile.setBackground(roundedStroke(alpha(navAccent("cameras"),18),18,alpha(navAccent("cameras"),70))); tile.addView(report3dIcon("◎",navAccent("cameras")),new LinearLayout.LayoutParams(dp(46),dp(46))); TextView name=text("دوربین " + formatNumber(ch),10.5f,TEXT,Typeface.BOLD); name.setGravity(Gravity.CENTER); tile.addView(name,new LinearLayout.LayoutParams(-1,-2)); Button live=secondaryButton("پخش"); live.setTextSize(8.2f); live.setOnClickListener(v->showCameraPlayer(ch,false)); tile.addView(live,new LinearLayout.LayoutParams(-1,dp(36))); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(142),1f); lp.setMargins(dp(3),0,dp(3),0); if(row!=null)row.addView(tile,lp);
+    }
+
+    private void addCameraReplayCard(){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(INFO,14),alpha(GOLD,12),alpha(SURFACE,248)},GradientDrawable.Orientation.TL_BR,22)); c.addView(text("بازپخش و مرور فیلم‌ها",15.5f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("کانال را انتخاب کنید؛ در صورت پشتیبانی DVR، لینک بازپخش با همان قالب ذخیره‌شده باز می‌شود. کنترل زمان دقیق وابسته به مدل DVR است.",10.4f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); Button b=primaryButton(withIcon("◷","ورود به بازپخش کانال ۱")); b.setOnClickListener(v->showCameraPlayer(1,true)); LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(44)); bp.setMargins(0,dp(10),0,0); c.addView(b,bp); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
+
+    private void testCameraConnection(){ String host=prefString(KEY_CAMERA_HOST,"").trim(); int port=prefIntText(KEY_CAMERA_PORT,554); if(host.isEmpty()){Toast.makeText(this,"IP دوربین را ثبت کنید.",Toast.LENGTH_SHORT).show();return;} runNetworkJob("camera-test",()->testTcp(host,port),new NetworkCallback(){@Override public void ok(String b){Toast.makeText(MainActivity.this,"ارتباط با DVR برقرار شد.",Toast.LENGTH_LONG).show();}@Override public void fail(Exception e){showPageError("تست دوربین",e,()->renderCamerasPage());}}); }
+
+    private String testTcp(String host,int port)throws Exception{ try(Socket s=new Socket()){ s.connect(new InetSocketAddress(host,port),7000); return "ok"; } }
+
+    private String cameraUrl(int ch, boolean replay){ String tpl=prefString(replay?KEY_CAMERA_REPLAY_TEMPLATE:KEY_CAMERA_TEMPLATE, replay?"rtsp://{user}:{pass}@{host}:{port}/cam/playback?channel={ch}":"rtsp://{user}:{pass}@{host}:{port}/cam/realmonitor?channel={ch}&subtype=0"); return tpl.replace("{host}",prefString(KEY_CAMERA_HOST,"")).replace("{port}",prefString(KEY_CAMERA_PORT,"554")).replace("{user}",urlPart(prefString(KEY_CAMERA_USER,""))).replace("{pass}",urlPart(prefSecret(KEY_CAMERA_PASS))).replace("{ch}",String.valueOf(ch)); }
+    private String urlPart(String v){ try{return URLEncoder.encode(v==null?"":v,"UTF-8");}catch(Exception ignored){return v==null?"":v;} }
+
+    private void showCameraPlayer(int ch, boolean replay){ String url=cameraUrl(ch,replay); if(prefString(KEY_CAMERA_HOST,"").trim().isEmpty()){Toast.makeText(this,"ابتدا تنظیمات DVR را ثبت کنید.",Toast.LENGTH_SHORT).show();return;} LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(8),dp(8),dp(8),dp(4)); box.addView(text((replay?"بازپخش ":"پخش زنده ")+"دوربین "+formatNumber(ch),16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); VideoView video=new VideoView(this); MediaController mc=new MediaController(this); mc.setAnchorView(video); video.setMediaController(mc); video.setVideoURI(Uri.parse(url)); FrameLayout wrap=new FrameLayout(this); wrap.setBackgroundColor(Color.BLACK); wrap.addView(video,new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER)); LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,dp(280)); vp.setMargins(0,dp(8),0,dp(8)); box.addView(wrap,vp); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button play=primaryButton("شروع پخش"); Button zoom=secondaryButton("زوم ×۱.۳"); final float[] scale={1f}; play.setOnClickListener(v->{ try{video.start();}catch(Exception ex){Toast.makeText(this,"پخش شروع نشد: "+shortError(ex),Toast.LENGTH_LONG).show();} }); zoom.setOnClickListener(v->{ scale[0]=scale[0]<1.6f?scale[0]+0.3f:1f; video.setScaleX(scale[0]); video.setScaleY(scale[0]); zoom.setText("زوم ×"+String.format(Locale.US,"%.1f",scale[0])); }); row.addView(play,weightedButtonLp()); row.addView(zoom,weightedButtonLp()); box.addView(row,new LinearLayout.LayoutParams(-1,-2)); AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",(d,w)->{try{video.stopPlayback();}catch(Exception ignored){}}).create(); styleMeelanoDialog(dlg,navAccent("cameras")); dlg.setOnShowListener(d-> { try{ video.start(); }catch(Exception ignored){} }); dlg.show(); }
+
+    private void renderAlarmPage(){ content.removeAllViews(); addHero("دزدگیر", "مدیریت حرفه‌ای دو دستگاه دزدگیر Z4 و Extra G1 با ذخیره امن مشخصات، تست ارتباط و فرمان‌های سریع."); addAlarmOverviewCard(); addAlarmDeviceCard(1); addAlarmDeviceCard(2); }
+
+    private String alarmKey(int index,String name){ return "alarm_"+index+"_"+name; }
+    private String alarmSecret(int index,String name){ return prefSecret(alarmKey(index,name)); }
+    private String alarmString(int index,String name,String def){ return prefString(alarmKey(index,name),def); }
+
+    private void addAlarmOverviewCard(){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(navAccent("alarm"),26),alpha(SURFACE,248)},GradientDrawable.Orientation.TL_BR,24)); c.addView(text("کنسول امنیت فروشگاه",16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("آخرین رویداد: "+prefString(KEY_ALARM_LOG,"ثبت نشده"),10.6f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button d1=alarmActiveDevice==1?primaryButton("دزدگیر ۱"):secondaryButton("دزدگیر ۱"); Button d2=alarmActiveDevice==2?primaryButton("دزدگیر ۲"):secondaryButton("دزدگیر ۲"); d1.setOnClickListener(v->{alarmActiveDevice=1;renderAlarmPage();}); d2.setOnClickListener(v->{alarmActiveDevice=2;renderAlarmPage();}); row.addView(d1,weightedButtonLp()); row.addView(d2,weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(10),0,0); c.addView(row,rp); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
+
+    private void addAlarmDeviceCard(int index){ boolean active=index==alarmActiveDevice; int accent=active?navAccent("alarm"):INFO; LinearLayout c=card(); c.setBackground(roundedStroke(alpha(accent,active?28:14),22,alpha(accent,active?95:55))); c.addView(text("دزدگیر "+formatNumber(index)+" • "+alarmString(index,"model",index==1?"Z4":"Extra G1"),15.5f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("IP: "+stringOr(alarmString(index,"host",""),"ثبت نشده")+" • Port: "+alarmString(index,"port","80")+" • مسیرها قابل تنظیم هستند",10.4f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); LinearLayout row1=new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL); Button set=secondaryButton(withIcon("⚙","تعریف/تنظیم")); Button test=secondaryButton(withIcon("⌁","تست")); set.setTextSize(8.7f); test.setTextSize(8.7f); set.setOnClickListener(v->showAlarmSettingsDialog(index)); test.setOnClickListener(v->sendAlarmCommand(index,"status")); row1.addView(set,weightedButtonLp()); row1.addView(test,weightedButtonLp()); LinearLayout.LayoutParams r1=new LinearLayout.LayoutParams(-1,-2); r1.setMargins(0,dp(9),0,0); c.addView(row1,r1); LinearLayout row2=new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL); Button arm=primaryButton(withIcon("⌁","فعال")); Button home=secondaryButton(withIcon("◐","نیمه")); Button off=secondaryButton(withIcon("○","غیرفعال")); arm.setTextSize(8.4f); home.setTextSize(8.4f); off.setTextSize(8.4f); arm.setOnClickListener(v->sendAlarmCommand(index,"arm")); home.setOnClickListener(v->sendAlarmCommand(index,"home")); off.setOnClickListener(v->sendAlarmCommand(index,"disarm")); row2.addView(arm,weightedButtonLp()); row2.addView(home,weightedButtonLp()); row2.addView(off,weightedButtonLp()); LinearLayout.LayoutParams r2=new LinearLayout.LayoutParams(-1,-2); r2.setMargins(0,dp(8),0,0); c.addView(row2,r2); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
+
+    private void showAlarmSettingsDialog(int index){ LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(10),dp(8),dp(10),dp(4)); box.addView(text("تعریف دزدگیر "+formatNumber(index),16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); EditText model=input("مدل: Z4 یا Extra G1",alarmString(index,"model",index==1?"Z4":"Extra G1"),false); EditText host=input("IP یا دامنه دستگاه",alarmString(index,"host",""),false); EditText port=input("Port",alarmString(index,"port","80"),false); EditText user=input("نام کاربری",alarmString(index,"user",""),false); EditText pass=input("کلمه عبور"+(alarmSecret(index,"pass").isEmpty()?"":" • ذخیره‌شده"),"",true); EditText token=input("Token/کلید"+(alarmSecret(index,"token").isEmpty()?"":" • ذخیره‌شده"),"",true); EditText arm=input("مسیر فعال‌سازی",alarmString(index,"arm","/arm"),false); EditText dis=input("مسیر غیرفعال",alarmString(index,"disarm","/disarm"),false); EditText home=input("مسیر نیمه‌فعال",alarmString(index,"home","/home"),false); EditText status=input("مسیر وضعیت",alarmString(index,"status","/status"),false); for(EditText e:new EditText[]{model,host,port,user,pass,token,arm,dis,home,status}){ LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,dp(48)); ep.setMargins(0,dp(7),0,0); box.addView(e,ep);} AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("ذخیره",null).create(); dlg.setOnShowListener(di->{ styleMeelanoDialog(dlg,navAccent("alarm")); Button ok=dlg.getButton(AlertDialog.BUTTON_POSITIVE); if(ok!=null)ok.setOnClickListener(v->{ SharedPreferences.Editor ed=prefs.edit(); ed.putString(alarmKey(index,"model"),model.getText().toString().trim()); ed.putString(alarmKey(index,"host"),host.getText().toString().trim()); ed.putString(alarmKey(index,"port"),port.getText().toString().trim()); ed.putString(alarmKey(index,"user"),user.getText().toString().trim()); ed.putString(alarmKey(index,"arm"),arm.getText().toString().trim()); ed.putString(alarmKey(index,"disarm"),dis.getText().toString().trim()); ed.putString(alarmKey(index,"home"),home.getText().toString().trim()); ed.putString(alarmKey(index,"status"),status.getText().toString().trim()); if(pass.getText()!=null&&pass.getText().toString().trim().length()>0)putSecret(ed,alarmKey(index,"pass"),pass.getText().toString()); if(token.getText()!=null&&token.getText().toString().trim().length()>0)putSecret(ed,alarmKey(index,"token"),token.getText().toString()); ed.apply(); dlg.dismiss(); renderAlarmPage(); }); }); dlg.show(); }
+
+    private void sendAlarmCommand(int index,String cmd){ String host=alarmString(index,"host","").trim(); if(host.isEmpty()){Toast.makeText(this,"ابتدا دستگاه "+index+" را تعریف کنید.",Toast.LENGTH_SHORT).show();return;} String path=alarmString(index,cmd,"/"+cmd); String url="http://"+host+":"+alarmString(index,"port","80")+(path.startsWith("/")?path:"/"+path); String token=alarmSecret(index,"token"); runNetworkJob("alarm",()->httpRequestWithBasic(url,"GET",null,token,alarmString(index,"user",""),alarmSecret(index,"pass"),10000),new NetworkCallback(){@Override public void ok(String b){String msg="دزدگیر "+index+" • "+alarmCommandFa(cmd)+" موفق • "+nowText(); prefs.edit().putString(KEY_ALARM_LOG,msg).apply(); Toast.makeText(MainActivity.this,msg,Toast.LENGTH_LONG).show(); renderAlarmPage();}@Override public void fail(Exception e){String msg="دزدگیر "+index+" ناموفق: "+shortError(e); prefs.edit().putString(KEY_ALARM_LOG,msg).apply(); showPageError("دزدگیر",e,()->renderAlarmPage());}}); }
+
+    private String alarmCommandFa(String c){ if("arm".equals(c))return "فعال‌سازی"; if("disarm".equals(c))return "غیرفعال‌سازی"; if("home".equals(c))return "نیمه‌فعال"; return "استعلام وضعیت"; }
+
+    private String httpRequestWithBasic(String target,String method,String body,String bearer,String user,String pass,int timeoutMs)throws Exception{ HttpURLConnection con=(HttpURLConnection)new URL(target).openConnection(); con.setConnectTimeout(timeoutMs); con.setReadTimeout(timeoutMs); con.setRequestMethod(method==null?"GET":method); con.setRequestProperty("Accept","application/json,text/plain,*/*"); if(bearer!=null&&!bearer.trim().isEmpty())con.setRequestProperty("Authorization","Bearer "+bearer.trim()); else if(user!=null&&!user.trim().isEmpty()){ String raw=user+":"+(pass==null?"":pass); con.setRequestProperty("Authorization","Basic "+Base64.encodeToString(raw.getBytes(StandardCharsets.UTF_8),Base64.NO_WRAP)); } if(body!=null){con.setDoOutput(true); try(OutputStream os=con.getOutputStream()){os.write(body.getBytes(StandardCharsets.UTF_8));}} int code=con.getResponseCode(); String resp=readStreamText(code>=200&&code<300?con.getInputStream():con.getErrorStream()); if(code<200||code>=300)throw new DbException("HTTP "+code+" • "+limitText(resp,160)); return resp; }
 
 
     private void loadCustomers(String query) {
@@ -6714,7 +7085,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.29.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.30.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -9038,7 +9409,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.29.0\nاین نسخه آیکن فرماندهی را هماهنگ‌تر می‌کند، فیلتر مشتریان را بدون بارگذاری دوباره و بر اساس مانده دسته‌بندی می‌کند، نشانی تکراری را از جزئیات مشتری حذف می‌کند و دریافتی‌های ثبت‌شده با اکانت پرسنل و حقوق/بیمه را بهتر شناسایی می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.30.0\nاین نسخه سه دکمه اصلی مودیان، دوربین و دزدگیر را با آیکن‌های هماهنگ اضافه می‌کند؛ تنظیمات مودیان، تست اتصال، انتخاب/عدم‌ارسال فاکتورها، مانیتورینگ DVR و مدیریت دو دزدگیر Z4/Extra G1 به صورت native فراهم شده و جزئیات اتصال SQL همچنان در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);

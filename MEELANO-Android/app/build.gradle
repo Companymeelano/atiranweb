@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.android'
         minSdk 24
         targetSdk 35
-        versionCode 34
-        versionName '3.29.0-direct-sql-personnel-receipts-smart-customers'
+        versionCode 35
+        versionName '3.30.0-direct-sql-tax-camera-alarm'
     }
 
     compileOptions {
