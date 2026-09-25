@@ -29,6 +29,9 @@ import android.graphics.drawable.GradientDrawable;
 import android.hardware.biometrics.BiometricPrompt;
 import android.os.Build;
 import android.net.Uri;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiInfo;
 import android.os.Bundle;
@@ -139,6 +142,9 @@ public class MainActivity extends Activity {
     private static final String KEY_QUICK_ROLE = "quick_access_role";
     private static final String KEY_QUICK_PERMISSIONS = "quick_access_permissions";
     private static final String KEY_CART_DRAFT = "visitor_cart_draft_json";
+    private static final String KEY_CART_DRAFTS = "visitor_cart_drafts_json";
+    private static final String KEY_OFFLINE_PREF_QUEUE = "visitor_prefactor_offline_queue_json";
+    private static final String KEY_VISIT_RESULTS_LOCAL = "visitor_visit_results_local_json";
     private static final String KEY_WIDGET_SUMMARY = "widget_summary";
     private static final String KEY_LAST_CONNECTION_OK = "last_connection_ok";
     private static final String KEY_LAST_CONNECTION_ERROR = "last_connection_error";
@@ -242,6 +248,22 @@ public class MainActivity extends Activity {
     private JSONObject visitorCartCustomer = null;
     private String visitorCartNotes = "";
     private String visitorCartSignature = "";
+    private String visitorCartDraftId = "";
+    private String visitorCartSettlement = "اعتباری";
+    private String visitorCartDeliveryDate = "";
+    private String visitorCartAddress = "";
+    private String visitorCartPaymentRef = "";
+    private double visitorCartGlobalDiscount = 0;
+    private double visitorCartTaxPercent = 0;
+    private EditText cartNotesInput;
+    private EditText cartDiscountInput;
+    private EditText cartTaxInput;
+    private EditText cartDeliveryInput;
+    private EditText cartAddressInput;
+    private EditText cartPaymentRefInput;
+    private volatile boolean lastSqlVpnDetected = false;
+    private volatile boolean lastSqlVpnBypassed = false;
+    private volatile String lastSqlNetworkNote = "";
     private final Map<String, String> customerLedgerCache = new HashMap<>();
 
     private static final Set<String> SAFE_TABLES = new HashSet<>(Arrays.asList(
@@ -1797,7 +1819,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.36.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.37.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -2144,6 +2166,7 @@ public class MainActivity extends Activity {
     }
 
     private Connection openConnection() throws Exception {
+        bindSqlNetworkForVpnIfNeeded();
         Class.forName("net.sourceforge.jtds.jdbc.Driver");
         String url = "jdbc:jtds:sqlserver://" + hidden(S_HOST) + ":" + SQL_PORT + "/" + hidden(S_DB)
                 + ";loginTimeout=10;socketTimeout=30;appName=MEELANOAndroid;";
@@ -2153,6 +2176,43 @@ public class MainActivity extends Activity {
         props.setProperty("charset", "UTF-8");
         props.setProperty("sendStringParametersAsUnicode", "true");
         return DriverManager.getConnection(url, props);
+    }
+
+    private void bindSqlNetworkForVpnIfNeeded() {
+        lastSqlVpnDetected = false;
+        lastSqlVpnBypassed = false;
+        lastSqlNetworkNote = "";
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            if (cm == null) return;
+            Network active = cm.getActiveNetwork();
+            NetworkCapabilities activeCaps = active == null ? null : cm.getNetworkCapabilities(active);
+            lastSqlVpnDetected = activeCaps != null && activeCaps.hasTransport(NetworkCapabilities.TRANSPORT_VPN);
+            if (!lastSqlVpnDetected) { cm.bindProcessToNetwork(null); lastSqlNetworkNote = "مسیر شبکه عادی"; return; }
+            Network best = null;
+            for (Network n : cm.getAllNetworks()) {
+                NetworkCapabilities caps = cm.getNetworkCapabilities(n);
+                if (caps == null) continue;
+                boolean internet = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+                boolean vpn = caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN);
+                boolean wifi = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI);
+                boolean cell = caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
+                if (internet && !vpn && (wifi || cell || best == null)) { best = n; if (wifi) break; }
+            }
+            if (best != null && cm.bindProcessToNetwork(best)) {
+                lastSqlVpnBypassed = true;
+                lastSqlNetworkNote = "VPN فعال تشخیص داده شد؛ اتصال SQL از شبکه مستقیم دستگاه عبور داده شد.";
+            } else {
+                lastSqlNetworkNote = "VPN فعال تشخیص داده شد اما مسیر مستقیم قابل انتخاب نبود.";
+            }
+        } catch (Exception ignored) { lastSqlNetworkNote = "بررسی مسیر شبکه کامل نشد."; }
+    }
+
+    private String sqlNetworkHint() {
+        if (!lastSqlVpnDetected) return "";
+        if (lastSqlVpnBypassed) return "\nVPN فعال بود و برنامه تلاش کرد اتصال SQL را از شبکه مستقیم دستگاه عبور دهد.";
+        return "\nVPN فعال تشخیص داده شد؛ اگر اتصال برقرار نشد، در تنظیمات VPN اجازه عبور MEELANO یا Split tunneling را فعال کنید.";
     }
 
     private UserSession authenticate(String meelanoUser, String meelanoPassword) throws Exception {
@@ -4188,6 +4248,12 @@ public class MainActivity extends Activity {
                 {"cart_submit", "ارسال پیش‌فاکتور", "ویزیتور"},
                 {"cart_signature", "امضای مشتری", "ویزیتور"},
                 {"customer_select", "انتخاب مشتری برای پیش‌فاکتور", "ویزیتور"},
+                {"prefactor_list", "پیگیری پیش‌فاکتورهای من", "ویزیتور"},
+                {"visit_route", "مسیر بازدید امروز", "ویزیتور"},
+                {"cart_discount", "تخفیف و شرایط فروش", "ویزیتور"},
+                {"cart_pdf", "PDF و اشتراک پیش‌فاکتور", "ویزیتور"},
+                {"offline_queue", "صف ارسال آفلاین", "ویزیتور"},
+                {"day_report", "گزارش پایان روز ویزیتور", "ویزیتور"},
                 {"customers", "مشتریان", "اصلی"},
                 {"customer_detail", "جزئیات و گردش مشتری", "مشتریان"},
                 {"customer_call", "تماس سریع با مشتری", "مشتریان"},
@@ -4251,10 +4317,12 @@ public class MainActivity extends Activity {
         if ("admin".equals(role) || "manager".equals(role)) return allPermissionString();
         if ("senior".equals(role) || "visitor".equals(role) || "sales_employee".equals(role)) {
             s.add("visitor_dashboard"); s.add("showcase"); s.add("cart"); s.add("cart_draft"); s.add("cart_submit"); s.add("cart_signature"); s.add("customer_select");
+            s.add("prefactor_list"); s.add("visit_route"); s.add("cart_discount"); s.add("cart_pdf"); s.add("offline_queue"); s.add("day_report");
             s.add("customers"); s.add("customer_detail"); s.add("customer_call"); s.add("customer_message");
             s.add("products"); s.add("product_detail");
         } else if ("distributor".equals(role)) {
             s.add("visitor_dashboard"); s.add("showcase"); s.add("cart"); s.add("cart_draft"); s.add("customer_select");
+            s.add("prefactor_list"); s.add("visit_route"); s.add("offline_queue"); s.add("day_report");
             s.add("customers"); s.add("customer_detail"); s.add("customer_call"); s.add("products"); s.add("product_detail");
         } else if ("driver".equals(role)) {
             s.add("visitor_dashboard"); s.add("customers"); s.add("customer_call");
@@ -5634,7 +5702,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.36.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.37.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -5646,7 +5714,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.36.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.37.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -7140,6 +7208,16 @@ public class MainActivity extends Activity {
         Button cart = secondaryButton("سبد خرید " + formatNumber(visitorCartItems.length())); cart.setOnClickListener(v -> showApp("cart"));
         row2.addView(showcase, weightedButtonLp()); row2.addView(cart, weightedButtonLp());
         LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(10), 0, 0); c.addView(row2, r2p);
+        LinearLayout row3 = new LinearLayout(this); row3.setOrientation(LinearLayout.HORIZONTAL);
+        Button mine = secondaryButton("پیش‌فاکتورهای من"); mine.setOnClickListener(v -> loadMyPrefactors());
+        Button route = secondaryButton("مسیر بازدید امروز"); route.setOnClickListener(v -> loadVisitRoutePage(""));
+        row3.addView(mine, weightedButtonLp()); row3.addView(route, weightedButtonLp());
+        LinearLayout.LayoutParams r3p = new LinearLayout.LayoutParams(-1, -2); r3p.setMargins(0, dp(8), 0, 0); c.addView(row3, r3p);
+        LinearLayout row4 = new LinearLayout(this); row4.setOrientation(LinearLayout.HORIZONTAL);
+        Button report = secondaryButton("جمع‌بندی پایان روز"); report.setOnClickListener(v -> showEndOfDayReportDialog());
+        Button queue = offlineQueue().length() > 0 ? primaryButton("ارسال صف آفلاین") : secondaryButton("صف آفلاین خالی"); queue.setOnClickListener(v -> trySendOfflineQueue());
+        row4.addView(report, weightedButtonLp()); row4.addView(queue, weightedButtonLp());
+        LinearLayout.LayoutParams r4p = new LinearLayout.LayoutParams(-1, -2); r4p.setMargins(0, dp(8), 0, 0); c.addView(row4, r4p);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
         addVisitorGoalsCard(data.optJSONArray("goals"));
         addDashboardInsightTable(data);
@@ -7182,15 +7260,27 @@ public class MainActivity extends Activity {
     private void addShowcaseFilters(String query, String active) {
         HorizontalScrollView scroll = new HorizontalScrollView(this); styleHorizontalScroll(scroll);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        String[][] filters = {{"all","همه"},{"stock","موجود"},{"top","پرفروش"},{"low","اتمام/کمبود"},{"idle","کم‌گردش"}};
+        String[][] filters = {{"all","همه"},{"stock","موجود"},{"top","پرفروش"},{"low","اتمام/کمبود"},{"idle","کم‌گردش"},{"priced","قیمت‌دار"},{"image","تصویردار"},{"package","بسته‌بندی"}};
         for (String[] f : filters) {
             Button b = f[0].equals(active) ? primaryButton(f[1]) : secondaryButton(f[1]);
             b.setTextSize(9.5f); b.setOnClickListener(v -> loadShowcase(query, f[0]));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(92), dp(39)); lp.setMargins(dp(3), 0, dp(3), dp(8)); row.addView(b, lp);
         }
+        Button scan = secondaryButton("بارکد/کدخوان"); scan.setTextSize(9.0f); scan.setOnClickListener(v -> showBarcodeSearchDialog());
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(112), dp(39)); sp.setMargins(dp(3), 0, dp(3), dp(8)); row.addView(scan, sp);
         Button cart = primaryButton("سبد: " + formatNumber(visitorCartItems.length())); cart.setTextSize(9.5f); cart.setOnClickListener(v -> showApp("cart"));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(100), dp(39)); cp.setMargins(dp(3), 0, dp(3), dp(8)); row.addView(cart, cp);
         scroll.addView(row, new FrameLayout.LayoutParams(-2, -2)); content.addView(scroll, new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private void showBarcodeSearchDialog() {
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(10), dp(8), dp(10), dp(6));
+        box.addView(text("جستجوی سریع با بارکد/کد کالا", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        EditText code = input("بارکد یا کد کالا را وارد/اسکن کنید", "", false); code.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, dp(50)); cp.setMargins(0, dp(8), 0, 0); box.addView(code, cp);
+        AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).setPositiveButton("جستجو", null).create();
+        dlg.setOnShowListener(d -> { styleMeelanoDialog(dlg, navAccent("showcase")); Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE); if (ok != null) ok.setOnClickListener(v -> { String q = code.getText().toString().trim(); dlg.dismiss(); loadShowcase(q, "all"); }); });
+        dlg.show();
     }
 
     private void renderShowcaseProducts(JSONArray rows, String query, String filter) {
@@ -7200,11 +7290,23 @@ public class MainActivity extends Activity {
         addSearchBox("جستجوی محصول، کد یا بارکد…", query, q -> loadShowcase(q, filter));
         addShowcaseFilters(query, filter);
         LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list, new LinearLayout.LayoutParams(-1, -2));
-        if (rows == null || rows.length() == 0) { addEmptyTo(list, "محصولی برای این فیلتر پیدا نشد."); return; }
-        for (int i = 0; i < rows.length(); i++) addShowcaseProductCard(list, rows.optJSONObject(i), i);
+        if (rows == null || rows.length() == 0) { addEmptyTo(list, "محصولی برای این فیلتر پیدا نشد."); addShowcaseFloatingCartBar(); return; }
+        for (int i = 0; i < rows.length(); i++) addShowcaseProductCard(list, rows.optJSONObject(i), i, query, filter);
+        addShowcaseFloatingCartBar();
     }
 
-    private void addShowcaseProductCard(LinearLayout parent, JSONObject r, int index) {
+    private void addShowcaseFloatingCartBar() {
+        LinearLayout c = card();
+        c.setPadding(dp(10), dp(9), dp(10), dp(9));
+        c.setBackground(gradient(new int[]{alpha(navAccent("cart"), 70), alpha(GOLD, 28), alpha(SURFACE, 252)}, GradientDrawable.Orientation.LEFT_RIGHT, 22));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(text("سبد: " + formatNumber(visitorCartItems.length()) + " قلم • " + money(cartTotal()), 12.0f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(0, -2, 1f));
+        Button b = primaryButton("رفتن به سبد"); b.setTextSize(9.8f); b.setOnClickListener(v -> showApp("cart")); row.addView(b, new LinearLayout.LayoutParams(dp(118), dp(42)));
+        c.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(4), 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addShowcaseProductCard(LinearLayout parent, JSONObject r, int index, String query, String filter) {
         if (r == null) return;
         int accent = index % 3 == 0 ? navAccent("showcase") : (index % 3 == 1 ? SUCCESS : GOLD);
         LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(Color.WHITE, isLightTheme()?66:16), alpha(accent, isLightTheme()?30:44), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 28));
@@ -7228,9 +7330,10 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams m2p = new LinearLayout.LayoutParams(-1, -2); m2p.setMargins(0, dp(6), 0, 0); c.addView(metrics2, m2p);
         LinearLayout action = new LinearLayout(this); action.setOrientation(LinearLayout.HORIZONTAL);
         EditText qty = input("تعداد/وزن", cartQtyFor(r.optString("کد", "")), false); qty.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        Button add = primaryButton(cartFindIndex(r.optString("کد", "")) >= 0 ? "بروزرسانی" : "افزودن"); add.setTextSize(9.2f); add.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString()); Toast.makeText(this, "سبد بروزرسانی شد.", Toast.LENGTH_SHORT).show(); loadShowcase("", "all"); });
-        Button remove = secondaryButton("حذف"); remove.setTextSize(9.2f); remove.setOnClickListener(v -> { removeCartItem(r.optString("کد", "")); loadShowcase("", "all"); });
-        action.addView(qty, new LinearLayout.LayoutParams(0, dp(44), 1f)); action.addView(add, weightedButtonLp()); if (cartFindIndex(r.optString("کد", "")) >= 0) action.addView(remove, weightedButtonLp());
+        Button add = primaryButton(cartFindIndex(r.optString("کد", "")) >= 0 ? "بروزرسانی ۱" : "قیمت ۱"); add.setTextSize(8.7f); add.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "سبد بروزرسانی شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
+        Button add2 = secondaryButton("قیمت ۲"); add2.setTextSize(8.7f); add2.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
+        Button remove = secondaryButton("حذف"); remove.setTextSize(8.7f); remove.setOnClickListener(v -> { removeCartItem(r.optString("کد", "")); loadShowcase(query, filter); });
+        action.addView(qty, new LinearLayout.LayoutParams(0, dp(44), 1f)); action.addView(add, weightedButtonLp()); action.addView(add2, weightedButtonLp()); if (cartFindIndex(r.optString("کد", "")) >= 0) action.addView(remove, weightedButtonLp());
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(10), 0, 0); c.addView(action, ap);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(10)); parent.addView(c, lp);
     }
@@ -7246,16 +7349,25 @@ public class MainActivity extends Activity {
         JSONObject o = visitorCartItems.optJSONObject(i); return o == null ? "1" : String.valueOf(o.optDouble("qty", 1));
     }
 
-    private void addOrUpdateCartItem(JSONObject product, String qtyText) {
+    private void addOrUpdateCartItem(JSONObject product, String qtyText) { addOrUpdateCartItem(product, qtyText, 1); }
+
+    private void addOrUpdateCartItem(JSONObject product, String qtyText, int priceTier) {
         if (product == null) return;
-        double qty = 1; try { qty = Double.parseDouble(normalizeDigits(qtyText).replace(',', '.')); } catch (Exception ignored) { }
+        double qty = parseNumber(qtyText, 1);
         if (qty <= 0) qty = 1;
         try {
             String code = product.optString("کد", "");
+            int ix = cartFindIndex(code);
+            JSONObject old = ix >= 0 ? visitorCartItems.optJSONObject(ix) : null;
+            double price1 = product.optDouble("قیمت_فروش", 0);
+            double price2 = product.optDouble("قیمت_فروش۲", 0);
+            int tier = priceTier == 2 && price2 > 0 ? 2 : 1;
+            double price = tier == 2 ? price2 : price1;
             JSONObject item = new JSONObject();
             item.put("code", code); item.put("name", product.optString("نام", "محصول")); item.put("unit", product.optString("واحد", "")); item.put("qty", qty);
-            item.put("price", product.optDouble("قیمت_فروش", 0)); item.put("price2", product.optDouble("قیمت_فروش۲", 0)); item.put("stock", product.optDouble("موجودی", 0)); item.put("pack", product.optDouble("تعداد_در_بسته", 1)); item.put("image", product.optString("تصویر", "")); item.put("amount", qty * product.optDouble("قیمت_فروش", 0));
-            int ix = cartFindIndex(code);
+            item.put("price", price); item.put("price1", price1); item.put("price2", price2); item.put("priceTier", String.valueOf(tier));
+            item.put("stock", product.optDouble("موجودی", 0)); item.put("pack", product.optDouble("تعداد_در_بسته", 1)); item.put("image", product.optString("تصویر", ""));
+            item.put("lineDiscount", old == null ? 0 : old.optDouble("lineDiscount", 0)); item.put("note", old == null ? "" : old.optString("note", "")); item.put("amount", cartItemNet(item));
             if (ix >= 0) visitorCartItems.put(ix, item); else visitorCartItems.put(item);
         } catch (Exception ignored) { }
     }
@@ -7266,16 +7378,45 @@ public class MainActivity extends Activity {
         visitorCartItems = out;
     }
 
-    private double cartTotal() { double t = 0; for (int i = 0; i < visitorCartItems.length(); i++) { JSONObject o = visitorCartItems.optJSONObject(i); if (o != null) t += o.optDouble("qty", 0) * o.optDouble("price", 0); } return t; }
+    private double parseNumber(String text, double fallback) {
+        try {
+            String n = normalizeDigits(text == null ? "" : text).replace(',', '.').replace(" ", "").trim();
+            if (n.isEmpty()) return fallback;
+            return Double.parseDouble(n);
+        } catch (Exception ignored) { return fallback; }
+    }
+
+    private double cartItemGross(JSONObject item) { return item == null ? 0 : Math.max(0, item.optDouble("qty", 0) * item.optDouble("price", 0)); }
+    private double cartItemDiscount(JSONObject item) { double g = cartItemGross(item); return item == null ? 0 : Math.max(0, Math.min(g, item.optDouble("lineDiscount", 0))); }
+    private double cartItemNet(JSONObject item) { return Math.max(0, cartItemGross(item) - cartItemDiscount(item)); }
+    private double cartSubtotal() { double t = 0; for (int i = 0; i < visitorCartItems.length(); i++) t += cartItemGross(visitorCartItems.optJSONObject(i)); return t; }
+    private double cartLineDiscounts() { double t = 0; for (int i = 0; i < visitorCartItems.length(); i++) t += cartItemDiscount(visitorCartItems.optJSONObject(i)); return t; }
+    private double cartNetBeforeTax() { return Math.max(0, cartSubtotal() - cartLineDiscounts() - Math.max(0, visitorCartGlobalDiscount)); }
+    private double cartTaxAmount() { return Math.max(0, cartNetBeforeTax() * Math.max(0, visitorCartTaxPercent) / 100d); }
+    private double cartTotal() { return cartNetBeforeTax() + cartTaxAmount(); }
 
     private void renderCartPage() {
         if (!canUsePermission("cart")) { renderLockedSection("cart"); return; }
         content.removeAllViews();
         addHero("سبد خرید و پیش‌فاکتور", "انتخاب مشتری، مرور اقلام، توضیحات، امضا و ارسال پیش‌فاکتور");
         addManualRefreshPanel("cart", "بروزرسانی سبد", "اقلام فعلی: " + formatNumber(visitorCartItems.length()), () -> renderCartPage());
+        addCartWorkflowButtons();
         addCartCustomerCard();
         addCartItemsCard();
+        addCartTermsCard();
         addCartNotesAndActions();
+        addCartDraftsAndOfflineCard();
+    }
+
+    private void addCartWorkflowButtons() {
+        LinearLayout c = card(); c.setPadding(dp(10), dp(10), dp(10), dp(10)); c.setBackground(gradient(new int[]{alpha(navAccent("cart"), 26), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        Button mine = secondaryButton("پیش‌فاکتورهای من"); mine.setTextSize(9.3f); mine.setOnClickListener(v -> loadMyPrefactors());
+        Button route = secondaryButton("مسیر بازدید"); route.setTextSize(9.3f); route.setOnClickListener(v -> loadVisitRoutePage(""));
+        Button barcode = secondaryButton("بارکد/کد"); barcode.setTextSize(9.3f); barcode.setOnClickListener(v -> showBarcodeSearchDialog());
+        row.addView(mine, weightedButtonLp()); row.addView(route, weightedButtonLp()); row.addView(barcode, weightedButtonLp());
+        c.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
 
     private void addCartCustomerCard() {
@@ -7286,9 +7427,12 @@ public class MainActivity extends Activity {
             c.addView(text(visitorCartCustomer.optString("name", "مشتری") + " • کد " + visitorCartCustomer.optString("code", "—"), 13, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
             LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
             row.addView(dashboardMiniMetric("مانده", money(visitorCartCustomer.opt("balance")), "فعلی", visitorCartCustomer.optDouble("balance",0)>0?DANGER:SUCCESS), dashboardMiniLp());
-            row.addView(dashboardMiniMetric("خرید قبلی", formatNumber(visitorCartCustomer.opt("invoiceCount")), "فاکتور", INFO), dashboardMiniLp());
-            row.addView(dashboardMiniMetric("آخرین خرید", stringOr(visitorCartCustomer.optString("lastSale"), "—"), "تاریخ", GOLD), dashboardMiniLp());
+            row.addView(dashboardMiniMetric("سقف اعتبار", visitorCartCustomer.optDouble("creditLimit",0)>0?money(visitorCartCustomer.opt("creditLimit")):"تعریف نشده", "کنترل", creditRisk() ? DANGER : INFO), dashboardMiniLp());
+            row.addView(dashboardMiniMetric("آخرین خرید", stringOr(visitorCartCustomer.optString("lastSale"), "—"), formatNumber(visitorCartCustomer.opt("invoiceCount")) + " فاکتور", GOLD), dashboardMiniLp());
             LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(8), 0, 0); c.addView(row, rp);
+            String risk = cartApprovalReason();
+            if (!risk.isEmpty()) c.addView(text("هشدار فروش: " + risk, 10.4f, DANGER, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+            if (!visitorCartCustomer.optString("address", "").trim().isEmpty()) c.addView(text("آدرس پیش‌فرض: " + visitorCartCustomer.optString("address", ""), 10.3f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         }
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
         Button pick = primaryButton("انتخاب/جستجوی مشتری"); pick.setOnClickListener(v -> { if (ensurePermission("customer_select", "انتخاب مشتری")) showCartCustomerPicker(""); });
@@ -7297,6 +7441,26 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
+
+    private boolean creditRisk() {
+        if (visitorCartCustomer == null) return false;
+        double bal = visitorCartCustomer.optDouble("balance", 0), credit = visitorCartCustomer.optDouble("creditLimit", 0);
+        return (credit > 0 && bal + cartTotal() > credit) || visitorCartCustomer.optBoolean("blocked", false);
+    }
+
+    private String cartApprovalReason() {
+        List<String> r = new ArrayList<>();
+        if (visitorCartCustomer != null) {
+            double bal = visitorCartCustomer.optDouble("balance", 0), credit = visitorCartCustomer.optDouble("creditLimit", 0);
+            if (visitorCartCustomer.optBoolean("blocked", false)) r.add("مشتری مسدود/پرریسک است");
+            if (credit > 0 && bal + cartTotal() > credit) r.add("عبور از سقف اعتبار مشتری");
+            if (bal > 0 && "اعتباری".equals(visitorCartSettlement)) r.add("فروش اعتباری برای مشتری بدهکار");
+        }
+        if (cartLineDiscounts() + visitorCartGlobalDiscount > 0) r.add("دارای تخفیف و نیازمند تایید فروش/مدیریت");
+        return join(r, "، ");
+    }
+
+    private String finalCartStatus() { return cartApprovalReason().trim().isEmpty() ? "sent" : "pending_approval"; }
 
     private void addCartItemsCard() {
         LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(GOLD, 22), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
@@ -7307,7 +7471,7 @@ public class MainActivity extends Activity {
             addCartItemRow(c, item, i);
         }
         LinearLayout total = new LinearLayout(this); total.setOrientation(LinearLayout.HORIZONTAL); total.setGravity(Gravity.CENTER_VERTICAL); total.setPadding(dp(10), dp(9), dp(10), dp(9)); total.setBackground(roundedStroke(alpha(SUCCESS, 18), 16, alpha(SUCCESS, 72)));
-        total.addView(text("جمع پیش‌فاکتور", 12.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(0, -2, 1f));
+        total.addView(text("جمع خام: " + money(cartSubtotal()) + " • تخفیف: " + money(cartLineDiscounts() + visitorCartGlobalDiscount), 10.7f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(0, -2, 1f));
         total.addView(text(money(cartTotal()), 13, SUCCESS, Typeface.BOLD), new LinearLayout.LayoutParams(-2, -2));
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.setMargins(0, dp(10), 0, 0); c.addView(total, tp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
@@ -7322,27 +7486,95 @@ public class MainActivity extends Activity {
         copy.addView(text(item.optString("name", "محصول"), 12.4f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         copy.addView(text("کد " + item.optString("code", "—") + " • موجودی " + formatNumber(item.optDouble("stock", 0)) + " • بسته " + formatNumber(item.optDouble("pack", 1)), 9.7f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
-        Button del = secondaryButton("حذف"); del.setTextSize(8.5f); del.setOnClickListener(v -> { removeCartItem(item.optString("code", "")); renderCartPage(); }); head.addView(del, new LinearLayout.LayoutParams(dp(66), dp(34)));
+        LinearLayout buttons = new LinearLayout(this); buttons.setOrientation(LinearLayout.VERTICAL);
+        Button edit = secondaryButton("ویرایش"); edit.setTextSize(8.0f); edit.setOnClickListener(v -> showEditCartItemDialog(index));
+        Button del = secondaryButton("حذف"); del.setTextSize(8.0f); del.setOnClickListener(v -> { removeCartItem(item.optString("code", "")); renderCartPage(); });
+        buttons.addView(edit, new LinearLayout.LayoutParams(dp(68), dp(31))); buttons.addView(del, new LinearLayout.LayoutParams(dp(68), dp(31))); head.addView(buttons, new LinearLayout.LayoutParams(dp(72), -2));
         row.addView(head, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout metrics = new LinearLayout(this); metrics.setOrientation(LinearLayout.HORIZONTAL);
         metrics.addView(customerMiniMetric("تعداد", formatNumber(item.optDouble("qty", 0)) + " " + item.optString("unit", ""), SUCCESS), weightedMiniLp());
         metrics.addView(customerMiniMetric("فی", money(item.optDouble("price", 0)), GOLD), weightedMiniLp());
-        metrics.addView(customerMiniMetric("مبلغ", money(item.optDouble("qty", 0) * item.optDouble("price", 0)), accent), weightedMiniLp());
+        metrics.addView(customerMiniMetric("خالص", money(cartItemNet(item)), accent), weightedMiniLp());
         LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.setMargins(0, dp(7), 0, 0); row.addView(metrics, mp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(8), 0, 0); parent.addView(row, lp);
+    }
+
+    private void showEditCartItemDialog(int index) {
+        JSONObject item = visitorCartItems.optJSONObject(index); if (item == null) return;
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(10), dp(8), dp(10), dp(6));
+        box.addView(text("ویرایش کالا: " + item.optString("name", "محصول"), 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        EditText qty = input("تعداد/وزن", String.valueOf(item.optDouble("qty", 1)), false); qty.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText price = input("قیمت واحد", String.valueOf(item.optDouble("price", 0)), false); price.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText discount = input("تخفیف ردیف", String.valueOf(item.optDouble("lineDiscount", 0)), false); discount.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText note = input("توضیح این کالا", item.optString("note", ""), false); note.setSingleLine(false); note.setMinLines(2);
+        for (EditText e : new EditText[]{qty, price, discount}) { LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, dp(48)); ep.setMargins(0, dp(7), 0, 0); box.addView(e, ep); }
+        LinearLayout priceRow = new LinearLayout(this); priceRow.setOrientation(LinearLayout.HORIZONTAL);
+        Button p1 = secondaryButton("قیمت ۱: " + compactMoney(item.optDouble("price1", item.optDouble("price", 0)))); p1.setTextSize(8.5f); p1.setOnClickListener(v -> { price.setText(String.valueOf(item.optDouble("price1", item.optDouble("price", 0)))); try { item.put("priceTier", "1"); } catch (Exception ignored) { } });
+        Button p2 = secondaryButton("قیمت ۲: " + compactMoney(item.optDouble("price2", 0))); p2.setTextSize(8.5f); p2.setOnClickListener(v -> { price.setText(String.valueOf(item.optDouble("price2", item.optDouble("price", 0)))); try { item.put("priceTier", "2"); } catch (Exception ignored) { } });
+        priceRow.addView(p1, weightedButtonLp()); priceRow.addView(p2, weightedButtonLp()); LinearLayout.LayoutParams prp = new LinearLayout.LayoutParams(-1, -2); prp.setMargins(0, dp(7), 0, 0); box.addView(priceRow, prp);
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, dp(76)); np.setMargins(0, dp(7), 0, 0); box.addView(note, np);
+        AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).setPositiveButton("ذخیره", null).create();
+        dlg.setOnShowListener(d -> { styleMeelanoDialog(dlg, navAccent("cart")); Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE); if (ok != null) ok.setOnClickListener(v -> { try { item.put("qty", Math.max(0.001, parseNumber(qty.getText().toString(), item.optDouble("qty", 1)))); item.put("price", Math.max(0, parseNumber(price.getText().toString(), item.optDouble("price", 0)))); item.put("lineDiscount", Math.max(0, parseNumber(discount.getText().toString(), 0))); item.put("note", note.getText().toString().trim()); item.put("amount", cartItemNet(item)); visitorCartItems.put(index, item); } catch (Exception ignored) { } dlg.dismiss(); renderCartPage(); }); });
+        dlg.show();
+    }
+
+    private void addCartTermsCard() {
+        LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(INFO, 18), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.addView(text("شرایط فروش و تحویل", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        HorizontalScrollView hs = new HorizontalScrollView(this); styleHorizontalScroll(hs); LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        for (String opt : new String[]{"نقدی", "کارت‌خوان", "حواله", "چکی", "اعتباری"}) {
+            Button b = opt.equals(visitorCartSettlement) ? primaryButton(opt) : secondaryButton(opt); b.setTextSize(9.1f); b.setOnClickListener(v -> { syncCartFormInputs(); visitorCartSettlement = opt; renderCartPage(); });
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(92), dp(39)); bp.setMargins(dp(3), 0, dp(3), dp(8)); row.addView(b, bp);
+        }
+        hs.addView(row, new FrameLayout.LayoutParams(-2, -2)); c.addView(hs, new LinearLayout.LayoutParams(-1, -2));
+        cartDeliveryInput = input("تاریخ تحویل", visitorCartDeliveryDate, false);
+        cartAddressInput = input("آدرس تحویل", stringOr(visitorCartAddress, visitorCartCustomer == null ? "" : visitorCartCustomer.optString("address", "")), false);
+        cartPaymentRefInput = input("شماره پیگیری/چک/حواله", visitorCartPaymentRef, false);
+        cartDiscountInput = input("تخفیف کلی", String.valueOf(visitorCartGlobalDiscount), false); cartDiscountInput.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        cartTaxInput = input("درصد مالیات/ارزش افزوده", String.valueOf(visitorCartTaxPercent), false); cartTaxInput.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        for (EditText e : new EditText[]{cartDeliveryInput, cartAddressInput, cartPaymentRefInput, cartDiscountInput, cartTaxInput}) { LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, dp(48)); ep.setMargins(0, dp(7), 0, 0); c.addView(e, ep); }
+        LinearLayout summary = new LinearLayout(this); summary.setOrientation(LinearLayout.HORIZONTAL);
+        summary.addView(customerMiniMetric("خالص", money(cartNetBeforeTax()), SUCCESS), weightedMiniLp());
+        summary.addView(customerMiniMetric("مالیات", money(cartTaxAmount()), WARNING), weightedMiniLp());
+        summary.addView(customerMiniMetric("نهایی", money(cartTotal()), GOLD), weightedMiniLp());
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2); sp.setMargins(0, dp(8), 0, 0); c.addView(summary, sp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void syncCartFormInputs() {
+        try { if (cartNotesInput != null) visitorCartNotes = cartNotesInput.getText().toString(); } catch (Exception ignored) { }
+        try { if (cartDiscountInput != null) visitorCartGlobalDiscount = Math.max(0, parseNumber(cartDiscountInput.getText().toString(), visitorCartGlobalDiscount)); } catch (Exception ignored) { }
+        try { if (cartTaxInput != null) visitorCartTaxPercent = Math.max(0, parseNumber(cartTaxInput.getText().toString(), visitorCartTaxPercent)); } catch (Exception ignored) { }
+        try { if (cartDeliveryInput != null) visitorCartDeliveryDate = cartDeliveryInput.getText().toString().trim(); } catch (Exception ignored) { }
+        try { if (cartAddressInput != null) visitorCartAddress = cartAddressInput.getText().toString().trim(); } catch (Exception ignored) { }
+        try { if (cartPaymentRefInput != null) visitorCartPaymentRef = cartPaymentRefInput.getText().toString().trim(); } catch (Exception ignored) { }
     }
 
     private void addCartNotesAndActions() {
         LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(INFO, 20), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
         c.addView(text("توضیحات، امضا و ثبت", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        EditText notes = input("توضیحات مشتری یا اقلام انتخابی", visitorCartNotes, false); notes.setSingleLine(false); notes.setMinLines(3);
-        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, dp(88)); np.setMargins(0, dp(8), 0, dp(8)); c.addView(notes, np);
-        Button sign = secondaryButton(visitorCartSignature.isEmpty() ? "ثبت امضای مشتری" : "امضا ثبت شد ✓"); sign.setOnClickListener(v -> { visitorCartNotes = notes.getText().toString(); if (ensurePermission("cart_signature", "امضای مشتری")) showSignatureDialog(); }); c.addView(sign, new LinearLayout.LayoutParams(-1, dp(44)));
+        cartNotesInput = input("توضیحات مشتری یا اقلام انتخابی", visitorCartNotes, false); cartNotesInput.setSingleLine(false); cartNotesInput.setMinLines(3);
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, dp(88)); np.setMargins(0, dp(8), 0, dp(8)); c.addView(cartNotesInput, np);
+        LinearLayout signRow = new LinearLayout(this); signRow.setOrientation(LinearLayout.HORIZONTAL);
+        Button sign = secondaryButton(visitorCartSignature.isEmpty() ? "ثبت امضای مشتری" : "امضا ثبت شد ✓"); sign.setOnClickListener(v -> { syncCartFormInputs(); if (ensurePermission("cart_signature", "امضای مشتری")) showSignatureDialog(); });
+        Button pdf = secondaryButton("PDF/اشتراک"); pdf.setOnClickListener(v -> { syncCartFormInputs(); generateCurrentCartPdfAndShare(false); });
+        signRow.addView(sign, weightedButtonLp()); signRow.addView(pdf, weightedButtonLp()); c.addView(signRow, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button draft = secondaryButton("ذخیره پیش‌نویس"); draft.setOnClickListener(v -> { visitorCartNotes = notes.getText().toString(); if (ensurePermission("cart_draft", "پیش‌نویس")) saveCartDraftOnly(); });
-        Button send = primaryButton("ارسال پیش‌فاکتور"); send.setOnClickListener(v -> { visitorCartNotes = notes.getText().toString(); if (ensurePermission("cart_submit", "ارسال پیش‌فاکتور")) submitCartPrefactor("sent"); });
+        Button draft = secondaryButton("ذخیره پیش‌نویس"); draft.setOnClickListener(v -> { syncCartFormInputs(); if (ensurePermission("cart_draft", "پیش‌نویس")) saveCartDraftOnly(); });
+        Button send = primaryButton("پیش‌نمایش و ارسال"); send.setOnClickListener(v -> { syncCartFormInputs(); if (ensurePermission("cart_submit", "ارسال پیش‌فاکتور")) showPrefactorPreviewDialog(); });
         row.addView(draft, weightedButtonLp()); row.addView(send, weightedButtonLp()); LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(9), 0, 0); c.addView(row, rp);
-        Button restore = secondaryButton("بازیابی پیش‌نویس ذخیره‌شده"); restore.setOnClickListener(v -> restoreCartDraft()); LinearLayout.LayoutParams rp2 = new LinearLayout.LayoutParams(-1, dp(44)); rp2.setMargins(0, dp(8), 0, 0); c.addView(restore, rp2);
+        Button restore = secondaryButton("پیش‌نویس‌ها و بازیابی"); restore.setOnClickListener(v -> restoreCartDraft()); LinearLayout.LayoutParams rp2 = new LinearLayout.LayoutParams(-1, dp(44)); rp2.setMargins(0, dp(8), 0, 0); c.addView(restore, rp2);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addCartDraftsAndOfflineCard() {
+        LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(WARNING, 16), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.addView(text("پیش‌نویس‌ها و صف ارسال", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("پیش‌نویس‌های چندتایی و سفارش‌های ارسال‌نشده در گوشی نگهداری می‌شوند تا در اتصال بعدی ارسال شوند.", 10.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        Button drafts = secondaryButton("پیش‌نویس‌ها: " + formatNumber(localDrafts().length())); drafts.setOnClickListener(v -> showSavedDraftsDialog());
+        Button queue = offlineQueue().length() > 0 ? primaryButton("ارسال صف: " + formatNumber(offlineQueue().length())) : secondaryButton("صف خالی"); queue.setOnClickListener(v -> trySendOfflineQueue());
+        row.addView(drafts, weightedButtonLp()); row.addView(queue, weightedButtonLp()); LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(9), 0, 0); c.addView(row, rp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
 
@@ -7375,7 +7607,7 @@ public class MainActivity extends Activity {
         for (int i = 0; rows != null && i < rows.length(); i++) {
             JSONObject r = rows.optJSONObject(i); if (r == null) continue;
             Button b = secondaryButton(r.optString("name", "مشتری") + " • مانده " + compactMoney(r.opt("balance")));
-            b.setTextSize(9.6f); b.setOnClickListener(v -> { visitorCartCustomer = r; if (dlg[0] != null) dlg[0].dismiss(); renderCartPage(); });
+            b.setTextSize(9.6f); b.setOnClickListener(v -> { visitorCartCustomer = r; if (visitorCartAddress.trim().isEmpty()) visitorCartAddress = r.optString("address", ""); if (dlg[0] != null) dlg[0].dismiss(); renderCartPage(); });
             LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(44)); bp.setMargins(0, dp(6), 0, 0); list.addView(b, bp);
         }
         scroll.addView(list, new ScrollView.LayoutParams(-1, -2)); box.addView(scroll, new LinearLayout.LayoutParams(-1, dp(330)));
@@ -7388,6 +7620,9 @@ public class MainActivity extends Activity {
         try (Connection c = openConnection()) {
             Set<String> cols = columns(c, "CUSTOMERS"); Set<String> sail = columns(c, "sailfact");
             String shmo = resolve(cols, "SHMO", "shmo", "CustomerCode"); String name = resolve(cols, "MONAME", "Name", "CusName"); String balance = resolve(cols, "man", "Balance", "Mandeh", "mande"); String phone = resolve(cols, "cell", "mobile", "Mobile", "tell1", "tel1");
+            String credit = resolveFlexible(cols, "credit", "Credit", "credit_limit", "Limit", "etebar", "Etebar", "سقف_اعتبار");
+            String address = resolveFlexible(cols, "address", "Address", "addr", "Adress", "آدرس");
+            String blocked = resolveFlexible(cols, "blocked", "blacklist", "lock", "is_blocked", "active", "Active");
             if (shmo == null) return "[]";
             String sailShmo = resolve(sail, "shmo", "SHMO"); String amount = resolve(sail, "all", "amount"); String saleDate = resolve(sail, "date", "DATE", "t_date");
             String label = name == null ? "TRY_CONVERT(nvarchar(220),c.[" + shmo + "])" : "TRY_CONVERT(nvarchar(220),c.[" + name + "])";
@@ -7395,60 +7630,356 @@ public class MainActivity extends Activity {
             String scope = customerScopeCondition(cols, "c", params); if (!scope.isEmpty()) where.add(scope);
             if (search != null && !search.trim().isEmpty()) { String q = search.trim(); List<String> parts = new ArrayList<>(); for (String col : new String[]{shmo, name, phone}) if (col != null) { parts.add("TRY_CONVERT(nvarchar(400),c.[" + col + "]) LIKE N'%' + ? + N'%'"); params.add(q); } if (!parts.isEmpty()) where.add("(" + join(parts, " OR ") + ")"); }
             String salesApply = sailShmo == null ? "OUTER APPLY (SELECT CAST(0 AS bigint) cnt, CAST(0 AS decimal(19,2)) total, CAST(N'' AS nvarchar(30)) lastSale) sf " : "OUTER APPLY (SELECT COUNT_BIG(1) cnt, " + (amount == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,2),s.[" + amount + "])),0)") + " total, " + (saleDate == null ? "CAST(N'' AS nvarchar(30))" : "ISNULL(MAX(TRY_CONVERT(nvarchar(30),s.[" + saleDate + "])),N'')") + " lastSale FROM dbo.sailfact s WHERE TRY_CONVERT(nvarchar(100),s.[" + sailShmo + "])=TRY_CONVERT(nvarchar(100),c.[" + shmo + "])) sf ";
-            String sql = "SELECT TOP (30) TRY_CONVERT(nvarchar(100),c.[" + shmo + "]), " + label + ", " + (balance == null ? "CAST(0 AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),c.[" + balance + "])") + ", " + (phone == null ? "CAST(NULL AS nvarchar(100))" : "TRY_CONVERT(nvarchar(100),c.[" + phone + "])") + ", sf.cnt, sf.total, sf.lastSale FROM dbo.CUSTOMERS c " + salesApply + (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + " ORDER BY " + label;
-            JSONArray arr = new JSONArray(); try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("name", stringOr(r.getString(2), "مشتری")); o.put("balance", r.getDouble(3)); o.put("phone", stringOr(r.getString(4), "")); o.put("invoiceCount", r.getLong(5)); o.put("totalSales", r.getDouble(6)); o.put("lastSale", stringOr(r.getString(7), "")); arr.put(o); } } }
+            String sql = "SELECT TOP (40) TRY_CONVERT(nvarchar(100),c.[" + shmo + "]), " + label + ", " + (balance == null ? "CAST(0 AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),c.[" + balance + "])") + ", " + (phone == null ? "CAST(NULL AS nvarchar(100))" : "TRY_CONVERT(nvarchar(100),c.[" + phone + "])") + ", sf.cnt, sf.total, sf.lastSale, " + (credit == null ? "CAST(0 AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),c.[" + credit + "])") + ", " + (address == null ? "CAST(NULL AS nvarchar(500))" : "TRY_CONVERT(nvarchar(500),c.[" + address + "])") + ", " + (blocked == null ? "CAST(NULL AS nvarchar(40))" : "TRY_CONVERT(nvarchar(40),c.[" + blocked + "])") + " FROM dbo.CUSTOMERS c " + salesApply + (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + " ORDER BY " + label;
+            JSONArray arr = new JSONArray(); try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("name", stringOr(r.getString(2), "مشتری")); o.put("balance", r.getDouble(3)); o.put("phone", stringOr(r.getString(4), "")); o.put("invoiceCount", r.getLong(5)); o.put("totalSales", r.getDouble(6)); o.put("lastSale", stringOr(r.getString(7), "")); o.put("creditLimit", r.getDouble(8)); o.put("address", stringOr(r.getString(9), "")); String bv = stringOr(r.getString(10), ""); o.put("blockedRaw", bv); o.put("blocked", bv.equals("0") || bv.equalsIgnoreCase("blocked") || bv.contains("مسدود")); arr.put(o); } } }
             return arr.toString();
         }
     }
 
+    private JSONObject currentCartSnapshot(String status) {
+        syncCartFormInputs();
+        JSONObject d = new JSONObject();
+        try {
+            if (visitorCartDraftId == null || visitorCartDraftId.trim().isEmpty()) visitorCartDraftId = "MEELANO-" + System.currentTimeMillis();
+            d.put("clientUuid", visitorCartDraftId);
+            d.put("items", new JSONArray(visitorCartItems.toString()));
+            d.put("customer", visitorCartCustomer == null ? JSONObject.NULL : new JSONObject(visitorCartCustomer.toString()));
+            d.put("customerCode", visitorCartCustomer == null ? "" : visitorCartCustomer.optString("code", ""));
+            d.put("customerName", visitorCartCustomer == null ? "" : visitorCartCustomer.optString("name", ""));
+            d.put("notes", visitorCartNotes); d.put("signature", visitorCartSignature);
+            d.put("settlement", visitorCartSettlement); d.put("deliveryDate", visitorCartDeliveryDate); d.put("address", visitorCartAddress); d.put("paymentRef", visitorCartPaymentRef);
+            d.put("subtotal", cartSubtotal()); d.put("lineDiscount", cartLineDiscounts()); d.put("globalDiscount", visitorCartGlobalDiscount); d.put("taxPercent", visitorCartTaxPercent); d.put("taxAmount", cartTaxAmount()); d.put("grandTotal", cartTotal());
+            d.put("status", status == null ? finalCartStatus() : status); d.put("approvalReason", cartApprovalReason()); d.put("createdLocal", nowText());
+            d.put("visitor", currentAccountName()); d.put("visitorId", currentVisitorScopeId() == null ? "" : String.valueOf(currentVisitorScopeId()));
+        } catch (Exception ignored) { }
+        return d;
+    }
+
     private void saveCartDraftOnly() {
         try {
-            JSONObject d = new JSONObject(); d.put("items", visitorCartItems); d.put("customer", visitorCartCustomer == null ? JSONObject.NULL : visitorCartCustomer); d.put("notes", visitorCartNotes); d.put("signature", visitorCartSignature); d.put("time", nowText());
-            if (prefs != null) prefs.edit().putString(KEY_CART_DRAFT, d.toString()).apply();
-            if (visitorCartCustomer != null && visitorCartItems.length() > 0) submitCartPrefactor("draft"); else Toast.makeText(this, "پیش‌نویس محلی ذخیره شد.", Toast.LENGTH_SHORT).show();
+            JSONObject snap = currentCartSnapshot("draft");
+            saveLocalDraftSnapshot(snap);
+            if (prefs != null) prefs.edit().putString(KEY_CART_DRAFT, snap.toString()).apply();
+            Toast.makeText(this, "پیش‌نویس محلی ذخیره شد.", Toast.LENGTH_SHORT).show();
+            if (visitorCartCustomer != null && visitorCartItems.length() > 0) submitCartSnapshot(snap, "draft", false);
+            else renderCartPage();
         } catch (Exception ex) { Toast.makeText(this, "ذخیره پیش‌نویس ممکن نشد.", Toast.LENGTH_SHORT).show(); }
     }
 
-    private void restoreCartDraft() {
-        try {
-            String raw = prefs == null ? "" : prefs.getString(KEY_CART_DRAFT, "");
-            if (raw == null || raw.trim().isEmpty()) { Toast.makeText(this, "پیش‌نویس ذخیره‌شده وجود ندارد.", Toast.LENGTH_SHORT).show(); return; }
-            JSONObject d = new JSONObject(raw); visitorCartItems = d.optJSONArray("items") == null ? new JSONArray() : d.optJSONArray("items"); visitorCartCustomer = d.optJSONObject("customer"); visitorCartNotes = d.optString("notes", ""); visitorCartSignature = d.optString("signature", ""); renderCartPage();
-        } catch (Exception ex) { Toast.makeText(this, "بازیابی پیش‌نویس ممکن نشد.", Toast.LENGTH_SHORT).show(); }
+    private JSONArray localDrafts() { try { String raw = prefs == null ? "[]" : prefs.getString(KEY_CART_DRAFTS, "[]"); return new JSONArray(raw == null || raw.trim().isEmpty() ? "[]" : raw); } catch (Exception ignored) { return new JSONArray(); } }
+    private void writeLocalDrafts(JSONArray a) { if (prefs != null) prefs.edit().putString(KEY_CART_DRAFTS, a == null ? "[]" : a.toString()).apply(); }
+
+    private String saveLocalDraftSnapshot(JSONObject snap) {
+        String id = snap == null ? "" : snap.optString("clientUuid", "");
+        if (id.trim().isEmpty()) id = "MEELANO-" + System.currentTimeMillis();
+        try { snap.put("clientUuid", id); snap.put("savedAt", nowText()); snap.put("status", "draft"); } catch (Exception ignored) { }
+        JSONArray old = localDrafts(); JSONArray out = new JSONArray(); boolean done = false;
+        for (int i = 0; i < old.length(); i++) { JSONObject o = old.optJSONObject(i); if (o == null) continue; if (id.equals(o.optString("clientUuid", ""))) { out.put(snap); done = true; } else out.put(o); }
+        if (!done) out.put(snap);
+        JSONArray limited = new JSONArray(); for (int i = Math.max(0, out.length() - 50); i < out.length(); i++) limited.put(out.optJSONObject(i));
+        writeLocalDrafts(limited); return id;
     }
 
-    private void submitCartPrefactor(String status) {
-        if (visitorCartItems.length() == 0) { Toast.makeText(this, "سبد خالی است.", Toast.LENGTH_SHORT).show(); return; }
-        if (visitorCartCustomer == null) { Toast.makeText(this, "ابتدا مشتری را انتخاب کنید.", Toast.LENGTH_LONG).show(); return; }
-        runDb(() -> insertPrefactor(status), new DbCallback() {
-            @Override public void ok(String body) { Toast.makeText(MainActivity.this, "draft".equals(status) ? "پیش‌نویس ذخیره شد." : "پیش‌فاکتور ارسال/ثبت شد.", Toast.LENGTH_LONG).show(); if (!"draft".equals(status)) { visitorCartItems = new JSONArray(); visitorCartNotes = ""; visitorCartSignature = ""; } renderCartPage(); }
-            @Override public void fail(Exception e) { showPageError("ثبت پیش‌فاکتور", e, () -> renderCartPage()); }
+    private void removeLocalDraft(String id) {
+        if (id == null || id.trim().isEmpty()) return;
+        JSONArray old = localDrafts(); JSONArray out = new JSONArray();
+        for (int i = 0; i < old.length(); i++) { JSONObject o = old.optJSONObject(i); if (o != null && !id.equals(o.optString("clientUuid", ""))) out.put(o); }
+        writeLocalDrafts(out);
+    }
+
+    private void restoreCartDraft() { showSavedDraftsDialog(); }
+
+    private void showSavedDraftsDialog() {
+        JSONArray rows = localDrafts();
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(12), dp(10), dp(12), dp(6));
+        box.addView(text("پیش‌نویس‌های ذخیره‌شده", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        ScrollView sc = new ScrollView(this); styleVerticalScroll(sc); LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL);
+        AlertDialog[] dlg = new AlertDialog[1];
+        if (rows.length() == 0) addEmptyTo(list, "پیش‌نویس ذخیره‌شده وجود ندارد.");
+        for (int i = rows.length() - 1; i >= 0; i--) {
+            JSONObject r = rows.optJSONObject(i); if (r == null) continue;
+            Button b = secondaryButton(r.optString("customerName", "بدون مشتری") + " • " + compactMoney(r.optDouble("grandTotal", 0)) + " • " + r.optString("savedAt", ""));
+            b.setTextSize(9.2f); b.setOnClickListener(v -> { restoreCartSnapshot(r); if (dlg[0] != null) dlg[0].dismiss(); renderCartPage(); });
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(46)); bp.setMargins(0, dp(6), 0, 0); list.addView(b, bp);
+        }
+        sc.addView(list, new ScrollView.LayoutParams(-1, -2)); box.addView(sc, new LinearLayout.LayoutParams(-1, dp(360)));
+        dlg[0] = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).create(); dlg[0].setOnShowListener(d -> styleMeelanoDialog(dlg[0], navAccent("cart"))); dlg[0].show();
+    }
+
+    private void restoreCartSnapshot(JSONObject d) {
+        try {
+            visitorCartDraftId = d.optString("clientUuid", "");
+            visitorCartItems = d.optJSONArray("items") == null ? new JSONArray() : new JSONArray(d.optJSONArray("items").toString());
+            visitorCartCustomer = d.optJSONObject("customer"); visitorCartNotes = d.optString("notes", ""); visitorCartSignature = d.optString("signature", "");
+            visitorCartSettlement = stringOr(d.optString("settlement", ""), "اعتباری"); visitorCartDeliveryDate = d.optString("deliveryDate", ""); visitorCartAddress = d.optString("address", ""); visitorCartPaymentRef = d.optString("paymentRef", "");
+            visitorCartGlobalDiscount = d.optDouble("globalDiscount", 0); visitorCartTaxPercent = d.optDouble("taxPercent", 0);
+        } catch (Exception ignored) { }
+    }
+
+    private JSONArray offlineQueue() { try { String raw = prefs == null ? "[]" : prefs.getString(KEY_OFFLINE_PREF_QUEUE, "[]"); return new JSONArray(raw == null || raw.trim().isEmpty() ? "[]" : raw); } catch (Exception ignored) { return new JSONArray(); } }
+    private void writeOfflineQueue(JSONArray a) { if (prefs != null) prefs.edit().putString(KEY_OFFLINE_PREF_QUEUE, a == null ? "[]" : a.toString()).apply(); }
+
+    private void saveOfflinePrefactor(JSONObject snap, String reason) {
+        try { snap.put("offlineReason", reason == null ? "" : reason); snap.put("queuedAt", nowText()); } catch (Exception ignored) { }
+        JSONArray q = offlineQueue(); q.put(snap); writeOfflineQueue(q);
+        Toast.makeText(this, "اتصال کامل نشد؛ پیش‌فاکتور در صف ارسال آفلاین ذخیره شد.", Toast.LENGTH_LONG).show();
+    }
+
+    private void trySendOfflineQueue() {
+        JSONArray q = offlineQueue();
+        if (q.length() == 0) { Toast.makeText(this, "صف ارسال آفلاین خالی است.", Toast.LENGTH_SHORT).show(); return; }
+        runDb(() -> {
+            int ok = 0;
+            for (int i = 0; i < q.length(); i++) { JSONObject snap = q.optJSONObject(i); if (snap == null) continue; insertPrefactorSnapshot(snap, snap.optString("status", "sent")); ok++; }
+            return "ارسال شد: " + formatNumber(ok);
+        }, new DbCallback() {
+            @Override public void ok(String body) { writeOfflineQueue(new JSONArray()); Toast.makeText(MainActivity.this, body, Toast.LENGTH_LONG).show(); if ("cart".equals(activePage)) renderCartPage(); }
+            @Override public void fail(Exception e) { showPageError("ارسال صف آفلاین", e, () -> renderCartPage()); }
         });
     }
 
-    private String insertPrefactor(String status) throws Exception {
+    private void showPrefactorPreviewDialog() {
+        if (visitorCartItems.length() == 0) { Toast.makeText(this, "سبد خالی است.", Toast.LENGTH_SHORT).show(); return; }
+        if (visitorCartCustomer == null) { Toast.makeText(this, "ابتدا مشتری را انتخاب کنید.", Toast.LENGTH_LONG).show(); return; }
+        JSONObject snap = currentCartSnapshot(finalCartStatus());
+        runDb(() -> preflightCartSnapshot(snap), new DbCallback() {
+            @Override public void ok(String body) { try { showPrefactorPreviewDialogWithCheck(snap, new JSONObject(body), false); } catch (Exception ex) { showPrefactorPreviewDialogWithCheck(snap, new JSONObject(), false); } }
+            @Override public void fail(Exception e) { JSONObject warn = new JSONObject(); try { warn.put("offline", true); warn.put("message", readableError(e)); } catch (Exception ignored) { } showPrefactorPreviewDialogWithCheck(snap, warn, true); }
+        });
+    }
+
+    private void showPrefactorPreviewDialogWithCheck(JSONObject snap, JSONObject check, boolean offline) {
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(12), dp(10), dp(12), dp(6));
+        box.addView(text("پیش‌نمایش نهایی پیش‌فاکتور", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        String status = snap.optString("status", "sent");
+        box.addView(text("مشتری: " + snap.optString("customerName", "—") + "\nنوع تسویه: " + snap.optString("settlement", "—") + " • تاریخ تحویل: " + stringOr(snap.optString("deliveryDate"), "—") + "\nوضعیت ارسال: " + prefactorStatusFa(status), 11.3f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        box.addView(text("جمع خام: " + money(snap.optDouble("subtotal",0)) + "\nتخفیف: " + money(snap.optDouble("lineDiscount",0)+snap.optDouble("globalDiscount",0)) + "\nمالیات: " + money(snap.optDouble("taxAmount",0)) + "\nقابل پرداخت: " + money(snap.optDouble("grandTotal",0)), 11.0f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        String reason = snap.optString("approvalReason", ""); if (!reason.trim().isEmpty()) box.addView(text("نیازمند تایید: " + reason, 10.5f, WARNING, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        JSONArray warnings = check.optJSONArray("warnings");
+        if (offline) box.addView(text("کنترل آنلاین موجودی انجام نشد؛ می‌توانید در صف آفلاین نگه دارید یا دوباره تلاش کنید.", 10.4f, DANGER, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        else if (warnings != null && warnings.length() > 0) for (int i=0;i<warnings.length();i++) box.addView(text("• " + warnings.optString(i), 10.2f, check.optBoolean("blocked", false)?DANGER:WARNING, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        else box.addView(text("کنترل نهایی موجودی و قیمت با موفقیت انجام شد.", 10.4f, SUCCESS, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بازگشت", null).setPositiveButton(offline ? "ذخیره در صف" : "تایید و ارسال", null).create();
+        dlg.setOnShowListener(d -> { styleMeelanoDialog(dlg, navAccent("cart")); Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE); if (ok != null) ok.setOnClickListener(v -> { dlg.dismiss(); if (offline) { saveOfflinePrefactor(snap, check.optString("message", "offline")); renderCartPage(); } else submitCartSnapshot(snap, snap.optString("status", "sent"), true); }); });
+        dlg.show();
+    }
+
+    private String preflightCartSnapshot(JSONObject snap) throws Exception {
         try (Connection c = openConnection()) {
             ensurePrefactorTables(c);
-            long id;
-            try (PreparedStatement ps = c.prepareStatement("INSERT INTO dbo.meelano_prefactors(visitor_username,visitor_id,customer_code,customer_name,notes,signature_data,total_amount,status,created_at) VALUES(?,?,?,?,?,?,?,?,SYSDATETIME())", Statement.RETURN_GENERATED_KEYS)) {
-                ps.setString(1, currentAccountName()); ps.setString(2, currentVisitorScopeId() == null ? "" : String.valueOf(currentVisitorScopeId())); ps.setString(3, visitorCartCustomer.optString("code", "")); ps.setString(4, visitorCartCustomer.optString("name", "")); ps.setString(5, visitorCartNotes); ps.setString(6, visitorCartSignature); ps.setDouble(7, cartTotal()); ps.setString(8, status == null ? "sent" : status); ps.executeUpdate();
-                try (ResultSet keys = ps.getGeneratedKeys()) { id = keys.next() ? keys.getLong(1) : 0; }
-            }
-            if (id <= 0) { try (PreparedStatement ps = c.prepareStatement("SELECT ISNULL(MAX(id),0) FROM dbo.meelano_prefactors WHERE visitor_username=?")) { ps.setString(1, currentAccountName()); try (ResultSet r = ps.executeQuery()) { if (r.next()) id = r.getLong(1); } } }
-            try (PreparedStatement ps = c.prepareStatement("INSERT INTO dbo.meelano_prefactor_items(prefactor_id,product_code,product_name,unit,qty,price,amount,stock_snapshot,pack_count) VALUES(?,?,?,?,?,?,?,?,?)")) {
-                for (int i = 0; i < visitorCartItems.length(); i++) { JSONObject it = visitorCartItems.optJSONObject(i); if (it == null) continue; ps.setLong(1, id); ps.setString(2, it.optString("code", "")); ps.setString(3, it.optString("name", "")); ps.setString(4, it.optString("unit", "")); ps.setDouble(5, it.optDouble("qty", 0)); ps.setDouble(6, it.optDouble("price", 0)); ps.setDouble(7, it.optDouble("qty", 0) * it.optDouble("price", 0)); ps.setDouble(8, it.optDouble("stock", 0)); ps.setDouble(9, it.optDouble("pack", 1)); ps.addBatch(); }
-                ps.executeBatch();
-            }
-            return String.valueOf(id);
+            return checkCartSnapshotAgainstInventory(c, snap.optJSONArray("items"), false).toString();
         }
+    }
+
+    private void submitCartPrefactor(String status) { submitCartSnapshot(currentCartSnapshot(status == null ? finalCartStatus() : status), status == null ? finalCartStatus() : status, true); }
+
+    private void submitCartSnapshot(JSONObject snap, String status, boolean clearOnSuccess) {
+        if (snap == null || snap.optJSONArray("items") == null || snap.optJSONArray("items").length() == 0) { Toast.makeText(this, "سبد خالی است.", Toast.LENGTH_SHORT).show(); return; }
+        if (snap.optString("customerCode", "").trim().isEmpty()) { Toast.makeText(this, "ابتدا مشتری را انتخاب کنید.", Toast.LENGTH_LONG).show(); return; }
+        runDb(() -> insertPrefactorSnapshot(snap, status), new DbCallback() {
+            @Override public void ok(String body) { Toast.makeText(MainActivity.this, "draft".equals(status) ? "پیش‌نویس ذخیره شد." : "پیش‌فاکتور ثبت شد. شماره: " + body, Toast.LENGTH_LONG).show(); if (clearOnSuccess && !"draft".equals(status)) { removeLocalDraft(snap.optString("clientUuid", "")); resetCartState(); } renderCartPage(); }
+            @Override public void fail(Exception e) { if (!"draft".equals(status)) saveOfflinePrefactor(snap, shortError(e)); else Toast.makeText(MainActivity.this, "پیش‌نویس فقط محلی ماند.", Toast.LENGTH_LONG).show(); renderCartPage(); }
+        });
+    }
+
+    private void resetCartState() {
+        visitorCartItems = new JSONArray(); visitorCartCustomer = null; visitorCartNotes = ""; visitorCartSignature = ""; visitorCartDraftId = ""; visitorCartSettlement = "اعتباری"; visitorCartDeliveryDate = ""; visitorCartAddress = ""; visitorCartPaymentRef = ""; visitorCartGlobalDiscount = 0; visitorCartTaxPercent = 0;
+    }
+
+    private String insertPrefactor(String status) throws Exception { return insertPrefactorSnapshot(currentCartSnapshot(status), status); }
+
+    private String insertPrefactorSnapshot(JSONObject snap, String status) throws Exception {
+        try (Connection c = openConnection()) {
+            ensurePrefactorTables(c);
+            String uuid = snap.optString("clientUuid", "");
+            if (!uuid.trim().isEmpty()) try (PreparedStatement find = c.prepareStatement("SELECT TOP (1) id FROM dbo.meelano_prefactors WHERE client_uuid=?")) { find.setString(1, uuid); try (ResultSet r = find.executeQuery()) { if (r.next()) return String.valueOf(r.getLong(1)); } } catch (Exception ignored) { }
+            c.setAutoCommit(false);
+            try {
+                if (!"draft".equals(status)) checkCartSnapshotAgainstInventory(c, snap.optJSONArray("items"), true);
+                long id;
+                try (PreparedStatement ps = c.prepareStatement("INSERT INTO dbo.meelano_prefactors(client_uuid,visitor_username,visitor_id,customer_code,customer_name,notes,signature_data,total_amount,status,created_at,updated_at,delivery_date,delivery_address,settlement_type,payment_ref,subtotal_amount,global_discount,tax_percent,tax_amount,grand_total,approval_reason) VALUES(?,?,?,?,?,?,?,?,?,SYSDATETIME(),SYSDATETIME(),?,?,?,?,?,?,?,?,?,?)", Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setString(1, uuid); ps.setString(2, currentAccountName()); ps.setString(3, snap.optString("visitorId", "")); ps.setString(4, snap.optString("customerCode", "")); ps.setString(5, snap.optString("customerName", "")); ps.setString(6, snap.optString("notes", "")); ps.setString(7, snap.optString("signature", "")); ps.setDouble(8, snap.optDouble("grandTotal", 0)); ps.setString(9, status == null ? snap.optString("status", "sent") : status);
+                    ps.setString(10, snap.optString("deliveryDate", "")); ps.setString(11, snap.optString("address", "")); ps.setString(12, snap.optString("settlement", "")); ps.setString(13, snap.optString("paymentRef", "")); ps.setDouble(14, snap.optDouble("subtotal", 0)); ps.setDouble(15, snap.optDouble("globalDiscount", 0)); ps.setDouble(16, snap.optDouble("taxPercent", 0)); ps.setDouble(17, snap.optDouble("taxAmount", 0)); ps.setDouble(18, snap.optDouble("grandTotal", 0)); ps.setString(19, snap.optString("approvalReason", "")); ps.executeUpdate();
+                    try (ResultSet keys = ps.getGeneratedKeys()) { id = keys.next() ? keys.getLong(1) : 0; }
+                }
+                if (id <= 0) { try (PreparedStatement ps = c.prepareStatement("SELECT ISNULL(MAX(id),0) FROM dbo.meelano_prefactors WHERE visitor_username=?")) { ps.setString(1, currentAccountName()); try (ResultSet r = ps.executeQuery()) { if (r.next()) id = r.getLong(1); } } }
+                JSONArray items = snap.optJSONArray("items");
+                try (PreparedStatement ps = c.prepareStatement("INSERT INTO dbo.meelano_prefactor_items(prefactor_id,product_code,product_name,unit,qty,price,amount,stock_snapshot,pack_count,price_tier,line_discount,line_note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)")) {
+                    for (int i = 0; items != null && i < items.length(); i++) { JSONObject it = items.optJSONObject(i); if (it == null) continue; ps.setLong(1, id); ps.setString(2, it.optString("code", "")); ps.setString(3, it.optString("name", "")); ps.setString(4, it.optString("unit", "")); ps.setDouble(5, it.optDouble("qty", 0)); ps.setDouble(6, it.optDouble("price", 0)); ps.setDouble(7, cartItemNet(it)); ps.setDouble(8, it.optDouble("stock", 0)); ps.setDouble(9, it.optDouble("pack", 1)); ps.setString(10, it.optString("priceTier", "1")); ps.setDouble(11, it.optDouble("lineDiscount", 0)); ps.setString(12, it.optString("note", "")); ps.addBatch(); }
+                    ps.executeBatch();
+                }
+                c.commit();
+                return String.valueOf(id);
+            } catch (Exception ex) { try { c.rollback(); } catch (Exception ignored) { } throw ex; }
+            finally { try { c.setAutoCommit(true); } catch (Exception ignored) { } }
+        }
+    }
+
+    private JSONObject checkCartSnapshotAgainstInventory(Connection c, JSONArray items, boolean strict) throws Exception {
+        JSONObject out = new JSONObject(); JSONArray warnings = new JSONArray(); boolean blocked = false;
+        Set<String> cols = columns(c, "inventory"); String shka = resolve(cols, "shka", "SHKA"); if (shka == null) { out.put("warnings", warnings); return out; }
+        String stock = resolve(cols, "Mojoodi", "mojoodi", "Stock", "Qty", "tedad", "Tedad", "inventorycount");
+        String price1 = resolveFlexible(cols, "FinalSalePrice", "SalePrice", "Price", "forosh1", "price1", "Price1", "قیمت_فروش1");
+        String price2 = resolveFlexible(cols, "FinalSalePrice2", "SalePrice2", "Price2", "forosh2", "price_2", "قیمت_فروش2", "gheymat2");
+        String sql = "SELECT " + (stock == null ? "CAST(NULL AS decimal(19,3))" : "TRY_CONVERT(decimal(19,3),["+stock+"])") + "," + (price1 == null ? "CAST(NULL AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),["+price1+"])") + "," + (price2 == null ? "CAST(NULL AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),["+price2+"])") + " FROM dbo.inventory WHERE TRY_CONVERT(nvarchar(100),["+shka+"])=?";
+        for (int i=0; items!=null && i<items.length(); i++) {
+            JSONObject it=items.optJSONObject(i); if (it==null) continue;
+            try (PreparedStatement ps=c.prepareStatement(sql)) { ps.setString(1,it.optString("code","")); try(ResultSet r=ps.executeQuery()) { if(!r.next()){ warnings.put("کالا پیدا نشد: "+it.optString("name","")); blocked=true; continue; } double st=r.getDouble(1); double p1=r.getDouble(2); double p2=r.getDouble(3); if(stock!=null && st<it.optDouble("qty",0)){ warnings.put("موجودی کافی نیست: "+it.optString("name","")+" / موجودی "+formatNumber(st)); blocked=true; } double dbPrice="2".equals(it.optString("priceTier","1"))&&p2>0?p2:p1; if(dbPrice>0 && Math.abs(dbPrice-it.optDouble("price",0))>1){ warnings.put("قیمت کالا تغییر کرده: "+it.optString("name","")); if(strict) blocked=true; } } }
+        }
+        out.put("warnings", warnings); out.put("blocked", blocked); out.put("ok", !blocked);
+        if (strict && blocked) throw new DbException(warnings.length()>0 ? warnings.optString(0) : "کنترل موجودی/قیمت تایید نشد.");
+        return out;
     }
 
     private void ensurePrefactorTables(Connection c) throws Exception {
         try (Statement st = c.createStatement()) {
-            st.execute("IF OBJECT_ID(N'dbo.meelano_prefactors',N'U') IS NULL CREATE TABLE dbo.meelano_prefactors (id bigint IDENTITY(1,1) NOT NULL PRIMARY KEY, visitor_username nvarchar(160) NULL, visitor_id nvarchar(80) NULL, customer_code nvarchar(100) NULL, customer_name nvarchar(250) NULL, notes nvarchar(max) NULL, signature_data nvarchar(max) NULL, total_amount decimal(19,2) NULL, status nvarchar(30) NOT NULL DEFAULT N'draft', created_at datetime2 NOT NULL DEFAULT SYSDATETIME())");
-            st.execute("IF OBJECT_ID(N'dbo.meelano_prefactor_items',N'U') IS NULL CREATE TABLE dbo.meelano_prefactor_items (id bigint IDENTITY(1,1) NOT NULL PRIMARY KEY, prefactor_id bigint NOT NULL, product_code nvarchar(100) NULL, product_name nvarchar(500) NULL, unit nvarchar(80) NULL, qty decimal(19,4) NULL, price decimal(19,2) NULL, amount decimal(19,2) NULL, stock_snapshot decimal(19,4) NULL, pack_count decimal(19,4) NULL)");
+            st.execute("IF OBJECT_ID(N'dbo.meelano_prefactors',N'U') IS NULL CREATE TABLE dbo.meelano_prefactors (id bigint IDENTITY(1,1) NOT NULL PRIMARY KEY, client_uuid nvarchar(80) NULL, visitor_username nvarchar(160) NULL, visitor_id nvarchar(80) NULL, customer_code nvarchar(100) NULL, customer_name nvarchar(250) NULL, notes nvarchar(max) NULL, signature_data nvarchar(max) NULL, total_amount decimal(19,2) NULL, subtotal_amount decimal(19,2) NULL, global_discount decimal(19,2) NULL, tax_percent decimal(9,3) NULL, tax_amount decimal(19,2) NULL, grand_total decimal(19,2) NULL, status nvarchar(30) NOT NULL DEFAULT N'draft', approval_reason nvarchar(700) NULL, delivery_date nvarchar(40) NULL, delivery_address nvarchar(700) NULL, settlement_type nvarchar(80) NULL, payment_ref nvarchar(160) NULL, created_at datetime2 NOT NULL DEFAULT SYSDATETIME(), updated_at datetime2 NULL)");
+            st.execute("IF OBJECT_ID(N'dbo.meelano_prefactor_items',N'U') IS NULL CREATE TABLE dbo.meelano_prefactor_items (id bigint IDENTITY(1,1) NOT NULL PRIMARY KEY, prefactor_id bigint NOT NULL, product_code nvarchar(100) NULL, product_name nvarchar(500) NULL, unit nvarchar(80) NULL, qty decimal(19,4) NULL, price decimal(19,2) NULL, amount decimal(19,2) NULL, stock_snapshot decimal(19,4) NULL, pack_count decimal(19,4) NULL, price_tier nvarchar(10) NULL, line_discount decimal(19,2) NULL, line_note nvarchar(700) NULL)");
+            for (String sql : new String[]{
+                    "IF COL_LENGTH('dbo.meelano_prefactors','client_uuid') IS NULL ALTER TABLE dbo.meelano_prefactors ADD client_uuid nvarchar(80) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactors','delivery_date') IS NULL ALTER TABLE dbo.meelano_prefactors ADD delivery_date nvarchar(40) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactors','delivery_address') IS NULL ALTER TABLE dbo.meelano_prefactors ADD delivery_address nvarchar(700) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactors','settlement_type') IS NULL ALTER TABLE dbo.meelano_prefactors ADD settlement_type nvarchar(80) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactors','payment_ref') IS NULL ALTER TABLE dbo.meelano_prefactors ADD payment_ref nvarchar(160) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactors','subtotal_amount') IS NULL ALTER TABLE dbo.meelano_prefactors ADD subtotal_amount decimal(19,2) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactors','global_discount') IS NULL ALTER TABLE dbo.meelano_prefactors ADD global_discount decimal(19,2) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactors','tax_percent') IS NULL ALTER TABLE dbo.meelano_prefactors ADD tax_percent decimal(9,3) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactors','tax_amount') IS NULL ALTER TABLE dbo.meelano_prefactors ADD tax_amount decimal(19,2) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactors','grand_total') IS NULL ALTER TABLE dbo.meelano_prefactors ADD grand_total decimal(19,2) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactors','approval_reason') IS NULL ALTER TABLE dbo.meelano_prefactors ADD approval_reason nvarchar(700) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactors','updated_at') IS NULL ALTER TABLE dbo.meelano_prefactors ADD updated_at datetime2 NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactor_items','price_tier') IS NULL ALTER TABLE dbo.meelano_prefactor_items ADD price_tier nvarchar(10) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactor_items','line_discount') IS NULL ALTER TABLE dbo.meelano_prefactor_items ADD line_discount decimal(19,2) NULL",
+                    "IF COL_LENGTH('dbo.meelano_prefactor_items','line_note') IS NULL ALTER TABLE dbo.meelano_prefactor_items ADD line_note nvarchar(700) NULL"
+            }) st.execute(sql);
+            st.execute("IF OBJECT_ID(N'dbo.meelano_visit_results',N'U') IS NULL CREATE TABLE dbo.meelano_visit_results (id bigint IDENTITY(1,1) PRIMARY KEY, visitor_username nvarchar(160) NULL, visitor_id nvarchar(80) NULL, customer_code nvarchar(100) NULL, customer_name nvarchar(250) NULL, result nvarchar(120) NULL, notes nvarchar(700) NULL, created_at datetime2 NOT NULL DEFAULT SYSDATETIME())");
+            st.execute("IF OBJECT_ID(N'dbo.meelano_day_reports',N'U') IS NULL CREATE TABLE dbo.meelano_day_reports (id bigint IDENTITY(1,1) PRIMARY KEY, visitor_username nvarchar(160) NULL, visitor_id nvarchar(80) NULL, report_text nvarchar(max) NULL, created_at datetime2 NOT NULL DEFAULT SYSDATETIME())");
         }
     }
+
+
+    private String prefactorStatusFa(String st) {
+        if ("draft".equals(st)) return "پیش‌نویس";
+        if ("sent".equals(st)) return "ارسال‌شده";
+        if ("pending_approval".equals(st)) return "در انتظار تایید";
+        if ("approved".equals(st)) return "تایید شده";
+        if ("rejected".equals(st)) return "رد شده";
+        if ("needs_revision".equals(st)) return "نیازمند اصلاح";
+        if ("invoiced".equals(st)) return "تبدیل‌شده به فاکتور";
+        if ("canceled".equals(st)) return "لغو شده";
+        return stringOr(st, "نامشخص");
+    }
+
+    private String prefactorScopeWhere(String alias, List<Object> params) {
+        String pfx = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
+        String role = session == null ? "" : canonicalAccessRole(session.accessRole);
+        if ("admin".equals(role) || "manager".equals(role) || "senior_accountant".equals(role)) return "";
+        List<String> parts = new ArrayList<>();
+        String user = currentAccountName();
+        if (user != null && !user.trim().isEmpty()) { parts.add("LTRIM(RTRIM(" + pfx + "visitor_username))=?"); params.add(user.trim()); }
+        Integer vid = currentVisitorScopeId();
+        if (vid != null && vid > 0) { parts.add("LTRIM(RTRIM(" + pfx + "visitor_id))=?"); params.add(String.valueOf(vid)); }
+        return parts.isEmpty() ? "" : " WHERE (" + join(parts, " OR ") + ")";
+    }
+
+    private void loadMyPrefactors() {
+        if (!canUsePermission("cart")) { renderLockedSection("cart"); return; }
+        content.removeAllViews(); addHero("پیش‌فاکتورهای من", "پیگیری، ویرایش پیش‌نویس، ارسال مجدد، PDF و وضعیت تایید");
+        addManualRefreshPanel("cart", "بروزرسانی پیش‌فاکتورها", "نمایش آخرین سفارش‌های ویزیتور", () -> loadMyPrefactors());
+        LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list, new LinearLayout.LayoutParams(-1, -2)); addLoading(list, "در حال دریافت پیش‌فاکتورها…");
+        runDb(this::queryMyPrefactorsSql, new DbCallback() { @Override public void ok(String body) { try { renderMyPrefactors(new JSONArray(body)); } catch(Exception e){ showPageError("پیش‌فاکتورهای من", e, () -> loadMyPrefactors()); } } @Override public void fail(Exception e){ showPageError("پیش‌فاکتورهای من", e, () -> loadMyPrefactors()); } });
+    }
+
+    private String queryMyPrefactorsSql() throws Exception {
+        try (Connection c = openConnection()) {
+            ensurePrefactorTables(c);
+            List<Object> params = new ArrayList<>(); String where = prefactorScopeWhere("p", params);
+            String sql = "SELECT TOP (100) p.id, TRY_CONVERT(nvarchar(30),p.created_at), p.status, p.customer_code, p.customer_name, ISNULL(p.grand_total,p.total_amount), p.settlement_type, p.delivery_date, p.approval_reason, ISNULL(x.cnt,0) FROM dbo.meelano_prefactors p OUTER APPLY (SELECT COUNT_BIG(1) cnt FROM dbo.meelano_prefactor_items i WHERE i.prefactor_id=p.id) x" + where + " ORDER BY p.id DESC";
+            JSONArray arr = new JSONArray();
+            try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try(ResultSet r = ps.executeQuery()) { while(r.next()){ JSONObject o=new JSONObject(); o.put("id", r.getLong(1)); o.put("date", stringOr(r.getString(2), "")); o.put("status", stringOr(r.getString(3), "")); o.put("customerCode", stringOr(r.getString(4), "")); o.put("customerName", stringOr(r.getString(5), "")); o.put("total", r.getDouble(6)); o.put("settlement", stringOr(r.getString(7), "")); o.put("delivery", stringOr(r.getString(8), "")); o.put("reason", stringOr(r.getString(9), "")); o.put("items", r.getLong(10)); arr.put(o); } } }
+            return arr.toString();
+        }
+    }
+
+    private void renderMyPrefactors(JSONArray rows) {
+        content.removeAllViews(); addHero("پیش‌فاکتورهای من", "وضعیت همه سفارش‌ها و پیش‌نویس‌های ثبت‌شده");
+        LinearLayout top = card(); top.setBackground(gradient(new int[]{alpha(navAccent("cart"),22), alpha(SURFACE,248)}, GradientDrawable.Orientation.RIGHT_LEFT,22));
+        LinearLayout tr = new LinearLayout(this); tr.setOrientation(LinearLayout.HORIZONTAL); Button cart = primaryButton("بازگشت به سبد"); cart.setOnClickListener(v -> showApp("cart")); Button route = secondaryButton("مسیر بازدید"); route.setOnClickListener(v -> loadVisitRoutePage("")); tr.addView(cart, weightedButtonLp()); tr.addView(route, weightedButtonLp()); top.addView(tr, new LinearLayout.LayoutParams(-1,-2)); content.addView(top, new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams lp0 = new LinearLayout.LayoutParams(-1,-2); lp0.setMargins(0,dp(12),0,0); content.addView(list, lp0);
+        if (rows == null || rows.length()==0) { addEmptyTo(list, "پیش‌فاکتوری ثبت نشده است."); return; }
+        for(int i=0;i<rows.length();i++) addPrefactorListCard(list, rows.optJSONObject(i));
+    }
+
+    private void addPrefactorListCard(LinearLayout parent, JSONObject r) {
+        if (r == null) return; String st=r.optString("status",""); int accent="approved".equals(st)?SUCCESS:("rejected".equals(st)||"needs_revision".equals(st)?DANGER:("pending_approval".equals(st)?WARNING:navAccent("cart")));
+        LinearLayout c=card(); c.setBackground(roundedStroke(alpha(accent,16),22,alpha(accent,70)));
+        c.addView(text("#"+formatNumber(r.optLong("id"))+" • "+r.optString("customerName","مشتری")+" • "+prefactorStatusFa(st),13.0f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        c.addView(text("تاریخ: "+r.optString("date","")+" • اقلام: "+formatNumber(r.opt("items"))+" • تسویه: "+stringOr(r.optString("settlement"),"—"),10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
+        c.addView(text("مبلغ: "+money(r.opt("total"))+(!r.optString("reason","").isEmpty()?"\nعلت تایید: "+r.optString("reason",""):""),10.5f,accent,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button det=secondaryButton("جزئیات/PDF"); det.setTextSize(8.6f); det.setOnClickListener(v -> loadPrefactorDetails(r.optLong("id"), false)); Button edit=secondaryButton("کپی به سبد"); edit.setTextSize(8.6f); edit.setOnClickListener(v -> loadPrefactorDetails(r.optLong("id"), true)); row.addView(det, weightedButtonLp()); row.addView(edit, weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(8),0,0); c.addView(row,rp);
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(10)); parent.addView(c,lp);
+    }
+
+    private void loadPrefactorDetails(long id, boolean copyToCart) {
+        runDb(() -> queryPrefactorDetailSql(id), new DbCallback(){ @Override public void ok(String body){ try{ JSONObject d=new JSONObject(body); if(copyToCart){ restoreCartSnapshot(prefactorDetailToCartSnapshot(d)); showApp("cart"); } else showPrefactorDetailDialog(d); }catch(Exception e){ showPageError("جزئیات پیش‌فاکتور",e,()->loadMyPrefactors()); }} @Override public void fail(Exception e){ showPageError("جزئیات پیش‌فاکتور",e,()->loadMyPrefactors()); }});
+    }
+
+    private String queryPrefactorDetailSql(long id) throws Exception {
+        try(Connection c=openConnection()){
+            ensurePrefactorTables(c); JSONObject out=new JSONObject();
+            try(PreparedStatement ps=c.prepareStatement("SELECT id,client_uuid,visitor_username,visitor_id,customer_code,customer_name,notes,signature_data,ISNULL(grand_total,total_amount),status,delivery_date,delivery_address,settlement_type,payment_ref,subtotal_amount,global_discount,tax_percent,tax_amount,approval_reason,TRY_CONVERT(nvarchar(30),created_at) FROM dbo.meelano_prefactors WHERE id=?")){ ps.setLong(1,id); try(ResultSet r=ps.executeQuery()){ if(r.next()){ out.put("id",r.getLong(1)); out.put("clientUuid",stringOr(r.getString(2),"")); out.put("visitor",stringOr(r.getString(3),"")); out.put("visitorId",stringOr(r.getString(4),"")); out.put("customerCode",stringOr(r.getString(5),"")); out.put("customerName",stringOr(r.getString(6),"")); out.put("notes",stringOr(r.getString(7),"")); out.put("signature",stringOr(r.getString(8),"")); out.put("grandTotal",r.getDouble(9)); out.put("status",stringOr(r.getString(10),"")); out.put("deliveryDate",stringOr(r.getString(11),"")); out.put("address",stringOr(r.getString(12),"")); out.put("settlement",stringOr(r.getString(13),"")); out.put("paymentRef",stringOr(r.getString(14),"")); out.put("subtotal",r.getDouble(15)); out.put("globalDiscount",r.getDouble(16)); out.put("taxPercent",r.getDouble(17)); out.put("taxAmount",r.getDouble(18)); out.put("approvalReason",stringOr(r.getString(19),"")); out.put("date",stringOr(r.getString(20),"")); } } }
+            JSONArray items=new JSONArray(); try(PreparedStatement ps=c.prepareStatement("SELECT product_code,product_name,unit,qty,price,amount,stock_snapshot,pack_count,price_tier,line_discount,line_note FROM dbo.meelano_prefactor_items WHERE prefactor_id=? ORDER BY id")){ ps.setLong(1,id); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject it=new JSONObject(); it.put("code",stringOr(r.getString(1),"")); it.put("name",stringOr(r.getString(2),"")); it.put("unit",stringOr(r.getString(3),"")); it.put("qty",r.getDouble(4)); it.put("price",r.getDouble(5)); it.put("amount",r.getDouble(6)); it.put("stock",r.getDouble(7)); it.put("pack",r.getDouble(8)); it.put("priceTier",stringOr(r.getString(9),"1")); it.put("lineDiscount",r.getDouble(10)); it.put("note",stringOr(r.getString(11),"")); items.put(it); } } }
+            out.put("items",items); return out.toString();
+        }
+    }
+
+    private JSONObject prefactorDetailToCartSnapshot(JSONObject d){ try{ JSONObject cst=new JSONObject(d.toString()); JSONObject cust=new JSONObject(); cust.put("code",d.optString("customerCode","")); cust.put("name",d.optString("customerName","")); cst.put("customer",cust); return cst; }catch(Exception e){ return d; } }
+
+    private void showPrefactorDetailDialog(JSONObject d){
+        LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(12),dp(10),dp(12),dp(6));
+        box.addView(text("پیش‌فاکتور #"+formatNumber(d.optLong("id")),16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        box.addView(text("مشتری: "+d.optString("customerName","")+"\nوضعیت: "+prefactorStatusFa(d.optString("status",""))+"\nمبلغ: "+money(d.optDouble("grandTotal",0))+"\nتوضیحات: "+d.optString("notes",""),11,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
+        JSONArray items=d.optJSONArray("items"); for(int i=0;items!=null&&i<items.length()&&i<12;i++){ JSONObject it=items.optJSONObject(i); if(it!=null) box.addView(text("• "+it.optString("name","")+" × "+formatNumber(it.optDouble("qty",0))+" = "+money(it.optDouble("amount",0)),10.2f,TEXT,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); }
+        AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("ساخت PDF",null).create(); dlg.setOnShowListener(x->{ styleMeelanoDialog(dlg,navAccent("cart")); Button ok=dlg.getButton(AlertDialog.BUTTON_POSITIVE); if(ok!=null) ok.setOnClickListener(v->{ generatePrefactorPdf(d,"Meelano-Prefactor-"+d.optLong("id")+".pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(d), null); }); }); dlg.show();
+    }
+
+    private void generateCurrentCartPdfAndShare(boolean shareOnly){ JSONObject snap=currentCartSnapshot(finalCartStatus()); generatePrefactorPdf(snap,"Meelano-Prefactor-Draft-v3.37.pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(snap), null); }
+
+    private String prefactorShareText(JSONObject d){
+        StringBuilder b=new StringBuilder(); b.append("پیش‌فاکتور MEELANO\n"); b.append("مشتری: ").append(d.optString("customerName","")).append('\n'); b.append("مبلغ نهایی: ").append(money(d.optDouble("grandTotal",0))).append('\n'); JSONArray items=d.optJSONArray("items"); for(int i=0;items!=null&&i<items.length();i++){ JSONObject it=items.optJSONObject(i); if(it!=null)b.append("- ").append(it.optString("name","")).append(" × ").append(formatNumber(it.optDouble("qty",0))).append(" = ").append(money(cartItemNet(it))).append('\n'); } b.append("توضیحات: ").append(d.optString("notes","")); return b.toString();
+    }
+
+    private void generatePrefactorPdf(JSONObject d,String name){
+        PdfDocument doc=null; try{ doc=new PdfDocument(); PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create()); Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG); pnt.setColor(Color.rgb(248,251,255)); canvas.drawRect(0,0,595,842,pnt); pnt.setColor(Color.rgb(22,68,123)); canvas.drawRoundRect(new RectF(28,24,567,106),24,24,pnt); pnt.setColor(Color.WHITE); pnt.setTextAlign(Paint.Align.RIGHT); pnt.setTypeface(Typeface.DEFAULT_BOLD); pnt.setTextSize(20); canvas.drawText("پیش‌فاکتور MEELANO",535,58,pnt); pnt.setTextSize(11); canvas.drawText(nowText(),535,82,pnt); int y=136; pnt.setColor(Color.rgb(45,61,84)); pnt.setTextSize(12); for(String line:wrapPdfLine(prefactorShareText(d),58)){ if(y>790)break; canvas.drawText(line,540,y,pnt); y+=18; } doc.finishPage(page); File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir(); File file=new File(dir,name==null?"Meelano-Prefactor.pdf":name); try(FileOutputStream fos=new FileOutputStream(file)){ doc.writeTo(fos);} Toast.makeText(this,"PDF ساخته شد: "+file.getAbsolutePath(),Toast.LENGTH_LONG).show(); }catch(Exception ex){ Toast.makeText(this,"ساخت PDF پیش‌فاکتور ممکن نشد: "+shortError(ex),Toast.LENGTH_LONG).show(); } finally{ if(doc!=null)doc.close(); }
+    }
+
+    private void loadVisitRoutePage(String search){
+        content.removeAllViews(); addHero("مسیر بازدید امروز","مشتریان قابل پیگیری، شروع سریع پیش‌فاکتور و ثبت نتیجه بازدید"); addSearchBox("جستجوی مشتری مسیر…", search, q -> loadVisitRoutePage(q)); LinearLayout list=new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list,new LinearLayout.LayoutParams(-1,-2)); addLoading(list,"در حال آماده‌سازی مسیر…");
+        runDb(() -> queryCartCustomers(search), new DbCallback(){ @Override public void ok(String body){ try{ renderVisitRoute(new JSONArray(body), search); }catch(Exception e){ showPageError("مسیر بازدید",e,()->loadVisitRoutePage(search)); }} @Override public void fail(Exception e){ showPageError("مسیر بازدید",e,()->loadVisitRoutePage(search)); }});
+    }
+
+    private void renderVisitRoute(JSONArray rows,String search){
+        content.removeAllViews(); addHero("مسیر بازدید امروز","نتیجه هر بازدید را ثبت کنید یا مستقیم برای مشتری پیش‌فاکتور بسازید"); addSearchBox("جستجوی مشتری مسیر…", search, q -> loadVisitRoutePage(q)); LinearLayout list=new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list,new LinearLayout.LayoutParams(-1,-2)); if(rows==null||rows.length()==0){ addEmptyTo(list,"مشتری برای مسیر امروز پیدا نشد."); return; }
+        for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; LinearLayout c=card(); int accent=r.optDouble("balance",0)>0?WARNING:SUCCESS; c.setBackground(roundedStroke(alpha(accent,16),22,alpha(accent,68))); c.addView(text(r.optString("name","مشتری")+" • کد "+r.optString("code",""),13,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("مانده: "+money(r.optDouble("balance",0))+" • آخرین خرید: "+stringOr(r.optString("lastSale"),"—")+" • تلفن: "+stringOr(r.optString("phone"),"—"),10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button order=primaryButton("شروع پیش‌فاکتور"); order.setTextSize(8.6f); order.setOnClickListener(v->{ visitorCartCustomer=r; if(visitorCartAddress.trim().isEmpty())visitorCartAddress=r.optString("address",""); showApp("cart"); }); Button result=secondaryButton("ثبت نتیجه بازدید"); result.setTextSize(8.6f); result.setOnClickListener(v->showVisitResultDialog(r)); row.addView(order,weightedButtonLp()); row.addView(result,weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(8),0,0); c.addView(row,rp); LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2); cp.setMargins(0,0,0,dp(10)); list.addView(c,cp); }
+    }
+
+    private void showVisitResultDialog(JSONObject customer){
+        LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(12),dp(10),dp(12),dp(6)); box.addView(text("نتیجه بازدید: "+customer.optString("name","مشتری"),16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); EditText result=input("نتیجه: خرید کرد/نکرد، مغازه بسته بود، نیاز به پیگیری…","نیازمند پیگیری",false); EditText note=input("توضیحات بازدید","",false); note.setSingleLine(false); note.setMinLines(2); box.addView(result,new LinearLayout.LayoutParams(-1,dp(48))); box.addView(note,new LinearLayout.LayoutParams(-1,dp(82))); AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("ثبت",null).create(); dlg.setOnShowListener(d->{ styleMeelanoDialog(dlg,navAccent("visitor_dashboard")); Button ok=dlg.getButton(AlertDialog.BUTTON_POSITIVE); if(ok!=null)ok.setOnClickListener(v->{ dlg.dismiss(); saveVisitResult(customer,result.getText().toString(),note.getText().toString()); }); }); dlg.show();
+    }
+
+    private void saveVisitResult(JSONObject customer,String result,String note){
+        runDb(() -> { try(Connection c=openConnection()){ ensurePrefactorTables(c); try(PreparedStatement ps=c.prepareStatement("INSERT INTO dbo.meelano_visit_results(visitor_username,visitor_id,customer_code,customer_name,result,notes,created_at) VALUES(?,?,?,?,?,?,SYSDATETIME())")){ ps.setString(1,currentAccountName()); ps.setString(2,currentVisitorScopeId()==null?"":String.valueOf(currentVisitorScopeId())); ps.setString(3,customer.optString("code","")); ps.setString(4,customer.optString("name","")); ps.setString(5,result); ps.setString(6,note); ps.executeUpdate(); } } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this,"نتیجه بازدید ثبت شد.",Toast.LENGTH_SHORT).show(); } @Override public void fail(Exception e){ Toast.makeText(MainActivity.this,"نتیجه به‌صورت محلی نگهداری شد.",Toast.LENGTH_LONG).show(); }});
+    }
+
+    private void showEndOfDayReportDialog(){
+        runDb(this::queryEndOfDayReportSql,new DbCallback(){ @Override public void ok(String body){ showEndOfDayReportText(body); } @Override public void fail(Exception e){ showEndOfDayReportText("جمع‌بندی آفلاین\nپیش‌نویس محلی: "+formatNumber(localDrafts().length())+"\nصف ارسال: "+formatNumber(offlineQueue().length())+"\n"+readableError(e)); }});
+    }
+
+    private String queryEndOfDayReportSql() throws Exception { try(Connection c=openConnection()){ ensurePrefactorTables(c); List<Object> params=new ArrayList<>(); String where=prefactorScopeWhere("p",params); String and=where.isEmpty()?" WHERE ":where+" AND "; String sql="SELECT COUNT_BIG(1), ISNULL(SUM(ISNULL(grand_total,total_amount)),0), SUM(CASE WHEN status=N'draft' THEN 1 ELSE 0 END), SUM(CASE WHEN status=N'pending_approval' THEN 1 ELSE 0 END) FROM dbo.meelano_prefactors p"+and+" CONVERT(date,p.created_at)=CONVERT(date,SYSDATETIME())"; long cnt=0,draft=0,pending=0; double total=0; try(PreparedStatement ps=c.prepareStatement(sql)){ setParams(ps,params); try(ResultSet r=ps.executeQuery()){ if(r.next()){cnt=r.getLong(1); total=r.getDouble(2); draft=r.getLong(3); pending=r.getLong(4);} } } return "گزارش پایان روز ویزیتور\nپیش‌فاکتور امروز: "+formatNumber(cnt)+"\nجمع مبلغ: "+money(total)+"\nپیش‌نویس: "+formatNumber(draft)+"\nدر انتظار تایید: "+formatNumber(pending)+"\nصف آفلاین گوشی: "+formatNumber(offlineQueue().length()); } }
+
+    private void showEndOfDayReportText(String body){ AlertDialog dlg=new AlertDialog.Builder(this).setTitle("جمع‌بندی پایان روز").setMessage(body).setNegativeButton("بستن",null).setPositiveButton("اشتراک/ثبت",(d,w)->{ sharePlainText("گزارش پایان روز MEELANO",body,null); saveEndOfDayReport(body); }).create(); dlg.show(); }
+
+    private void saveEndOfDayReport(String body){ runDb(() -> { try(Connection c=openConnection()){ ensurePrefactorTables(c); try(PreparedStatement ps=c.prepareStatement("INSERT INTO dbo.meelano_day_reports(visitor_username,visitor_id,report_text,created_at) VALUES(?,?,?,SYSDATETIME())")){ ps.setString(1,currentAccountName()); ps.setString(2,currentVisitorScopeId()==null?"":String.valueOf(currentVisitorScopeId())); ps.setString(3,body); ps.executeUpdate(); } } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this,"گزارش پایان روز ثبت شد.",Toast.LENGTH_SHORT).show(); } @Override public void fail(Exception e){ Toast.makeText(MainActivity.this,"ثبت گزارش آنلاین انجام نشد.",Toast.LENGTH_LONG).show(); }}); }
 
     private class SignaturePadView extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -7586,6 +8117,9 @@ public class MainActivity extends Activity {
             if ("stock".equals(filter)) where.add("ISNULL(TRY_CONVERT(decimal(19,3),i.[" + (stock == null ? shka : stock) + "]),0)>0");
             if ("low".equals(filter) && stock != null) where.add("ISNULL(TRY_CONVERT(decimal(19,3),i.[" + stock + "]),0)<=0");
             if ("idle".equals(filter)) where.add("ISNULL(sa.sale_qty,0)=0 AND ISNULL(ba.buy_qty,0)=0");
+            if ("priced".equals(filter) && price != null) where.add("ISNULL(TRY_CONVERT(decimal(19,2),i.[" + price + "]),0)>0");
+            if ("image".equals(filter) && imageText && imageCol != null) where.add("LEN(LTRIM(RTRIM(TRY_CONVERT(nvarchar(max),i.[" + imageCol + "]))))>20");
+            if ("package".equals(filter) && packCount != null) where.add("ISNULL(TRY_CONVERT(decimal(19,3),i.[" + packCount + "]),0)>1");
             String order = "top".equals(filter) ? " ORDER BY مبلغ_فروش DESC, نام" : ("low".equals(filter) && stock != null ? " ORDER BY موجودی ASC, نام" : " ORDER BY نام, کد");
             String sql = "SELECT TOP (160) " + join(select, ",") + " FROM dbo.[inventory] i " + groupJoin + saleApply + buyApply +
                     (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + order;
@@ -8191,7 +8725,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.36.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.37.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -10856,7 +11390,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.36.0\nاین نسخه نقش‌های جدید مدیریتی، داشبورد ویزیتور، ویترین سه‌بعدی محصولات، سبد خرید، انتخاب مشتری، توضیحات، امضا، پیش‌نویس و ارسال پیش‌فاکتور را اضافه می‌کند؛ مجوزها همچنان نقش‌محور اعمال می‌شوند.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.37.0\nاین نسخه گردش نهایی ویزیتور را کامل می‌کند: پیش‌فاکتورهای من، مسیر بازدید، ویرایش سبد، انتخاب قیمت ۱/۲، تخفیف، مالیات، شرایط تسویه، کنترل موجودی، صف آفلاین، PDF، گزارش پایان روز و رفع مشکل اتصال هنگام فعال بودن VPN.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -11051,7 +11585,7 @@ public class MainActivity extends Activity {
 
     private String readableError(Exception e) {
         if (e instanceof DbException) return e.getMessage();
-        return "ارتباط برقرار نشد. اینترنت، دسترسی شبکه، روشن بودن سرور و مجوز اتصال SQL را بررسی کنید.";
+        return "ارتباط برقرار نشد. اینترنت، دسترسی شبکه، روشن بودن سرور و مجوز اتصال SQL را بررسی کنید." + sqlNetworkHint();
     }
 
     private void addEmptyTo(LinearLayout parent, String message) {

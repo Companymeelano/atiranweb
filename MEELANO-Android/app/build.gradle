@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.android'
         minSdk 24
         targetSdk 35
-        versionCode 41
-        versionName '3.36.0-direct-sql-visitor-showcase-cart'
+        versionCode 42
+        versionName '3.37.0-direct-sql-visitor-final-workflow-vpn-fix'
     }
 
     compileOptions {
