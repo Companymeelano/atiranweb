@@ -42,6 +42,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
+import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
@@ -134,7 +135,7 @@ public class MainActivity extends Activity {
     private static final int[] S_DB = {8, 61, 32, 59, 40, 39, 123};
     private static final int S_KEY = 73;
     private static final int SQL_PORT = 1433;
-    private static final String LOCAL_KEY_ALIAS = "meelano_local_secret_v319";
+    private static final String LOCAL_KEY_ALIAS = "meelano_local_secret_v320";
 
     private int NAVY = Color.rgb(7, 9, 16);
     private int SURFACE = Color.rgb(18, 22, 31);
@@ -175,6 +176,15 @@ public class MainActivity extends Activity {
     private String miloMood = "happy";
     private boolean miloThinking = false;
     private boolean miloSpeaking = false;
+    private String dashboardCacheJson = "";
+    private String reportsCacheJson = "";
+    private String customersCacheJson = "";
+    private String customersCacheQuery = "";
+    private String customersCacheFilter = "all";
+    private String productsCacheJson = "";
+    private String productsCacheQuery = "";
+    private String productsCacheFilter = "all";
+    private final Map<String, String> customerLedgerCache = new HashMap<>();
 
     private static final Set<String> SAFE_TABLES = new HashSet<>(Arrays.asList(
             "CUSTOMERS", "inventory", "sailfact", "subsailfact", "sailfact_pish", "subsailfact_pish",
@@ -572,7 +582,6 @@ public class MainActivity extends Activity {
         addHeaderTool(tools, "⌕", "جستجو", Color.rgb(126, 87, 255), v -> showGlobalSearchDialog());
         addHeaderTool(tools, privacyMode() ? "◉" : "◍", "محرمانه", Color.rgb(236, 72, 153), v -> togglePrivacyMode());
         addHeaderTool(tools, "◐", "تم", Color.rgb(255, 137, 66), v -> showThemeChooser());
-        addHeaderTool(tools, "⚡", "فرماندهی", Color.rgb(0, 184, 217), v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("command"); });
         addHeaderTool(tools, "⚙", "تنظیمات", INFO, v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings"); });
         addHeaderTool(tools, "⎋", "خروج", DANGER, v -> { if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید."); else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید."); });
         toolScroll.addView(tools, new HorizontalScrollView.LayoutParams(-2, -1));
@@ -1156,14 +1165,12 @@ public class MainActivity extends Activity {
             shell.setTextDirection(getRtlMode() ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR);
         }
 
-        HorizontalScrollView navScroll = new HorizontalScrollView(this);
-        styleHorizontalScroll(navScroll);
         navStrip = new LinearLayout(this);
-        navStrip.setOrientation(LinearLayout.HORIZONTAL);
-        navStrip.setGravity(Gravity.CENTER_VERTICAL);
-        navStrip.setPadding(dp(10), dp(9), dp(10), dp(9));
-        navScroll.addView(navStrip, new HorizontalScrollView.LayoutParams(-2, -1));
-        shell.addView(navScroll, new LinearLayout.LayoutParams(-1, dp(78)));
+        navStrip.setOrientation(LinearLayout.VERTICAL);
+        navStrip.setGravity(Gravity.CENTER);
+        navStrip.setPadding(dp(8), dp(7), dp(8), dp(7));
+        navStrip.setBackground(gradient(new int[]{alpha(HEADER_START, 238), alpha(SURFACE_2, 210)}, GradientDrawable.Orientation.LEFT_RIGHT, 0));
+        shell.addView(navStrip, new LinearLayout.LayoutParams(-1, dp(118)));
 
         ScrollView scroll = new ScrollView(this);
         styleVerticalScroll(scroll);
@@ -1180,51 +1187,56 @@ public class MainActivity extends Activity {
 
     private void buildNav() {
         navStrip.removeAllViews();
-        addNav("dashboard", "داشبورد", "◈");
-        addNav("command", "فرماندهی", "⚡");
-        addNav("assistant", "دستیار", "✦");
-        addNav("customers", "مشتریان", "👥");
-        addNav("products", "کالا", "◼");
-        addNav("reports", "گزارشات", "⌁");
+        navStrip.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout row1 = navRow();
+        LinearLayout row2 = navRow();
+        navStrip.addView(row1, new LinearLayout.LayoutParams(-1, 0, 1f));
+        navStrip.addView(row2, new LinearLayout.LayoutParams(-1, 0, 1f));
+        addNav(row1, "dashboard", "داشبورد", "◈");
+        addNav(row1, "command", "فرماندهی", "⚡");
+        addNav(row1, "assistant", "دستیار", "✦");
+        addNav(row2, "customers", "مشتریان", "👥");
+        addNav(row2, "products", "کالا", "◼");
+        addNav(row2, "reports", "گزارشات", "⌁");
     }
 
-    private void addNav(String key, String label, String icon) {
+    private LinearLayout navRow() {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER);
+        return row;
+    }
+
+    private void addNav(LinearLayout parent, String key, String label, String icon) {
         boolean active = key.equals(activePage);
         int accent = navAccent(key);
         LinearLayout tab = new LinearLayout(this);
         tab.setOrientation(LinearLayout.HORIZONTAL);
         tab.setGravity(Gravity.CENTER);
-        tab.setPadding(dp(8), dp(6), dp(8), dp(6));
+        tab.setPadding(dp(5), dp(4), dp(5), dp(4));
         tab.setClickable(true);
         tab.setFocusable(true);
         tab.setBackground(active
-                ? gradient(new int[]{mix(GOLD_2, Color.WHITE, 0.12f), accent, mix(accent, Color.BLACK, 0.28f)}, GradientDrawable.Orientation.TL_BR, 21)
-                : gradient(new int[]{alpha(accent, 26), alpha(SURFACE_2, 238)}, GradientDrawable.Orientation.LEFT_RIGHT, 21));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) tab.setElevation(dp(active ? 8 : 3));
+                ? gradient(new int[]{mix(accent, Color.WHITE, 0.30f), accent, mix(accent, Color.BLACK, 0.18f)}, GradientDrawable.Orientation.TL_BR, 19)
+                : roundedStroke(alpha(SURFACE, 232), 19, alpha(accent, 75)));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) tab.setElevation(dp(active ? 7 : 2));
 
-        TextView badge = text(icon, 18, active ? Color.WHITE : accent, Typeface.BOLD);
+        TextView badge = text(icon, 16, active ? Color.WHITE : accent, Typeface.BOLD);
         badge.setGravity(Gravity.CENTER);
-        badge.setShadowLayer(dp(active ? 4 : 2), 0, dp(1), alpha(Color.BLACK, active ? 150 : 80));
-        badge.setBackground(roundedStroke(active ? alpha(Color.WHITE, 34) : alpha(accent, 20), 14, active ? alpha(Color.WHITE, 85) : alpha(accent, 70)));
-        tab.addView(badge, new LinearLayout.LayoutParams(dp(34), dp(34)));
+        badge.setSingleLine(true);
+        badge.setShadowLayer(dp(active ? 3 : 1), 0, dp(1), alpha(Color.BLACK, active ? 145 : 55));
+        badge.setBackground(roundedStroke(active ? alpha(Color.WHITE, 34) : alpha(accent, 18), 13, active ? alpha(Color.WHITE, 85) : alpha(accent, 70)));
+        tab.addView(badge, new LinearLayout.LayoutParams(dp(30), dp(30)));
 
-        LinearLayout copy = new LinearLayout(this);
-        copy.setOrientation(LinearLayout.VERTICAL);
-        copy.setGravity(Gravity.CENTER_VERTICAL);
-        copy.setPadding(dp(7), 0, dp(7), 0);
-        TextView title = text(label, 11.5f, active ? Color.WHITE : TEXT, Typeface.BOLD);
+        TextView title = text(label, 10.2f, active ? Color.WHITE : TEXT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         title.setSingleLine(true);
-        TextView dot = text(active ? "فعال" : "Meelano", 8.3f, active ? alpha(Color.WHITE, 230) : MUTED, Typeface.BOLD);
-        dot.setGravity(Gravity.CENTER);
-        dot.setSingleLine(true);
-        copy.addView(title, new LinearLayout.LayoutParams(-1, -2));
-        copy.addView(dot, new LinearLayout.LayoutParams(-1, -2));
-        tab.addView(copy, new LinearLayout.LayoutParams(-2, -2));
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1f); tp.setMargins(dp(4), 0, dp(4), 0);
+        tab.addView(title, tp);
         tab.setOnClickListener(v -> showApp(key));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(118), dp(58));
-        lp.setMargins(dp(4), 0, dp(4), 0);
-        navStrip.addView(tab, lp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(47), 1f);
+        lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+        parent.addView(tab, lp);
     }
 
     private int navAccent(String key) {
@@ -1242,8 +1254,8 @@ public class MainActivity extends Activity {
         switch (activePage) {
             case "command": loadCommandCenter(); break;
             case "assistant": showAssistant(); break;
-            case "customers": loadCustomers(""); break;
-            case "products": loadProducts(""); break;
+            case "customers": loadCustomers(customersCacheQuery == null ? "" : customersCacheQuery, customersCacheFilter == null ? "all" : customersCacheFilter); break;
+            case "products": loadProducts(productsCacheQuery == null ? "" : productsCacheQuery, productsCacheFilter == null ? "all" : productsCacheFilter); break;
             case "sales": loadTable("فروش و اسناد", "نمای مستقیم از جدول فروش", "sailfact", ""); break;
             case "checks": loadTable("چک‌ها و وصول", "نمای مستقیم از چک‌های دریافتی", "getchk", ""); break;
             case "reports": loadReports(); break;
@@ -1259,25 +1271,77 @@ public class MainActivity extends Activity {
         else showApp(activePage);
     }
 
-    private void loadCommandCenter() {
+    private String refreshKey(String page) { return "last_manual_refresh_" + (page == null ? "page" : page); }
+
+    private void markRefresh(String page) {
+        if (prefs != null) prefs.edit().putString(refreshKey(page), nowText()).apply();
+    }
+
+    private String lastRefreshText(String page) {
+        return prefs == null ? "ثبت نشده" : prefs.getString(refreshKey(page), "ثبت نشده");
+    }
+
+    private void addManualRefreshPanel(String page, String title, String hint, Runnable refresh) {
+        LinearLayout c = new LinearLayout(this);
+        c.setOrientation(LinearLayout.HORIZONTAL);
+        c.setGravity(Gravity.CENTER_VERTICAL);
+        c.setPadding(dp(10), dp(8), dp(10), dp(8));
+        int accent = navAccent(page);
+        c.setBackground(gradient(new int[]{alpha(accent, 30), alpha(SURFACE, 246)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(8), 0, dp(8), 0);
+        copy.addView(text(title == null ? "بروزرسانی دستی" : title, 12.7f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView sub = text("آخرین بروزرسانی: " + lastRefreshText(page) + (hint == null || hint.isEmpty() ? "" : " • " + hint), 9.8f, MUTED, Typeface.NORMAL);
+        sub.setSingleLine(false); sub.setMaxLines(2);
+        copy.addView(sub, new LinearLayout.LayoutParams(-1, -2));
+        c.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView btn = new TextView(this);
+        btn.setText("⟳ تازه‌سازی");
+        btn.setTextSize(10.2f);
+        btn.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        btn.setTextColor(Color.WHITE);
+        btn.setGravity(Gravity.CENTER);
+        btn.setPadding(dp(6), 0, dp(6), 0);
+        btn.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, 120));
+        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, 0.22f), accent, mix(accent, Color.BLACK, 0.24f)}, GradientDrawable.Orientation.TL_BR, 999);
+        bg.setStroke(dp(1), alpha(Color.WHITE, 120));
+        btn.setBackground(bg);
+        btn.setClickable(true);
+        btn.setOnClickListener(v -> { if (refresh != null) refresh.run(); });
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) btn.setElevation(dp(5));
+        c.addView(btn, new LinearLayout.LayoutParams(dp(108), dp(40)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12));
+        content.addView(c, lp);
+    }
+
+    private void loadCommandCenter() { loadCommandCenter(false); }
+
+    private void loadCommandCenter(boolean force) {
+        if (!force && dashboardCacheJson != null && !dashboardCacheJson.trim().isEmpty()) {
+            try { renderCommandCenter(new JSONObject(dashboardCacheJson).optJSONObject("today"), false); return; } catch (Exception ignored) { }
+        }
         content.removeAllViews();
         addHero("فرماندهی هوشمند Meelano", "پیش‌بینی نقدینگی، رادار کالا، تقویم مدیریتی، ریسک مشتری و خروجی عملیاتی در یک صفحه.");
+        addManualRefreshPanel("command", "بروزرسانی دستی فرماندهی", "از داده داشبورد استفاده می‌کند", () -> loadCommandCenter(true));
         addLoading(content, "میلو در حال ساخت اتاق فرمان است…");
         runDb(this::queryDashboard, new DbCallback() {
             @Override public void ok(String body) {
                 try {
+                    dashboardCacheJson = body;
+                    markRefresh("dashboard"); markRefresh("command");
                     if (prefs != null) prefs.edit().putString(KEY_CACHE_DASHBOARD, body).apply();
-                    JSONObject today = new JSONObject(body).optJSONObject("today");
-                    renderCommandCenter(today, false);
-                } catch (Exception e) { showPageError("فرماندهی", e, () -> showApp("command")); }
+                    renderCommandCenter(new JSONObject(body).optJSONObject("today"), false);
+                } catch (Exception e) { showPageError("فرماندهی", e, () -> loadCommandCenter(true)); }
             }
             @Override public void fail(Exception e) {
                 try {
-                    String cached = prefs == null ? "" : prefs.getString(KEY_CACHE_DASHBOARD, "");
-                    if (cached == null || cached.trim().isEmpty()) { showPageError("فرماندهی", e, () -> showApp("command")); return; }
+                    String cached = dashboardCacheJson != null && !dashboardCacheJson.trim().isEmpty() ? dashboardCacheJson : (prefs == null ? "" : prefs.getString(KEY_CACHE_DASHBOARD, ""));
+                    if (cached == null || cached.trim().isEmpty()) { showPageError("فرماندهی", e, () -> loadCommandCenter(true)); return; }
+                    dashboardCacheJson = cached;
                     renderCommandCenter(new JSONObject(cached).optJSONObject("today"), true);
                     addCacheBanner("فرماندهی آفلاین", "آخرین داده ذخیره‌شده نمایش داده شد. خطا: " + shortError(e));
-                } catch (Exception ex) { showPageError("فرماندهی", e, () -> showApp("command")); }
+                } catch (Exception ex) { showPageError("فرماندهی", e, () -> loadCommandCenter(true)); }
             }
         });
     }
@@ -1285,6 +1349,7 @@ public class MainActivity extends Activity {
     private void renderCommandCenter(JSONObject today, boolean cached) {
         content.removeAllViews();
         addHero("فرماندهی هوشمند Meelano", cached ? "نمای آفلاین از آخرین داده ذخیره‌شده" : "اتاق تصمیم سریع برای امروز و هفته پیش‌رو");
+        addManualRefreshPanel("command", "بروزرسانی دستی فرماندهی", "اطلاعات ثابت است تا خودتان تازه‌سازی کنید", () -> loadCommandCenter(true));
         addCashForecastCard(today);
         addManagementCalendarCard(today);
         addProductRadarCard(today);
@@ -1389,7 +1454,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.19.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.20.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -1704,6 +1769,7 @@ public class MainActivity extends Activity {
 
     private interface DbJob { String run() throws Exception; }
     private interface DbCallback { void ok(String body); void fail(Exception e); }
+    private interface JsonArrayJob { JSONArray run() throws Exception; }
 
     private void runDb(DbJob job, DbCallback callback) {
         setConnectionStatus("loading");
@@ -1828,28 +1894,42 @@ public class MainActivity extends Activity {
         return value == null ? "" : value.trim();
     }
 
-    private void loadDashboard() {
+    private void loadDashboard() { loadDashboard(false); }
+
+    private void loadDashboard(boolean force) {
+        if (!force && dashboardCacheJson != null && !dashboardCacheJson.trim().isEmpty()) {
+            try { renderDashboardJson(new JSONObject(dashboardCacheJson), false); return; } catch (Exception ignored) { }
+        }
         content.removeAllViews();
+        addHero("داشبورد", "اطلاعات تا زمان بروزرسانی دستی ثابت می‌ماند؛ برای دریافت داده جدید از دکمه تازه‌سازی استفاده کنید.");
+        addManualRefreshPanel("dashboard", "کنترل بروزرسانی داشبورد", "بدون تازه‌سازی دستی، همین داده‌ها ثابت می‌مانند", () -> loadDashboard(true));
         addLoading(content, "در حال دریافت داشبورد…");
         runDb(this::queryDashboard, new DbCallback() {
             @Override public void ok(String body) {
                 try {
+                    dashboardCacheJson = body;
+                    markRefresh("dashboard");
                     if (prefs != null) prefs.edit().putString(KEY_CACHE_DASHBOARD, body).apply();
-                    JSONObject j = new JSONObject(body);
-                    content.removeAllViews();
-                    JSONObject today = j.optJSONObject("today");
-                    addGoodMorningManagerCard(today, false);
-                    addTodayTaskCenter(today);
-                    addDashboardKpiTable(j.optJSONArray("kpis"));
-                    addDashboardSmartAlerts(today, false);
-                    renderDashboardToday(today);
-                    updateHomeWidgetFromDashboard(today);
-                } catch (Exception e) { showPageError("داشبورد", e, () -> showApp("dashboard")); }
+                    renderDashboardJson(new JSONObject(body), false);
+                } catch (Exception e) { showPageError("داشبورد", e, () -> loadDashboard(true)); }
             }
             @Override public void fail(Exception e) {
-                if (!renderCachedDashboard(e)) showPageError("داشبورد", e, () -> showApp("dashboard"));
+                if (!renderCachedDashboard(e)) showPageError("داشبورد", e, () -> loadDashboard(true));
             }
         });
+    }
+
+    private void renderDashboardJson(JSONObject j, boolean cached) throws Exception {
+        content.removeAllViews();
+        addHero(cached ? "داشبورد آفلاین" : "داشبورد", cached ? "آخرین داده ذخیره‌شده نمایش داده می‌شود." : "داشبورد ثابت است و فقط با تازه‌سازی دستی داده جدید می‌گیرد.");
+        addManualRefreshPanel("dashboard", "بروزرسانی دستی داشبورد", cached ? "نمای آفلاین" : "داده فعلی ثابت است", () -> loadDashboard(true));
+        JSONObject today = j.optJSONObject("today");
+        addGoodMorningManagerCard(today, cached);
+        addTodayTaskCenter(today);
+        addDashboardKpiTable(j.optJSONArray("kpis"));
+        addDashboardSmartAlerts(today, cached);
+        renderDashboardToday(today);
+        updateHomeWidgetFromDashboard(today);
     }
 
     private String queryDashboard() throws Exception {
@@ -1881,26 +1961,20 @@ public class MainActivity extends Activity {
 
     private boolean renderCachedDashboard(Exception error) {
         try {
-            String cached = prefs == null ? "" : prefs.getString(KEY_CACHE_DASHBOARD, "");
+            String cached = dashboardCacheJson != null && !dashboardCacheJson.trim().isEmpty() ? dashboardCacheJson : (prefs == null ? "" : prefs.getString(KEY_CACHE_DASHBOARD, ""));
             if (cached == null || cached.trim().isEmpty()) return false;
-            JSONObject j = new JSONObject(cached);
-            content.removeAllViews();
-            JSONObject today = j.optJSONObject("today");
+            dashboardCacheJson = cached;
+            renderDashboardJson(new JSONObject(cached), true);
             addCacheBanner("داشبورد آفلاین", "اتصال برقرار نشد؛ آخرین داده ذخیره‌شده نمایش داده می‌شود. خطا: " + shortError(error));
-            addGoodMorningManagerCard(today, true);
-            addTodayTaskCenter(today);
-            addDashboardKpiTable(j.optJSONArray("kpis"));
-            addDashboardSmartAlerts(today, true);
-            renderDashboardToday(today);
-            updateHomeWidgetFromDashboard(today);
             return true;
         } catch (Exception ignored) { return false; }
     }
 
     private boolean renderCachedReports(Exception error) {
         try {
-            String cached = prefs == null ? "" : prefs.getString(KEY_CACHE_REPORTS, "");
+            String cached = reportsCacheJson != null && !reportsCacheJson.trim().isEmpty() ? reportsCacheJson : (prefs == null ? "" : prefs.getString(KEY_CACHE_REPORTS, ""));
             if (cached == null || cached.trim().isEmpty()) return false;
+            reportsCacheJson = cached;
             renderAnalytics(new JSONObject(cached));
             addCacheBanner("گزارشات آفلاین", "اتصال برقرار نشد؛ آخرین اتاق فرمان ذخیره‌شده نمایش داده می‌شود. خطا: " + shortError(error));
             return true;
@@ -3162,29 +3236,51 @@ public class MainActivity extends Activity {
     }
 
     private void loadCustomers(String query) {
-        loadCustomers(query, "all");
+        loadCustomers(query, "all", false);
     }
 
     private void loadCustomers(String query, String filter) {
+        loadCustomers(query, filter, false);
+    }
+
+    private void loadCustomers(String query, String filter, boolean force) {
+        String q = query == null ? "" : query;
+        String f = filter == null || filter.trim().isEmpty() ? "all" : filter;
+        if (!force && customersCacheJson != null && !customersCacheJson.trim().isEmpty() && q.equals(customersCacheQuery) && f.equals(customersCacheFilter)) {
+            try { renderCustomersFromJson(new JSONArray(customersCacheJson), q, f); return; } catch (Exception ignored) { }
+        }
         content.removeAllViews();
-        addHero("مشتریان", "فیلتر هوشمند بدهکاران، بستانکاران، بدون خرید و پرخریدها");
-        addSearchBox("جستجوی مشتری…", query, q -> loadCustomers(q, filter));
-        addCustomerFilterChips(query, filter);
+        addHero("مشتریان", "اطلاعات مشتریان ثابت می‌ماند؛ برای داده جدید از تازه‌سازی دستی استفاده کنید.");
+        addManualRefreshPanel("customers", "بروزرسانی دستی مشتریان", "بازگشت از گردش حساب دیگر لیست را دوباره فراخوانی نمی‌کند", () -> loadCustomers(q, f, true));
+        addSearchBox("جستجوی مشتری…", q, qq -> loadCustomers(qq, f, true));
+        addCustomerFilterChips(q, f);
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         content.addView(list, new LinearLayout.LayoutParams(-1, -2));
         addLoading(list, "در حال دریافت مشتریان…");
-        runDb(() -> queryCustomers(query, filter), new DbCallback() {
+        runDb(() -> queryCustomers(q, f), new DbCallback() {
             @Override public void ok(String body) {
                 try {
-                    JSONArray rows = new JSONArray(body);
-                    list.removeAllViews();
-                    if (rows.length() == 0) { addEmptyTo(list, "مشتری مطابق فیلتر پیدا نشد."); return; }
-                    for (int i = 0; i < rows.length(); i++) addCustomerCard(list, rows.optJSONObject(i));
-                } catch (Exception e) { showPageError("مشتریان", e, () -> loadCustomers(query, filter)); }
+                    customersCacheJson = body;
+                    customersCacheQuery = q;
+                    customersCacheFilter = f;
+                    markRefresh("customers");
+                    renderCustomersFromJson(new JSONArray(body), q, f);
+                } catch (Exception e) { showPageError("مشتریان", e, () -> loadCustomers(q, f, true)); }
             }
-            @Override public void fail(Exception e) { showPageError("مشتریان", e, () -> loadCustomers(query, filter)); }
+            @Override public void fail(Exception e) { showPageError("مشتریان", e, () -> loadCustomers(q, f, true)); }
         });
+    }
+
+    private void renderCustomersFromJson(JSONArray rows, String query, String filter) {
+        content.removeAllViews();
+        addHero("مشتریان", "فیلتر هوشمند بدهکاران، بستانکاران، بدون خرید و پرخریدها");
+        addManualRefreshPanel("customers", "بروزرسانی دستی مشتریان", "آخرین لیست ثابت نگه داشته شده است", () -> loadCustomers(query, filter, true));
+        addSearchBox("جستجوی مشتری…", query, q -> loadCustomers(q, filter, true));
+        addCustomerFilterChips(query, filter);
+        LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list, new LinearLayout.LayoutParams(-1, -2));
+        if (rows == null || rows.length() == 0) { addEmptyTo(list, "مشتری مطابق فیلتر پیدا نشد."); return; }
+        for (int i = 0; i < rows.length(); i++) addCustomerCard(list, rows.optJSONObject(i));
     }
 
     private void addCustomerFilterChips(String query, String activeFilter) {
@@ -3514,6 +3610,14 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle(r.optString("نام", "Customer 360")).setMessage(message).setPositiveButton("بستن", null).show();
     }
 
+    private void backFromCustomerDetail(String backTarget) {
+        if ("dashboard".equals(backTarget)) showApp("dashboard");
+        else {
+            activePage = "customers";
+            loadCustomers(customersCacheQuery == null ? "" : customersCacheQuery, customersCacheFilter == null ? "all" : customersCacheFilter, false);
+        }
+    }
+
     private void showCustomerDetail(JSONObject customer, String filter) {
         String code = customer.optString("کد", "");
         String name = customer.optString("نام", "Customer 360");
@@ -3521,7 +3625,7 @@ public class MainActivity extends Activity {
         addHero("گردش حساب مشتری", name + " • کد " + code);
         String backTarget = customer.optString("_back", "customers");
         Button back = secondaryButton("dashboard".equals(backTarget) ? "بازگشت به داشبورد" : "بازگشت به مشتریان");
-        back.setOnClickListener(v -> showApp(backTarget));
+        back.setOnClickListener(v -> backFromCustomerDetail(backTarget));
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(10));
         content.addView(back, bp);
         addCustomerLedgerFilters(customer, filter);
@@ -3552,7 +3656,7 @@ public class MainActivity extends Activity {
         content.removeAllViews();
         addHero("گردش حساب مشتری", customer.optString("نام", "Customer 360") + " • مانده " + money(customer.opt("مانده")));
         String backTarget = customer.optString("_back", "customers");
-        Button back = secondaryButton("dashboard".equals(backTarget) ? "بازگشت به داشبورد" : "بازگشت به مشتریان"); back.setOnClickListener(v -> showApp(backTarget));
+        Button back = secondaryButton("dashboard".equals(backTarget) ? "بازگشت به داشبورد" : "بازگشت به مشتریان"); back.setOnClickListener(v -> backFromCustomerDetail(backTarget));
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(48)); bp.setMargins(0, 0, 0, dp(10)); content.addView(back, bp);
         addCustomerLedgerFilters(customer, filter);
         addCustomer360Summary(customer);
@@ -3603,6 +3707,56 @@ public class MainActivity extends Activity {
         return "وضعیت متعادل است؛ رابطه را حفظ کن و سقف اعتبار را بی‌دلیل بالا نبر.";
     }
 
+    private String todayDateText() {
+        try { return new SimpleDateFormat("yyyy/MM/dd", Locale.US).format(new Date()); }
+        catch (Exception ignored) { return nowText().split(" ")[0]; }
+    }
+
+    private String selectedDateFromButton(Button b) {
+        if (b == null) return todayDateText();
+        String t = b.getText() == null ? "" : b.getText().toString();
+        int idx = t.lastIndexOf(':');
+        String d = idx >= 0 ? t.substring(idx + 1).trim() : t.trim();
+        return d.isEmpty() ? todayDateText() : d;
+    }
+
+    private void showFollowupDatePicker(Button target) {
+        try {
+            String initial = selectedDateFromButton(target);
+            int y, m, d;
+            try {
+                String[] parts = initial.split("/");
+                y = Integer.parseInt(parts[0]); m = Integer.parseInt(parts[1]) - 1; d = Integer.parseInt(parts[2]);
+            } catch (Exception ex) {
+                java.util.Calendar cal = java.util.Calendar.getInstance();
+                y = cal.get(java.util.Calendar.YEAR); m = cal.get(java.util.Calendar.MONTH); d = cal.get(java.util.Calendar.DAY_OF_MONTH);
+            }
+            LinearLayout box = new LinearLayout(this);
+            box.setOrientation(LinearLayout.VERTICAL);
+            box.setPadding(dp(10), dp(10), dp(10), dp(6));
+            TextView title = text("تقویم یادآوری مشتری", 16, TEXT, Typeface.BOLD);
+            title.setGravity(Gravity.CENTER);
+            title.setPadding(dp(8), dp(8), dp(8), dp(8));
+            title.setBackground(gradient(new int[]{alpha(GOLD_2, 52), alpha(INFO, 28)}, GradientDrawable.Orientation.RIGHT_LEFT, 18));
+            box.addView(title, new LinearLayout.LayoutParams(-1, -2));
+            DatePicker picker = new DatePicker(this);
+            picker.setCalendarViewShown(true);
+            picker.setSpinnersShown(true);
+            picker.init(y, m, d, null);
+            LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, -2); pp.setMargins(0, dp(10), 0, 0); box.addView(picker, pp);
+            AlertDialog dlg = new AlertDialog.Builder(this)
+                    .setView(box)
+                    .setNegativeButton("بستن", null)
+                    .setPositiveButton("انتخاب", (di, w) -> {
+                        String value = String.format(Locale.US, "%04d/%02d/%02d", picker.getYear(), picker.getMonth() + 1, picker.getDayOfMonth());
+                        if (target != null) target.setText("انتخاب تاریخ یادآوری: " + value);
+                    })
+                    .create();
+            dlg.setOnShowListener(di -> { if (dlg.getWindow() != null) dlg.getWindow().setBackgroundDrawable(roundedStroke(alpha(SURFACE, 250), 28, alpha(GOLD, 85))); });
+            dlg.show();
+        } catch (Exception ex) { Toast.makeText(this, "باز کردن تقویم ممکن نشد.", Toast.LENGTH_SHORT).show(); }
+    }
+
     private void addCustomerFollowupNotebook(JSONObject customer) {
         LinearLayout c = card();
         c.setBackground(gradient(new int[]{alpha(GOLD, 20), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
@@ -3623,7 +3777,9 @@ public class MainActivity extends Activity {
         }
         EditText note = input("توضیح پیگیری / قول پرداخت", prefs.getString(noteKey, ""), false);
         note.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) note.setTextDirection(View.TEXT_DIRECTION_RTL);
-        EditText next = input("تاریخ یادآوری بعدی", prefs.getString(dateKey, ""), false);
+        Button next = secondaryButton("انتخاب تاریخ یادآوری: " + stringOr(prefs.getString(dateKey, ""), todayDateText()));
+        next.setTextSize(10.8f);
+        next.setOnClickListener(v -> showFollowupDatePicker(next));
         LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, dp(48)); np.setMargins(0, dp(10), 0, dp(7)); c.addView(note, np);
         LinearLayout.LayoutParams dpLp = new LinearLayout.LayoutParams(-1, dp(48)); dpLp.setMargins(0, 0, 0, dp(8)); c.addView(next, dpLp);
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
@@ -3631,7 +3787,7 @@ public class MainActivity extends Activity {
         called.setTextSize(9.8f); promised.setTextSize(9.8f); save.setTextSize(9.8f);
         called.setOnClickListener(v -> { appendFollowupHistory(historyKey, "تماس گرفته شد", note.getText().toString()); prefs.edit().putString(statusKey, "تماس گرفته شد").apply(); Toast.makeText(this, "ثبت شد.", Toast.LENGTH_SHORT).show(); showCustomerDetail(customer, "all"); });
         promised.setOnClickListener(v -> { appendFollowupHistory(historyKey, "قول پرداخت داد", note.getText().toString()); prefs.edit().putString(statusKey, "قول پرداخت داد").apply(); Toast.makeText(this, "ثبت شد.", Toast.LENGTH_SHORT).show(); showCustomerDetail(customer, "all"); });
-        save.setOnClickListener(v -> { appendFollowupHistory(historyKey, "یادداشت", note.getText().toString()); prefs.edit().putString(noteKey, note.getText().toString()).putString(dateKey, next.getText().toString()).putString(statusKey, "نیازمند پیگیری").apply(); Toast.makeText(this, "یادداشت پیگیری ذخیره شد.", Toast.LENGTH_SHORT).show(); showCustomerDetail(customer, "all"); });
+        save.setOnClickListener(v -> { appendFollowupHistory(historyKey, "یادداشت", note.getText().toString()); prefs.edit().putString(noteKey, note.getText().toString()).putString(dateKey, selectedDateFromButton(next)).putString(statusKey, "نیازمند پیگیری").apply(); Toast.makeText(this, "یادداشت پیگیری ذخیره شد.", Toast.LENGTH_SHORT).show(); showCustomerDetail(customer, "all"); });
         row.addView(called, weightedButtonLp()); row.addView(promised, weightedButtonLp()); row.addView(save, weightedButtonLp());
         c.addView(row, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(10)); content.addView(c, lp);
@@ -3681,30 +3837,48 @@ public class MainActivity extends Activity {
         try (PreparedStatement ps = c.prepareStatement(sql)) { ps.setString(1, code); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("type", incoming ? "چک دریافتی" : "چک پرداختی"); o.put("date", stringOr(r.getString(1), "—")); o.put("title", "شماره چک " + stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("status", stringOr(r.getString(4), "—")); o.put("description", stringOr(r.getString(5), "")); rows.put(o); } } }
     }
 
-    private void loadProducts(String query) {
-        loadProducts(query, "all");
-    }
+    private void loadProducts(String query) { loadProducts(query, "all", false); }
 
-    private void loadProducts(String query, String filter) {
+    private void loadProducts(String query, String filter) { loadProducts(query, filter, false); }
+
+    private void loadProducts(String query, String filter, boolean force) {
+        String q = query == null ? "" : query;
+        String f = filter == null || filter.trim().isEmpty() ? "all" : filter;
+        if (!force && productsCacheJson != null && !productsCacheJson.trim().isEmpty() && q.equals(productsCacheQuery) && f.equals(productsCacheFilter)) {
+            try { renderProductsFromJson(new JSONArray(productsCacheJson), q, f); return; } catch (Exception ignored) { }
+        }
         content.removeAllViews();
-        addHero("کالا و انبار", "فیلتر موجودی، گردش خرید/فروش و کارت‌های محصول با تم MEELANO");
-        addSearchBox("جستجوی کالا…", query, q -> loadProducts(q, filter));
-        addProductFilterChips(query, filter);
+        addHero("کالا و انبار", "اطلاعات کالاها ثابت می‌ماند؛ برای داده جدید تازه‌سازی دستی کنید.");
+        addManualRefreshPanel("products", "بروزرسانی دستی کالاها", "فیلتر فعلی بدون تازه‌سازی دستی ثابت می‌ماند", () -> loadProducts(q, f, true));
+        addSearchBox("جستجوی کالا…", q, qq -> loadProducts(qq, f, true));
+        addProductFilterChips(q, f);
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         content.addView(list, new LinearLayout.LayoutParams(-1, -2));
         addLoading(list, "در حال دریافت کالاها…");
-        runDb(() -> queryProducts(query, filter), new DbCallback() {
+        runDb(() -> queryProducts(q, f), new DbCallback() {
             @Override public void ok(String body) {
                 try {
-                    JSONArray rows = new JSONArray(body);
-                    list.removeAllViews();
-                    if (rows.length() == 0) { addEmptyTo(list, "کالایی مطابق فیلتر پیدا نشد."); return; }
-                    for (int i = 0; i < rows.length(); i++) addProductCard(list, rows.optJSONObject(i));
-                } catch (Exception e) { showPageError("کالا", e, () -> loadProducts(query, filter)); }
+                    productsCacheJson = body;
+                    productsCacheQuery = q;
+                    productsCacheFilter = f;
+                    markRefresh("products");
+                    renderProductsFromJson(new JSONArray(body), q, f);
+                } catch (Exception e) { showPageError("کالا", e, () -> loadProducts(q, f, true)); }
             }
-            @Override public void fail(Exception e) { showPageError("کالا", e, () -> loadProducts(query, filter)); }
+            @Override public void fail(Exception e) { showPageError("کالا", e, () -> loadProducts(q, f, true)); }
         });
+    }
+
+    private void renderProductsFromJson(JSONArray rows, String query, String filter) {
+        content.removeAllViews();
+        addHero("کالا و انبار", "فیلتر موجودی، گردش خرید/فروش و کارت‌های محصول با تم MEELANO");
+        addManualRefreshPanel("products", "بروزرسانی دستی کالاها", "آخرین لیست ثابت نگه داشته شده است", () -> loadProducts(query, filter, true));
+        addSearchBox("جستجوی کالا…", query, q -> loadProducts(q, filter, true));
+        addProductFilterChips(query, filter);
+        LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list, new LinearLayout.LayoutParams(-1, -2));
+        if (rows == null || rows.length() == 0) { addEmptyTo(list, "کالایی مطابق فیلتر پیدا نشد."); return; }
+        for (int i = 0; i < rows.length(); i++) addProductCard(list, rows.optJSONObject(i));
     }
 
     private void addProductFilterChips(String query, String activeFilter) {
@@ -4056,20 +4230,27 @@ public class MainActivity extends Activity {
         parent.addView(c, lp);
     }
 
-    private void loadReports() {
+    private void loadReports() { loadReports(false); }
+
+    private void loadReports(boolean force) {
+        if (!force && reportsCacheJson != null && !reportsCacheJson.trim().isEmpty()) {
+            try { renderAnalytics(new JSONObject(reportsCacheJson)); return; } catch (Exception ignored) { }
+        }
         content.removeAllViews();
-        addHero("گزارشات کاربردی مدیریت", "خلاصه‌های عملیاتی و دسته‌بندی‌شده مستقیم از SQL Server");
+        addHero("گزارشات کاربردی مدیریت", "گزارش‌ها تا زمان بروزرسانی دستی ثابت می‌مانند.");
+        addManualRefreshPanel("reports", "بروزرسانی دستی گزارشات", "برای دریافت داده جدید این دکمه را بزنید", () -> loadReports(true));
         addLoading(content, "در حال آماده‌سازی گزارشات مدیریتی…");
         runDb(this::queryAnalytics, new DbCallback() {
             @Override public void ok(String body) {
                 try {
+                    reportsCacheJson = body;
+                    markRefresh("reports");
                     if (prefs != null) prefs.edit().putString(KEY_CACHE_REPORTS, body).apply();
-                    JSONObject a = new JSONObject(body);
-                    renderAnalytics(a);
-                } catch (Exception e) { showPageError("گزارش‌ها", e, () -> showApp("reports")); }
+                    renderAnalytics(new JSONObject(body));
+                } catch (Exception e) { showPageError("گزارش‌ها", e, () -> loadReports(true)); }
             }
             @Override public void fail(Exception e) {
-                if (!renderCachedReports(e)) showPageError("گزارش‌ها", e, () -> showApp("reports"));
+                if (!renderCachedReports(e)) showPageError("گزارش‌ها", e, () -> loadReports(true));
             }
         });
     }
@@ -4080,6 +4261,8 @@ public class MainActivity extends Activity {
         lastReportJson = a.toString();
         lastReportSummary = buildExecutiveReportSummary(a);
         addHero("اتاق فرمان زنده گزارشات", "گزارشات کامل‌تر، دسته‌بندی‌شده و بدون نمودار؛ مخصوص تصمیم مدیریت");
+        addManualRefreshPanel("reports", "بروزرسانی دستی گزارشات", "نمای فعلی ثابت است تا خودتان تازه‌سازی کنید", () -> loadReports(true));
+        addReportConnectionHints(a.optJSONObject("reportErrors"));
         addReportCommandCenter(a);
         addExecutiveSummaryCard(a);
         addBusinessHealthScoreCard(a);
@@ -4109,6 +4292,32 @@ public class MainActivity extends Activity {
 
         addReportCategory("۵) عملیات روزانه و کنترل اسناد", "ورود سریع به گزارش‌های روزانه فروش و خرید با تاریخ دلخواه", "⇄", GOLD_2);
         addDailyReportLaunchers(a.optString("latestSalesDate", ""), a.optString("latestPurchaseDate", ""));
+    }
+
+    private void addReportConnectionHints(JSONObject errors) {
+        if (errors == null || errors.length() == 0) return;
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(WARNING, 26), alpha(INFO, 14), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        c.addView(text("عیب‌یابی هوشمند گزارشات", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("بعضی گزارش‌ها با ستون‌های جایگزین یا داده کافی پیدا نشدند؛ سایر بخش‌ها مستقل نمایش داده می‌شوند.", 10.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        JSONArray names = errors.names();
+        if (names != null) {
+            for (int i = 0; i < Math.min(5, names.length()); i++) {
+                String key = names.optString(i, "");
+                addActionItem(c, reportErrorLabel(key), limitText(errors.optString(key, ""), 110), WARNING);
+            }
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private String reportErrorLabel(String key) {
+        if (key == null) return "گزارش";
+        if (key.contains("Sales")) return "فروش";
+        if (key.contains("Profit") || key.contains("Margin")) return "سود";
+        if (key.contains("check")) return "چک";
+        if (key.contains("Customer") || key.contains("Debtor")) return "مشتری";
+        if (key.contains("category")) return "کالا";
+        return "گزارش";
     }
 
     private void addExecutiveSummaryCard(JSONObject a) {
@@ -4353,7 +4562,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.19.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.20.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -4448,13 +4657,14 @@ public class MainActivity extends Activity {
         item.setOrientation(LinearLayout.HORIZONTAL);
         item.setGravity(Gravity.CENTER_VERTICAL);
         item.setPadding(dp(10), dp(9), dp(10), dp(9));
-        item.setBackground(roundedStroke(alpha(accent, 15), 16, alpha(accent, 58)));
-        TextView badge = text(tag, 10.4f, accent, Typeface.BOLD);
+        item.setBackground(roundedStroke(alpha(SURFACE, 244), 16, alpha(accent, 92)));
+        TextView badge = text(tag, 10.4f, Color.WHITE, Typeface.BOLD);
         badge.setGravity(Gravity.CENTER);
         badge.setSingleLine(true);
-        badge.setBackground(roundedStroke(alpha(accent, 28), 999, alpha(accent, 82)));
-        item.addView(badge, new LinearLayout.LayoutParams(dp(72), dp(34)));
-        TextView b = text(body, 10.9f, TEXT, Typeface.NORMAL);
+        badge.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, 120));
+        badge.setBackground(gradient(new int[]{mix(accent, Color.WHITE, 0.18f), accent, mix(accent, Color.BLACK, 0.24f)}, GradientDrawable.Orientation.LEFT_RIGHT, 999));
+        item.addView(badge, new LinearLayout.LayoutParams(dp(78), dp(34)));
+        TextView b = text(body, 10.9f, TEXT, Typeface.BOLD);
         b.setLineSpacing(dp(2), 1.05f);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, -2, 1f); bp.setMargins(dp(8), 0, dp(8), 0);
         item.addView(b, bp);
@@ -4859,24 +5069,34 @@ public class MainActivity extends Activity {
     private String queryAnalytics() throws Exception {
         try (Connection c = openConnection()) {
             JSONObject a = new JSONObject();
-            JSONArray monthly = loadMonthlyPurchaseSales(c);
-            JSONArray profit = loadMonthlyProfit(c);
-            a.put("weeklySales", loadWeeklySales(c));
+            JSONObject errors = new JSONObject();
+            JSONArray monthly = safeAnalyticsArray(errors, "monthlyPurchaseSales", () -> loadMonthlyPurchaseSales(c));
+            JSONArray profit = safeAnalyticsArray(errors, "monthlyProfit", () -> loadMonthlyProfit(c));
+            a.put("weeklySales", safeAnalyticsArray(errors, "weeklySales", () -> loadWeeklySales(c)));
             a.put("monthlyPurchaseSales", monthly);
-            a.put("checkStatuses", loadCheckStatuses(c));
-            a.put("topCustomers", loadTopCustomers(c));
-            a.put("debtAging", loadDebtAging(c));
+            a.put("checkStatuses", safeAnalyticsArray(errors, "checkStatuses", () -> loadCheckStatuses(c)));
+            a.put("topCustomers", safeAnalyticsArray(errors, "topCustomers", () -> loadTopCustomers(c)));
+            a.put("debtAging", safeAnalyticsArray(errors, "debtAging", () -> loadDebtAging(c)));
             a.put("monthlyProfit", profit);
-            a.put("banks", loadBanks(c));
-            a.put("categoryShare", loadCategoryShare(c));
-            a.put("customerGrowth", loadCustomerGrowth(c));
-            a.put("netMargin", loadNetMargin(profit, monthly));
-            a.put("topDebtors", queryTopDebtors(c));
-            a.put("overdueInvoices", queryOverdueInvoices(c));
-            a.put("inactiveCustomers", queryInactiveCustomers(c));
-            a.put("latestSalesDate", latestDate(c, "sailfact", "date"));
-            a.put("latestPurchaseDate", latestDate(c, "buyfact", "DATE"));
+            a.put("banks", safeAnalyticsArray(errors, "banks", () -> loadBanks(c)));
+            a.put("categoryShare", safeAnalyticsArray(errors, "categoryShare", () -> loadCategoryShare(c)));
+            a.put("customerGrowth", safeAnalyticsArray(errors, "customerGrowth", () -> loadCustomerGrowth(c)));
+            a.put("netMargin", safeAnalyticsArray(errors, "netMargin", () -> loadNetMargin(profit, monthly)));
+            a.put("topDebtors", safeAnalyticsArray(errors, "topDebtors", () -> queryTopDebtors(c)));
+            a.put("overdueInvoices", safeAnalyticsArray(errors, "overdueInvoices", () -> queryOverdueInvoices(c)));
+            a.put("inactiveCustomers", safeAnalyticsArray(errors, "inactiveCustomers", () -> queryInactiveCustomers(c)));
+            try { a.put("latestSalesDate", latestDate(c, "sailfact", "date")); } catch (Exception ex) { a.put("latestSalesDate", ""); }
+            try { a.put("latestPurchaseDate", latestDate(c, "buyfact", "DATE")); } catch (Exception ex) { a.put("latestPurchaseDate", ""); }
+            if (errors.length() > 0) a.put("reportErrors", errors);
             return a.toString();
+        }
+    }
+
+    private JSONArray safeAnalyticsArray(JSONObject errors, String key, JsonArrayJob job) {
+        try { return job.run(); }
+        catch (Exception ex) {
+            try { if (errors != null) errors.put(key, shortError(ex)); } catch (Exception ignored) { }
+            return new JSONArray();
         }
     }
 
@@ -5283,6 +5503,13 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
+    private int miloResponsiveHeight() {
+        try {
+            int h = getResources().getDisplayMetrics().heightPixels;
+            return Math.max(dp(112), Math.min(dp(142), h / 7));
+        } catch (Exception ignored) { return dp(128); }
+    }
+
     private FrameLayout miloPortrait(int heightPx) {
         FrameLayout frame = new FrameLayout(this);
         frame.setPadding(0, 0, 0, 0);
@@ -5305,9 +5532,9 @@ public class MainActivity extends Activity {
             if (w <= 0 || h <= 0) return;
             boolean moving = motionAllowed();
             float t = moving ? (System.currentTimeMillis() - startMs) / 1000f : 0f;
-            float sc = Math.min(w / 330f, h / 260f) * 0.86f;
+            float sc = Math.min(w / 360f, h / 305f) * 0.78f;
             float cx = w / 2f;
-            float cy = h * 0.53f + (float)Math.sin(t * 1.15f) * dp(1.1f);
+            float cy = h * 0.50f + (float)Math.sin(t * 1.15f) * dp(0.8f);
             drawPistachioShadow(canvas, cx, h * 0.84f, sc);
             canvas.save();
             canvas.translate(0, (float)Math.sin(t * 0.9f) * dp(0.9f));
@@ -5558,8 +5785,9 @@ public class MainActivity extends Activity {
         LinearLayout intro = card();
         intro.setPadding(dp(14), dp(14), dp(14), dp(14));
         intro.setBackground(gradient(new int[]{alpha(INFO, 30), alpha(GOLD, 24), alpha(SURFACE, 248)}, GradientDrawable.Orientation.LEFT_RIGHT, 26));
-        FrameLayout portrait = miloPortrait(dp(168));
-        intro.addView(portrait, new LinearLayout.LayoutParams(-1, dp(168)));
+        int mh = miloResponsiveHeight();
+        FrameLayout portrait = miloPortrait(mh);
+        intro.addView(portrait, new LinearLayout.LayoutParams(-1, mh));
         TextView title = text("میلو؛ پسته لوکس و آماده تحلیل", 16.5f, TEXT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
@@ -6595,7 +6823,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.19.0\nاین نسخه فرماندهی هوشمند، پیش‌بینی نقدینگی، رادار کالا، تقویم مدیریتی، ریسک مشتری، پیام‌های آماده میلو، CSV، عیب‌یابی اتصال و هدر دوبخشی بدون تداخل با لوگو/نام Meelano را اضافه می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.20.0\nاین نسخه هدر بدون تداخل، ناوبری ثابت دو ردیفه، تازه‌سازی دستی هوشمند با زمان آخرین بروزرسانی، کش صفحه‌ای بدون فراخوانی مجدد، تقویم یادآوری مشتری، میلو رسپانسیو و گزارشات مقاوم‌تر را اضافه می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
