@@ -145,7 +145,7 @@ public class MainActivity extends Activity {
     private static final int[] S_DB = {8, 61, 32, 59, 40, 39, 123};
     private static final int S_KEY = 73;
     private static final int SQL_PORT = 1433;
-    private static final String LOCAL_KEY_ALIAS = "meelano_local_secret_v323";
+    private static final String LOCAL_KEY_ALIAS = "meelano_local_secret_v324";
 
     private int NAVY = Color.rgb(7, 9, 16);
     private int SURFACE = Color.rgb(18, 22, 31);
@@ -1541,7 +1541,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.23.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.24.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -2682,7 +2682,7 @@ public class MainActivity extends Activity {
     }
 
     private void addDailyItemsInline(LinearLayout parent, String type, JSONArray items, int accent) {
-        if (parent == null || items == null || items.length() == 0) return;
+        if (parent == null) return;
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(9), dp(9), dp(9), dp(8));
@@ -2693,7 +2693,15 @@ public class MainActivity extends Activity {
         TextView hint = text(sub, 9.5f, MUTED, Typeface.NORMAL);
         hint.setMaxLines(2);
         box.addView(hint, new LinearLayout.LayoutParams(-1, -2));
-        for (int i = 0; i < Math.min(items.length(), 5); i++) {
+        if (items == null || items.length() == 0) {
+            TextView empty = text("برای این تاریخ اقلام قابل تفکیک پیدا نشد؛ اگر فاکتور دارای ریزاقلام است، با بروزرسانی دستی دوباره بررسی می‌شود.", 10.2f, MUTED, Typeface.NORMAL);
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(dp(8), dp(10), dp(8), dp(8));
+            empty.setBackground(roundedStroke(alpha(SURFACE_2, 120), 14, alpha(accent, 48)));
+            LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, -2); ep.setMargins(0, dp(7), 0, 0);
+            box.addView(empty, ep);
+        }
+        for (int i = 0; items != null && i < Math.min(items.length(), 5); i++) {
             JSONObject r = items.optJSONObject(i);
             if (r == null) continue;
             LinearLayout line = new LinearLayout(this);
@@ -2731,7 +2739,7 @@ public class MainActivity extends Activity {
             lp.setMargins(0, dp(6), 0, 0);
             box.addView(line, lp);
         }
-        if (items.length() > 5) {
+        if (items != null && items.length() > 5) {
             TextView more = text("+ " + formatNumber(items.length() - 5) + " قلم دیگر در دکمه «اقلام روز»", 9.3f, accent, Typeface.BOLD);
             more.setGravity(Gravity.CENTER);
             LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.setMargins(0, dp(6), 0, 0);
@@ -3451,8 +3459,9 @@ public class MainActivity extends Activity {
         String numberCol = sales ? resolve(h, "shfacfo") : resolve(h, "shfackh");
         String detailNumber = sales ? resolve(d, "shfacfo") : resolve(d, "shfackh");
         String key = sales ? resolve(d, "SHKA", "shka") : resolve(d, "shka", "SHKA");
-        String lineAmount = sales ? resolve(d, "LINESUM", "tamam_joz", "amount", "all") : resolve(d, "tamam_joz", "LINESUM", "amount", "all");
-        if (dateCol == null || numberCol == null || detailNumber == null || key == null || lineAmount == null) return arr;
+        String lineAmount = sales ? resolve(d, "LINESUM", "LineSum", "tamam_joz", "amount", "mablagh", "Mablagh", "all", "kol") : resolve(d, "tamam_joz", "LINESUM", "LineSum", "amount", "mablagh", "Mablagh", "all", "kol");
+        String unitPrice = resolve(d, "FI", "fi", "fee", "Fee", "price", "Price", "gimat", "Gheymat", "mablagh_vah", "price_vah");
+        if (dateCol == null || numberCol == null || detailNumber == null || key == null || (lineAmount == null && unitPrice == null)) return arr;
 
         String detailName = sales ? resolve(d, "naka", "name", "Desc_Naka", "KalaName") : resolve(d, "Desc_Naka", "naka", "name", "KalaName");
         String invKey = resolve(inv, "shka", "SHKA");
@@ -3476,13 +3485,15 @@ public class MainActivity extends Activity {
         }
         String tedvah = hasCol(d, "TEDVAH") ? "ISNULL(TRY_CONVERT(decimal(19,4),dd.TEDVAH),0)" : "0";
         String tedjoz = hasCol(d, "TEDJOZ") ? "ISNULL(TRY_CONVERT(decimal(19,4),dd.TEDJOZ),0)" : "0";
-        String qty = (invKey != null && hasCol(inv, "mohvah")) ? "ISNULL(SUM(" + tedvah + "*ISNULL(TRY_CONVERT(decimal(19,4),i.mohvah),1)+" + tedjoz + "),0)" : "ISNULL(SUM(" + tedvah + "+" + tedjoz + "),0)";
+        String qtyEach = (invKey != null && hasCol(inv, "mohvah")) ? "(" + tedvah + "*ISNULL(TRY_CONVERT(decimal(19,4),i.mohvah),1)+" + tedjoz + ")" : "(" + tedvah + "+" + tedjoz + ")";
+        String qty = "ISNULL(SUM(" + qtyEach + "),0)";
+        String amountExpr = lineAmount != null ? "ISNULL(SUM(TRY_CONVERT(decimal(19,2),dd.[" + lineAmount + "])),0)" : "ISNULL(SUM(" + qtyEach + "*ISNULL(TRY_CONVERT(decimal(19,2),dd.[" + unitPrice + "]),0)),0)";
         String where = "WHERE h.[" + dateCol + "]=?" + activeAnd(h, "h") + activeAnd(d, "dd");
         List<Object> params = new ArrayList<>();
         params.add(date.trim());
         if (sales && session != null && session.visitorId != null && hasCol(h, "vis_rdf")) { where += " AND TRY_CONVERT(int,h.vis_rdf)=?"; params.add(session.visitorId); }
         int limit = Math.max(1, Math.min(150, top));
-        String sql = "SELECT TOP (" + limit + ") " + productCode + ", " + itemName + ", " + qty + ", ISNULL(SUM(TRY_CONVERT(decimal(19,2),dd.[" + lineAmount + "])),0), " + groupExpr + " FROM dbo.[" + detailTable + "] dd JOIN dbo.[" + header + "] h ON h.[" + numberCol + "]=dd.[" + detailNumber + "]" + joinInv + joinGroup + where + " GROUP BY " + productCode + "," + itemName + "," + groupExpr + " ORDER BY 4 DESC";
+        String sql = "SELECT TOP (" + limit + ") " + productCode + ", " + itemName + ", " + qty + ", " + amountExpr + ", " + groupExpr + " FROM dbo.[" + detailTable + "] dd JOIN dbo.[" + header + "] h ON h.[" + numberCol + "]=dd.[" + detailNumber + "]" + joinInv + joinGroup + where + " GROUP BY " + productCode + "," + itemName + "," + groupExpr + " ORDER BY 4 DESC";
         try (PreparedStatement ps = c.prepareStatement(sql)) {
             setParams(ps, params);
             try (ResultSet r = ps.executeQuery()) {
@@ -3630,6 +3641,9 @@ public class MainActivity extends Activity {
             st.execute("IF OBJECT_ID(N'dbo.meelano_chat_messages',N'U') IS NULL CREATE TABLE dbo.meelano_chat_messages (id bigint IDENTITY(1,1) NOT NULL PRIMARY KEY, sender nvarchar(120) NOT NULL, display_name nvarchar(220) NULL, kind nvarchar(30) NOT NULL DEFAULT N'text', body nvarchar(max) NULL, attachment_name nvarchar(260) NULL, attachment_mime nvarchar(160) NULL, attachment_data varbinary(max) NULL, pinned bit NOT NULL DEFAULT 0, scheduled_at datetime2 NULL, created_at datetime2 NOT NULL DEFAULT SYSDATETIME(), deleted bit NOT NULL DEFAULT 0)");
             st.execute("IF OBJECT_ID(N'dbo.meelano_attendance',N'U') IS NULL CREATE TABLE dbo.meelano_attendance (id bigint IDENTITY(1,1) NOT NULL PRIMARY KEY, username nvarchar(120) NOT NULL, display_name nvarchar(220) NULL, event_type nvarchar(20) NOT NULL, event_time datetime2 NOT NULL DEFAULT SYSDATETIME(), wifi_ssid nvarchar(200) NULL, wifi_bssid nvarchar(100) NULL, gateway nvarchar(80) NULL, note nvarchar(500) NULL)");
             st.execute("IF OBJECT_ID(N'dbo.meelano_leave_requests',N'U') IS NULL CREATE TABLE dbo.meelano_leave_requests (id bigint IDENTITY(1,1) NOT NULL PRIMARY KEY, username nvarchar(120) NOT NULL, display_name nvarchar(220) NULL, leave_type nvarchar(80) NOT NULL, start_date nvarchar(30) NOT NULL, end_date nvarchar(30) NOT NULL, hours nvarchar(40) NULL, reason nvarchar(700) NULL, status nvarchar(30) NOT NULL DEFAULT N'pending', manager_note nvarchar(700) NULL, created_at datetime2 NOT NULL DEFAULT SYSDATETIME(), decided_at datetime2 NULL)");
+            st.execute("IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_meelano_chat_messages_created' AND object_id=OBJECT_ID(N'dbo.meelano_chat_messages')) CREATE INDEX IX_meelano_chat_messages_created ON dbo.meelano_chat_messages(deleted,pinned,created_at DESC)");
+            st.execute("IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_meelano_attendance_user_time' AND object_id=OBJECT_ID(N'dbo.meelano_attendance')) CREATE INDEX IX_meelano_attendance_user_time ON dbo.meelano_attendance(username,event_time DESC)");
+            st.execute("IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name=N'IX_meelano_leave_status' AND object_id=OBJECT_ID(N'dbo.meelano_leave_requests')) CREATE INDEX IX_meelano_leave_status ON dbo.meelano_leave_requests(status,created_at DESC)");
         }
         upsertCollabMember(c);
     }
@@ -3781,6 +3795,8 @@ public class MainActivity extends Activity {
         if (!m.optString("file", "").isEmpty()) {
             TextView f = text("پیوست: " + m.optString("file") + " • " + compactBytes(m.optLong("bytes")) + " • " + m.optString("kind", "file"), 10.4f, MUTED, Typeface.BOLD);
             f.setBackground(roundedStroke(alpha(accent, 16), 14, alpha(accent, 58))); f.setPadding(dp(8), dp(6), dp(8), dp(6));
+            long msgId = m.optLong("id"); String fileName = m.optString("file", "attachment");
+            f.setClickable(true); f.setOnClickListener(v -> saveChatAttachment(msgId, fileName));
             LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(-1, -2); fp.setMargins(0, dp(6), 0, 0); c.addView(f, fp);
         }
         if (admin) {
@@ -3839,9 +3855,9 @@ public class MainActivity extends Activity {
         silent.setOnClickListener(v -> chatSetSilentOneHour());
         r1.addView(close, weightedButtonLp()); r1.addView(silent, weightedButtonLp()); c.addView(r1, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout r2 = new LinearLayout(this); r2.setOrientation(LinearLayout.HORIZONTAL);
-        Button schedule = secondaryButton("ارسال ۱۵ دقیقه بعد"); Button grant = secondaryButton("مدیر/کارمند");
+        Button schedule = secondaryButton("تنظیم زمان ارسال"); Button grant = secondaryButton("مدیر/کارمند");
         schedule.setTextSize(9.4f); grant.setTextSize(9.4f);
-        schedule.setOnClickListener(v -> { if (prefs != null) prefs.edit().putInt("chat_schedule_delay", 15).apply(); Toast.makeText(this, "پیام بعدی زمان‌دار شد.", Toast.LENGTH_SHORT).show(); loadChatRoom(); });
+        schedule.setOnClickListener(v -> showChatScheduleDialog());
         grant.setOnClickListener(v -> showChatMemberAdminDialog(false));
         r2.addView(schedule, weightedButtonLp()); r2.addView(grant, weightedButtonLp()); LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(6), 0, 0); c.addView(r2, r2p);
         LinearLayout r3 = new LinearLayout(this); r3.setOrientation(LinearLayout.HORIZONTAL);
@@ -3913,11 +3929,84 @@ public class MainActivity extends Activity {
         String kind = pendingChatAttachmentKind == null ? "file" : pendingChatAttachmentKind;
         executor.execute(() -> {
             try {
-                byte[] data = readUriBytes(uri);
-                insertChatMessage(kind, "", name, mime, data);
+                insertChatAttachmentMessage(uri, kind, name, mime);
                 runOnUiThread(() -> { Toast.makeText(this, "پیوست در گفتگو ارسال شد.", Toast.LENGTH_SHORT).show(); loadChatRoom(); });
             } catch (Exception ex) { runOnUiThread(() -> showPageError("ارسال پیوست", ex, () -> loadChatRoom())); }
         });
+    }
+
+    private long uriSize(Uri uri) {
+        if (uri == null) return -1;
+        try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int idx = cursor.getColumnIndex(OpenableColumns.SIZE);
+                if (idx >= 0 && !cursor.isNull(idx)) return cursor.getLong(idx);
+            }
+        } catch (Exception ignored) { }
+        return -1;
+    }
+
+    private void insertChatAttachmentMessage(Uri uri, String kind, String fileName, String mime) throws Exception {
+        try (Connection c = openConnection()) {
+            ensureMeelanoCollabTables(c);
+            String username = currentAccountName();
+            boolean admin = isAdminUser() || "admin".equals(chatRole(c, username)) || "manager".equals(chatRole(c, username));
+            if (isChatKicked(c, username)) throw new DbException("دسترسی شما به گفتگو بسته شده است.");
+            if (!admin && "1".equals(chatSetting(c, "chat_closed", "0"))) throw new DbException("گفتگو موقتاً توسط مدیر بسته شده است.");
+            if (!admin && isChatMuted(c, username)) throw new DbException("ارسال پیام شما موقتاً محدود است.");
+            int delay = prefs == null ? 0 : prefs.getInt("chat_schedule_delay", 0);
+            String display = session == null ? username : stringOr(session.userName, username);
+            String sql = delay > 0 ? "INSERT INTO dbo.meelano_chat_messages(sender,display_name,kind,body,attachment_name,attachment_mime,attachment_data,scheduled_at) VALUES(?,?,?,?,?,?,?,DATEADD(minute,?,SYSDATETIME()))" : "INSERT INTO dbo.meelano_chat_messages(sender,display_name,kind,body,attachment_name,attachment_mime,attachment_data) VALUES(?,?,?,?,?,?,?)";
+            try (InputStream in = getContentResolver().openInputStream(uri); PreparedStatement ps = c.prepareStatement(sql)) {
+                if (in == null) throw new DbException("فایل قابل خواندن نیست.");
+                ps.setString(1, username); ps.setString(2, display); ps.setString(3, kind == null ? "file" : kind); ps.setString(4, ""); ps.setString(5, fileName); ps.setString(6, mime);
+                long size = uriSize(uri);
+                if (size >= 0) ps.setBinaryStream(7, in, size); else ps.setBinaryStream(7, in);
+                if (delay > 0) ps.setInt(8, delay);
+                ps.executeUpdate();
+            }
+            if (prefs != null && delay > 0) prefs.edit().putInt("chat_schedule_delay", 0).apply();
+        }
+    }
+
+    private void saveChatAttachment(long id, String fileName) {
+        executor.execute(() -> {
+            try (Connection c = openConnection()) {
+                ensureMeelanoCollabTables(c);
+                File dir = getExternalFilesDir("chat"); if (dir == null) dir = getFilesDir();
+                if (!dir.exists()) dir.mkdirs();
+                String safe = fileName == null || fileName.trim().isEmpty() ? ("chat-" + id + ".bin") : fileName.replace('/', '_').replace('\\', '_');
+                File out = new File(dir, safe);
+                try (PreparedStatement ps = c.prepareStatement("SELECT attachment_data FROM dbo.meelano_chat_messages WHERE id=? AND deleted=0")) {
+                    ps.setLong(1, id);
+                    try (ResultSet r = ps.executeQuery()) {
+                        if (!r.next()) throw new DbException("پیوست پیدا نشد.");
+                        try (InputStream in = r.getBinaryStream(1); FileOutputStream fos = new FileOutputStream(out)) {
+                            if (in == null) throw new DbException("این پیام پیوست ندارد.");
+                            byte[] buf = new byte[8192]; int n;
+                            while ((n = in.read(buf)) >= 0) fos.write(buf, 0, n);
+                        }
+                    }
+                }
+                runOnUiThread(() -> sharePlainText("پیوست گفتگو", "پیوست ذخیره شد:\n" + out.getAbsolutePath(), null));
+            } catch (Exception ex) { runOnUiThread(() -> Toast.makeText(this, "ذخیره پیوست ممکن نشد: " + shortError(ex), Toast.LENGTH_LONG).show()); }
+        });
+    }
+
+    private void showChatScheduleDialog() {
+        EditText minutes = input("دقیقه تا ارسال", "15", false);
+        minutes.setInputType(InputType.TYPE_CLASS_NUMBER);
+        new AlertDialog.Builder(this)
+                .setTitle("زمان ارسال پیام بعدی")
+                .setView(minutes)
+                .setNegativeButton("لغو زمان‌بندی", (d, w) -> { if (prefs != null) prefs.edit().putInt("chat_schedule_delay", 0).apply(); Toast.makeText(this, "زمان‌بندی غیرفعال شد.", Toast.LENGTH_SHORT).show(); loadChatRoom(); })
+                .setPositiveButton("ثبت", (d, w) -> {
+                    int m = 0; try { m = Integer.parseInt(minutes.getText().toString().trim()); } catch (Exception ignored) { }
+                    if (m < 0) m = 0; if (m > 1440) m = 1440;
+                    if (prefs != null) prefs.edit().putInt("chat_schedule_delay", m).apply();
+                    Toast.makeText(this, m == 0 ? "ارسال فوری فعال شد." : "پیام بعدی " + m + " دقیقه بعد ارسال می‌شود.", Toast.LENGTH_SHORT).show();
+                    loadChatRoom();
+                }).show();
     }
 
     private void chatSetClosed(boolean closed) { runDb(() -> { try (Connection c = openConnection()) { ensureMeelanoCollabTables(c); setChatSetting(c, "chat_closed", closed ? "1" : "0"); } return "ok"; }, new DbCallback() { @Override public void ok(String b) { loadChatRoom(); } @Override public void fail(Exception e) { showPageError("مدیریت گفتگو", e, () -> loadChatRoom()); } }); }
@@ -3939,7 +4028,25 @@ public class MainActivity extends Activity {
 
     private void chatMemberUpdate(String username, String action) {
         String u = username == null ? "" : username.trim(); if (u.isEmpty()) return;
-        runDb(() -> { try (Connection c = openConnection()) { ensureMeelanoCollabTables(c); String sql; if ("kick".equals(action)) sql = "UPDATE dbo.meelano_chat_members SET kicked=1 WHERE username=?"; else if ("restore".equals(action)) sql = "UPDATE dbo.meelano_chat_members SET kicked=0, muted_until=NULL WHERE username=?"; else if ("mute".equals(action)) sql = "UPDATE dbo.meelano_chat_members SET muted_until=DATEADD(hour,2,SYSDATETIME()) WHERE username=?"; else sql = "UPDATE dbo.meelano_chat_members SET role=? WHERE username=?"; try (PreparedStatement ps = c.prepareStatement(sql)) { if ("admin".equals(action) || "user".equals(action)) { ps.setString(1, action); ps.setString(2, u); } else ps.setString(1, u); ps.executeUpdate(); } } return "ok"; }, new DbCallback() { @Override public void ok(String b) { loadChatRoom(); } @Override public void fail(Exception e) { showPageError("مدیریت کاربر", e, () -> loadChatRoom()); } });
+        runDb(() -> {
+            try (Connection c = openConnection()) {
+                ensureMeelanoCollabTables(c);
+                try (PreparedStatement ins = c.prepareStatement("IF NOT EXISTS (SELECT 1 FROM dbo.meelano_chat_members WHERE username=?) INSERT INTO dbo.meelano_chat_members(username,display_name,role,kicked,last_seen) VALUES(?,?,N'user',0,SYSDATETIME())")) {
+                    ins.setString(1, u); ins.setString(2, u); ins.executeUpdate();
+                }
+                String sql;
+                if ("kick".equals(action)) sql = "UPDATE dbo.meelano_chat_members SET kicked=1 WHERE username=?";
+                else if ("restore".equals(action)) sql = "UPDATE dbo.meelano_chat_members SET kicked=0, muted_until=NULL WHERE username=?";
+                else if ("mute".equals(action)) sql = "UPDATE dbo.meelano_chat_members SET muted_until=DATEADD(hour,2,SYSDATETIME()) WHERE username=?";
+                else sql = "UPDATE dbo.meelano_chat_members SET role=? WHERE username=?";
+                try (PreparedStatement ps = c.prepareStatement(sql)) {
+                    if ("admin".equals(action) || "user".equals(action)) { ps.setString(1, action); ps.setString(2, u); }
+                    else ps.setString(1, u);
+                    ps.executeUpdate();
+                }
+            }
+            return "ok";
+        }, new DbCallback() { @Override public void ok(String b) { loadChatRoom(); } @Override public void fail(Exception e) { showPageError("مدیریت کاربر", e, () -> loadChatRoom()); } });
     }
 
     private void loadPersonnel() {
@@ -3962,6 +4069,17 @@ public class MainActivity extends Activity {
             String where = activeWhere(v, "v");
             String sql = "SELECT TOP (120) TRY_CONVERT(nvarchar(100),v.[" + id + "]), " + nameExpr + ", " + userExpr + ", " + phoneExpr + ", " + balExpr + ", " + docCount + ", " + saleTotal + ", " + lastDate + " FROM dbo.visitors v" + join + " " + where + " GROUP BY v.[" + id + "]," + nameExpr + "," + userExpr + "," + phoneExpr + "," + balExpr + " ORDER BY " + nameExpr;
             JSONArray arr = new JSONArray(); try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("id", stringOr(r.getString(1), "")); o.put("name", stringOr(r.getString(2), "پرسنل")); o.put("username", stringOr(r.getString(3), "")); o.put("phone", stringOr(r.getString(4), "")); o.put("balance", r.getDouble(5)); o.put("docs", r.getLong(6)); o.put("sales", r.getDouble(7)); o.put("last", stringOr(r.getString(8), "")); arr.put(o); } }
+            if (arr.length() == 0) {
+                Set<String> ucols = columns(c, "sys_users");
+                String uid = resolve(ucols, "user_id", "id", "ID");
+                String uname = resolve(ucols, "user_name", "username", "Username", "name");
+                if (uid != null && uname != null) {
+                    String usql = "SELECT TOP (120) TRY_CONVERT(nvarchar(100),[" + uid + "]), TRY_CONVERT(nvarchar(220),[" + uname + "]) FROM dbo.sys_users ORDER BY [" + uname + "]";
+                    try (PreparedStatement ps = c.prepareStatement(usql); ResultSet r = ps.executeQuery()) {
+                        while (r.next()) { JSONObject o = new JSONObject(); o.put("id", stringOr(r.getString(1), "")); o.put("name", stringOr(r.getString(2), "پرسنل")); o.put("username", stringOr(r.getString(2), "")); o.put("phone", ""); o.put("balance", 0); o.put("docs", 0); o.put("sales", 0); o.put("last", ""); arr.put(o); }
+                    }
+                }
+            }
             return arr.toString();
         }
     }
@@ -3974,15 +4092,37 @@ public class MainActivity extends Activity {
 
     private void showPersonnelDetail(JSONObject person) {
         content.removeAllViews(); addHero("پرونده پرسنلی", person.optString("name","پرسنل")); Button back=secondaryButton("بازگشت به پرسنل"); back.setOnClickListener(v -> loadPersonnel()); content.addView(back, new LinearLayout.LayoutParams(-1, dp(48))); addLoading(content, "در حال دریافت پرونده پرسنل…");
-        runDb(() -> queryPersonnelDetail(person.optString("id","")), new DbCallback(){ @Override public void ok(String body){ try { renderPersonnelDetail(person, new JSONObject(body)); } catch(Exception e){ showPageError("پرسنل", e, () -> showPersonnelDetail(person)); } } @Override public void fail(Exception e){ showPageError("پرسنل", e, () -> showPersonnelDetail(person)); }});
+        runDb(() -> queryPersonnelDetail(person.optString("id",""), person.optString("username", "")), new DbCallback(){ @Override public void ok(String body){ try { renderPersonnelDetail(person, new JSONObject(body)); } catch(Exception e){ showPageError("پرسنل", e, () -> showPersonnelDetail(person)); } } @Override public void fail(Exception e){ showPageError("پرسنل", e, () -> showPersonnelDetail(person)); }});
     }
 
-    private String queryPersonnelDetail(String id) throws Exception {
-        try(Connection c=openConnection()) { JSONObject out=new JSONObject(); JSONArray docs=new JSONArray(); Set<String> sail=columns(c,"sailfact"); if(id!=null&&!id.isEmpty()&&hasCol(sail,"vis_rdf")&&hasCol(sail,"shfacfo")){ String date=resolve(sail,"date"); String amount=resolve(sail,"all"); String shmo=resolve(sail,"shmo"); String paid=resolve(sail,"MabDaryaftFactor","Daryaft","received"); String sql="SELECT TOP (120) TRY_CONVERT(nvarchar(80),shfacfo), "+(date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),["+date+"])") +", "+(shmo==null?"CAST(NULL AS nvarchar(100))":"TRY_CONVERT(nvarchar(100),["+shmo+"])") +", "+(amount==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),["+amount+"])") +", "+(paid==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),["+paid+"])") +" FROM dbo.sailfact WHERE TRY_CONVERT(nvarchar(100),vis_rdf)=?"+activeAnd(sail,"")+" ORDER BY "+(date==null?"1":"["+date+"] DESC"); try(PreparedStatement ps=c.prepareStatement(sql)){ ps.setString(1,id); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("number",stringOr(r.getString(1),"—")); o.put("date",stringOr(r.getString(2),"")); o.put("party",stringOr(r.getString(3),"")); o.put("amount",r.getDouble(4)); o.put("paid",r.getDouble(5)); docs.put(o); } } } } out.put("documents", docs); return out.toString(); }
+    private String queryPersonnelDetail(String id, String username) throws Exception {
+        try(Connection c=openConnection()) { JSONObject out=new JSONObject(); JSONArray docs=new JSONArray(); Set<String> sail=columns(c,"sailfact"); if(id!=null&&!id.isEmpty()&&hasCol(sail,"vis_rdf")&&hasCol(sail,"shfacfo")){ String date=resolve(sail,"date"); String amount=resolve(sail,"all"); String shmo=resolve(sail,"shmo"); String paid=resolve(sail,"MabDaryaftFactor","Daryaft","received"); String sql="SELECT TOP (120) TRY_CONVERT(nvarchar(80),shfacfo), "+(date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),["+date+"])") +", "+(shmo==null?"CAST(NULL AS nvarchar(100))":"TRY_CONVERT(nvarchar(100),["+shmo+"])") +", "+(amount==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),["+amount+"])") +", "+(paid==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),["+paid+"])") +" FROM dbo.sailfact WHERE TRY_CONVERT(nvarchar(100),vis_rdf)=?"+activeAnd(sail,"")+" ORDER BY "+(date==null?"1":"["+date+"] DESC"); try(PreparedStatement ps=c.prepareStatement(sql)){ ps.setString(1,id); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("number",stringOr(r.getString(1),"—")); o.put("date",stringOr(r.getString(2),"")); o.put("party",stringOr(r.getString(3),"")); o.put("amount",r.getDouble(4)); o.put("paid",r.getDouble(5)); docs.put(o); } } } } out.put("documents", docs); ensureMeelanoCollabTables(c); String u=username==null?"":username.trim(); if(!u.isEmpty()){ out.put("attendance", queryAttendanceRows(c,u,false)); out.put("leaves", queryLeaveRequestsForUser(c,u)); } return out.toString(); }
     }
 
     private void renderPersonnelDetail(JSONObject person, JSONObject data) {
-        content.removeAllViews(); addHero("پرونده پرسنلی", person.optString("name","پرسنل") + " • مانده " + money(person.opt("balance"))); Button back=secondaryButton("بازگشت به پرسنل"); back.setOnClickListener(v -> loadPersonnel()); LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(48)); bp.setMargins(0,0,0,dp(12)); content.addView(back,bp); LinearLayout top=card(); top.setBackground(gradient(new int[]{alpha(navAccent("personnel"),30), alpha(SURFACE,250)}, GradientDrawable.Orientation.TL_BR,22)); top.addView(text("اطلاعات ضروری",15,TEXT,Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2)); top.addView(text("نام کاربری: "+stringOr(person.optString("username"),"—")+" • تماس: "+stringOr(person.optString("phone"),"—")+" • آخرین فعالیت: "+stringOr(person.optString("last"),"—"),10.5f,MUTED,Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2)); content.addView(top,new LinearLayout.LayoutParams(-1,-2)); JSONArray docs=data.optJSONArray("documents"); if(docs==null||docs.length()==0){ addEmptyTo(content,"فاکتور یا گردش قابل نمایش برای این پرسنل پیدا نشد."); return;} LinearLayout list=card(); list.addView(text("گردش فاکتورها و دریافت‌ها",15,TEXT,Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2)); for(int i=0;i<Math.min(120,docs.length());i++){ JSONObject d=docs.optJSONObject(i); LinearLayout line=checkDashboardRow("فاکتور "+d.optString("number","—")+" • "+d.optString("date",""), d.opt("amount"), d.opt("paid"), navAccent("personnel")); list.addView(line, compactRowLp()); } LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,dp(10),0,dp(12)); content.addView(list,lp);
+        content.removeAllViews(); addHero("پرونده پرسنلی", person.optString("name","پرسنل") + " • مانده " + money(person.opt("balance"))); Button back=secondaryButton("بازگشت به پرسنل"); back.setOnClickListener(v -> loadPersonnel()); LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(48)); bp.setMargins(0,0,0,dp(12)); content.addView(back,bp); LinearLayout top=card(); top.setBackground(gradient(new int[]{alpha(navAccent("personnel"),30), alpha(SURFACE,250)}, GradientDrawable.Orientation.TL_BR,22)); top.addView(text("اطلاعات ضروری",15,TEXT,Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2)); top.addView(text("نام کاربری: "+stringOr(person.optString("username"),"—")+" • تماس: "+stringOr(person.optString("phone"),"—")+" • آخرین فعالیت: "+stringOr(person.optString("last"),"—"),10.5f,MUTED,Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2)); content.addView(top,new LinearLayout.LayoutParams(-1,-2)); JSONArray docs=data.optJSONArray("documents"); if(docs==null||docs.length()==0){ addEmptyTo(content,"فاکتور یا گردش قابل نمایش برای این پرسنل پیدا نشد."); } else { LinearLayout list=card(); list.addView(text("گردش فاکتورها و دریافت‌ها",15,TEXT,Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2)); for(int i=0;i<Math.min(120,docs.length());i++){ JSONObject d=docs.optJSONObject(i); if(d!=null) list.addView(personnelFinanceRow(d), compactRowLp()); } LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,dp(10),0,dp(12)); content.addView(list,lp); } addAttendanceRows("حضور و خروج این پرسنل", data.optJSONArray("attendance")); addLeaveList("مرخصی‌های این پرسنل", data.optJSONArray("leaves"), false);
+    }
+
+    private LinearLayout personnelFinanceRow(JSONObject d) {
+        LinearLayout line = new LinearLayout(this);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setPadding(dp(9), dp(8), dp(9), dp(8));
+        int accent = navAccent("personnel");
+        line.setBackground(roundedStroke(alpha(accent, 16), 16, alpha(accent, 68)));
+        TextView badge = text("فاکتور", 9.2f, Color.WHITE, Typeface.BOLD);
+        badge.setGravity(Gravity.CENTER); badge.setSingleLine(true);
+        badge.setBackground(gradient(new int[]{accent, mix(accent, Color.BLACK, 0.22f)}, GradientDrawable.Orientation.TL_BR, 999));
+        line.addView(badge, new LinearLayout.LayoutParams(dp(58), dp(34)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(8),0,dp(8),0);
+        copy.addView(text("شماره " + d.optString("number", "—") + " • " + d.optString("date", ""), 11.2f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2));
+        copy.addView(text("طرف حساب: " + stringOr(d.optString("party", ""), "—") + " • دریافتی: " + compactMoney(d.opt("paid")), 9.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2));
+        line.addView(copy, new LinearLayout.LayoutParams(0,-2,1f));
+        TextView amount = text(compactMoney(d.opt("amount")), 10.4f, TEXT, Typeface.BOLD);
+        amount.setGravity(Gravity.CENTER); amount.setSingleLine(true); amount.setPadding(dp(8), dp(5), dp(8), dp(5));
+        amount.setBackground(roundedStroke(alpha(accent, 20), 999, alpha(accent, 76)));
+        line.addView(amount, new LinearLayout.LayoutParams(-2,-2));
+        return line;
     }
 
     private void loadAttendance() {
@@ -4005,8 +4145,52 @@ public class MainActivity extends Activity {
 
     private void addAttendanceUserActions(JSONObject state){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(SUCCESS,24),alpha(SURFACE,250)},GradientDrawable.Orientation.RIGHT_LEFT,22)); c.addView(text("ثبت حضور با تأیید مودم",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("برای ثبت ورود یا خروج، گوشی باید به شبکه محل کار متصل باشد؛ رمز مودم در برنامه ذخیره نمی‌شود.",10.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button in=primaryButton("ثبت ورود"); Button out=secondaryButton("ثبت خروج"); in.setOnClickListener(v->recordAttendance("in")); out.setOnClickListener(v->recordAttendance("out")); row.addView(in,weightedButtonLp()); row.addView(out,weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(10),0,0); c.addView(row,rp); Button leave=secondaryButton("درخواست مرخصی"); leave.setOnClickListener(v->showLeaveRequestDialog()); LinearLayout.LayoutParams lpv=new LinearLayout.LayoutParams(-1,dp(44)); lpv.setMargins(0,dp(8),0,0); c.addView(leave,lpv); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); addAttendanceRows("آخرین ورود/خروج من", state.optJSONArray("mine")); }
 
-    private void addAttendanceAdminBlocks(JSONObject state){ addAttendanceRows("حضور امروز پرسنل", state.optJSONArray("today")); addLeaveList("درخواست‌های مرخصی", state.optJSONArray("leaves"), true); }
-    private void addAttendanceRows(String title, JSONArray rows){ LinearLayout c=card(); c.addView(text(title,15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); if(rows==null||rows.length()==0)c.addView(text("رکوردی ثبت نشده است.",11,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,dp(54))); else for(int i=0;i<Math.min(120,rows.length());i++){ JSONObject r=rows.optJSONObject(i); LinearLayout line=checkDashboardRow(("in".equals(r.optString("type"))?"ورود":"خروج")+" • "+r.optString("display",r.optString("username"))+" • "+r.optString("time"),0,r.optString("ssid",""),navAccent("attendance")); c.addView(line,compactRowLp()); } LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
+    private void addAttendanceAdminBlocks(JSONObject state){ addAttendanceRows("حضور امروز پرسنل", state.optJSONArray("today")); addLeaveList("درخواست‌های مرخصی", state.optJSONArray("leaves"), true); notifyPendingLeavesOnce(state.optJSONArray("leaves")); }
+
+    private void addAttendanceRows(String title, JSONArray rows){
+        LinearLayout c=card();
+        c.setBackground(gradient(new int[]{alpha(navAccent("attendance"),22),alpha(SURFACE,250)},GradientDrawable.Orientation.RIGHT_LEFT,22));
+        c.addView(text(title,15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        if(rows==null||rows.length()==0)c.addView(text("رکوردی ثبت نشده است.",11,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,dp(54)));
+        else for(int i=0;i<Math.min(120,rows.length());i++){ JSONObject r=rows.optJSONObject(i); if(r!=null)c.addView(attendanceEventRow(r),compactRowLp()); }
+        LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp);
+    }
+
+    private LinearLayout attendanceEventRow(JSONObject r) {
+        boolean in = "in".equals(r.optString("type"));
+        int accent = in ? SUCCESS : WARNING;
+        LinearLayout line = new LinearLayout(this);
+        line.setOrientation(LinearLayout.HORIZONTAL);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        line.setPadding(dp(9), dp(8), dp(9), dp(8));
+        line.setBackground(roundedStroke(alpha(accent, 16), 16, alpha(accent, 68)));
+        TextView badge = text(in ? "ورود" : "خروج", 9.4f, Color.WHITE, Typeface.BOLD);
+        badge.setGravity(Gravity.CENTER);
+        badge.setSingleLine(true);
+        badge.setBackground(gradient(new int[]{accent, mix(accent, Color.BLACK, 0.22f)}, GradientDrawable.Orientation.TL_BR, 999));
+        line.addView(badge, new LinearLayout.LayoutParams(dp(54), dp(34)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(8),0,dp(8),0);
+        TextView name = text(r.optString("display", r.optString("username", "کاربر")) + " • " + r.optString("time", ""), 11.4f, TEXT, Typeface.BOLD);
+        name.setSingleLine(true); name.setEllipsize(TextUtils.TruncateAt.END);
+        copy.addView(name, new LinearLayout.LayoutParams(-1,-2));
+        TextView meta = text("مودم: " + stringOr(r.optString("ssid", ""), "نامشخص") + " • BSSID: " + stringOr(r.optString("bssid", ""), "—"), 9.2f, MUTED, Typeface.NORMAL);
+        meta.setSingleLine(true); meta.setEllipsize(TextUtils.TruncateAt.END);
+        copy.addView(meta, new LinearLayout.LayoutParams(-1,-2));
+        line.addView(copy, new LinearLayout.LayoutParams(0,-2,1f));
+        return line;
+    }
+
+    private void notifyPendingLeavesOnce(JSONArray leaves) {
+        if (leaves == null || leaves.length() == 0 || prefs == null) return;
+        int pending = 0;
+        for (int i=0;i<leaves.length();i++){ JSONObject r=leaves.optJSONObject(i); if(r!=null && "pending".equals(r.optString("status"))) pending++; }
+        if (pending <= 0) return;
+        long bucket = System.currentTimeMillis() / 3600000L;
+        String key = "last_leave_notify_" + bucket;
+        if (prefs.getBoolean(key, false)) return;
+        prefs.edit().putBoolean(key, true).apply();
+        showLocalNotification("درخواست مرخصی", formatNumber(pending) + " درخواست مرخصی در انتظار بررسی است.", false);
+    }
     private void addLeaveList(String title, JSONArray rows, boolean admin){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(INFO,20),alpha(SURFACE,250)},GradientDrawable.Orientation.TL_BR,22)); c.addView(text(title,15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); if(rows==null||rows.length()==0)c.addView(text("درخواستی ثبت نشده است.",11,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,dp(54))); else for(int i=0;i<Math.min(80,rows.length());i++){ JSONObject r=rows.optJSONObject(i); LinearLayout item=new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL); item.setPadding(dp(9),dp(8),dp(9),dp(8)); item.setBackground(roundedStroke(alpha(navAccent("attendance"),16),16,alpha(navAccent("attendance"),60))); item.addView(text("#"+r.optLong("id")+" • "+r.optString("display")+" • "+leaveStatusFa(r.optString("status")),11.2f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); item.addView(text(r.optString("type")+" • "+r.optString("start")+" تا "+r.optString("end")+" • "+r.optString("hours"),10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(!r.optString("reason").isEmpty()) item.addView(text(r.optString("reason"),10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(admin&&"pending".equals(r.optString("status"))){ LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button ok=primaryButton("تأیید"); Button no=secondaryButton("رد"); long id=r.optLong("id"); ok.setOnClickListener(v->decideLeave(id,true)); no.setOnClickListener(v->decideLeave(id,false)); row.addView(ok,weightedButtonLp()); row.addView(no,weightedButtonLp()); item.addView(row,new LinearLayout.LayoutParams(-1,-2)); } LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,-2); ip.setMargins(0,dp(7),0,0); c.addView(item,ip);} LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
     private String leaveStatusFa(String s){ if("approved".equals(s))return "تأیید شده"; if("rejected".equals(s))return "رد شده"; return "در انتظار"; }
 
@@ -5347,7 +5531,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.23.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.24.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -7667,7 +7851,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.23.0\nاین نسخه گفتگو گروهی مدیر و کارکنان، پرسنل، حضور و غیاب مودم‌محور، درخواست مرخصی، مدیریت کامل گفتگو و نمایش بهتر سرجمع اقلام فروش روز را اضافه می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.24.0\nاین نسخه گفتگو، پرسنل و حضور را پایدارتر و کاربردی‌تر می‌کند؛ ارسال فایل استریم، سرجمع اقلام فروش/خرید مقاوم‌تر، پرونده پرسنل کامل‌تر، اعلان مرخصی و ردیف‌های حضور خواناتر اضافه شده است؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
