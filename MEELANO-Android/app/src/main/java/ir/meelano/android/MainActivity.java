@@ -50,6 +50,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.DatePicker;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -136,7 +137,7 @@ public class MainActivity extends Activity {
     private static final String KEY_QUICK_VISITOR_ID = "quick_visitor_id";
     private static final String KEY_QUICK_USER_NAME = "quick_user_name";
     private static final String KEY_QUICK_ROLE = "quick_access_role";
-    private static final String KEY_PRIVACY_MODE = "privacy_mode";
+    private static final String KEY_QUICK_PERMISSIONS = "quick_access_permissions";
     private static final String KEY_WIDGET_SUMMARY = "widget_summary";
     private static final String KEY_LAST_CONNECTION_OK = "last_connection_ok";
     private static final String KEY_LAST_CONNECTION_ERROR = "last_connection_error";
@@ -774,7 +775,7 @@ public class MainActivity extends Activity {
         tools.setGravity(Gravity.CENTER_VERTICAL);
         tools.setPadding(dp(2), 0, dp(2), 0);
         addHeaderTool(tools, "⌕", "جستجوی سراسری", INFO, v -> showGlobalSearchDialog());
-        addHeaderTool(tools, privacyMode() ? "◌•" : "₿", "محرمانه‌سازی مبلغ‌ها", privacyMode() ? DANGER : GOLD, v -> togglePrivacyMode());
+        addHeaderTool(tools, "♛", "مدیریت دسترسی کاربران", mix(INFO, GOLD, 0.34f), v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("management"); });
         addHeaderTool(tools, "✺", "انتخاب تم", GOLD_2, v -> showThemeChooser());
         addHeaderTool(tools, "⚙", "تنظیمات", SUCCESS, v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings"); });
         addHeaderTool(tools, "⎋", "خروج", DANGER, v -> { if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید."); else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید."); });
@@ -1246,6 +1247,7 @@ public class MainActivity extends Activity {
         SharedPreferences.Editor e = prefs.edit();
         e.putString(KEY_QUICK_USER_NAME, s.userName == null ? "" : s.userName);
         e.putString(KEY_QUICK_ROLE, s.accessRole == null ? "" : s.accessRole);
+        e.putString(KEY_QUICK_PERMISSIONS, s.permissions == null ? "" : s.permissions);
         if (s.userId == null) e.remove(KEY_QUICK_USER_ID); else e.putInt(KEY_QUICK_USER_ID, s.userId);
         if (s.visitorId == null) e.remove(KEY_QUICK_VISITOR_ID); else e.putInt(KEY_QUICK_VISITOR_ID, s.visitorId);
         e.apply();
@@ -1258,7 +1260,8 @@ public class MainActivity extends Activity {
         Integer uid = prefs.contains(KEY_QUICK_USER_ID) ? prefs.getInt(KEY_QUICK_USER_ID, 0) : null;
         Integer vid = prefs.contains(KEY_QUICK_VISITOR_ID) ? prefs.getInt(KEY_QUICK_VISITOR_ID, 0) : null;
         String role = prefs.getString(KEY_QUICK_ROLE, "");
-        return new UserSession(uid, vid, name, role);
+        String permissions = prefs.getString(KEY_QUICK_PERMISSIONS, "");
+        return new UserSession(uid, vid, name, role, permissions);
     }
 
     private void maybePromptQuickPinSetup() {
@@ -1567,6 +1570,7 @@ public class MainActivity extends Activity {
             case "checks": loadTable("چک‌ها و وصول", "نمای مستقیم از چک‌های دریافتی", "getchk", ""); break;
             case "reports": loadReports(); break;
             case "settings": renderSettings(); break;
+            case "management": loadAccessManagement(); break;
             case "health": renderConnectionHealthPage(); break;
             case "dashboard":
             default: loadDashboard(); break;
@@ -1763,7 +1767,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.33.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.34.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -4047,9 +4051,33 @@ public class MainActivity extends Activity {
         return resolveHeuristicAccessRole(currentAccountName(), session == null ? "" : session.userName, session == null ? null : session.visitorId);
     }
 
+    private Set<String> currentPermissionSet() {
+        if (isFullAccessUser()) return permissionSet(allPermissionString());
+        String raw = session == null ? "" : session.permissions;
+        if (raw == null || raw.trim().isEmpty()) raw = defaultPermissionString(currentAccessRole());
+        return permissionSet(raw);
+    }
+
+    private boolean canUsePermission(String key) {
+        if (key == null || key.trim().isEmpty()) return true;
+        if (isFullAccessUser()) return true;
+        return currentPermissionSet().contains(key);
+    }
+
+    private String pagePermissionKey(String page) {
+        if ("health".equals(page)) return "connection_health";
+        if ("management".equals(page)) return "management_access";
+        if ("settings".equals(page)) return "settings";
+        return page == null ? "" : page;
+    }
+
     private String resolveHeuristicAccessRole(String login, String display, Integer visitorId) {
         if (identityLooksAdmin(login, display)) return "admin";
         if (identityLooksSenior(login, display)) return "senior";
+        String n = normalizeIdentity((login == null ? "" : login) + " " + (display == null ? "" : display));
+        if (n.contains("پخش") || n.contains("distribut")) return "distributor";
+        if (n.contains("راننده") || n.contains("driver")) return "driver";
+        if (n.contains("کارگر") || n.contains("worker")) return "worker";
         if (visitorId != null && visitorId > 0) return "visitor";
         return "user";
     }
@@ -4079,6 +4107,9 @@ public class MainActivity extends Activity {
         if (v.contains("admin") || v.contains("administrator") || v.contains("مدیرکل") || v.contains("مديرکل")) return "admin";
         if (v.contains("manager") || v.contains("مدیر") || v.contains("مدير") || v.contains("modir")) return "manager";
         if (v.contains("senior") || v.contains("supervisor") || v.contains("ارشد")) return "senior";
+        if (v.contains("distributor") || v.contains("distribution") || v.contains("پخش") || v.contains("مامور پخش") || v.contains("مأمور پخش")) return "distributor";
+        if (v.contains("driver") || v.contains("راننده")) return "driver";
+        if (v.contains("worker") || v.contains("کارگر")) return "worker";
         if (v.contains("visitor") || v.contains("ویزیت") || v.contains("ويزيت") || v.contains("بازاریاب")) return "visitor";
         return "user";
     }
@@ -4089,14 +4120,139 @@ public class MainActivity extends Activity {
         if ("manager".equals(role)) return "مدیر";
         if ("senior".equals(role)) return "کاربر ارشد";
         if ("visitor".equals(role)) return "ویزیتور";
+        if ("distributor".equals(role)) return "مامور پخش";
+        if ("driver".equals(role)) return "راننده";
+        if ("worker".equals(role)) return "کارگر";
         return "کاربر محدود";
     }
 
-    private UserSession withResolvedAccessRole(Connection c, UserSession base, String login) {
+    private String[][] roleCatalog() {
+        return new String[][]{
+                {"admin", "مدیر اصلی / Admin"}, {"manager", "مدیر"}, {"senior", "کاربر ارشد"},
+                {"visitor", "ویزیتور"}, {"distributor", "مامور پخش"}, {"driver", "راننده"},
+                {"worker", "کارگر"}, {"user", "کاربر محدود"}
+        };
+    }
+
+    private String[][] permissionCatalog() {
+        return new String[][]{
+                {"dashboard", "داشبورد", "اصلی"},
+                {"customers", "مشتریان", "اصلی"},
+                {"customer_detail", "جزئیات و گردش مشتری", "مشتریان"},
+                {"customer_call", "تماس سریع با مشتری", "مشتریان"},
+                {"customer_message", "پیام آماده مشتری", "مشتریان"},
+                {"products", "کالاها", "اصلی"},
+                {"product_detail", "جزئیات کالا", "کالاها"},
+                {"attendance", "حضور و غیاب", "پرسنلی"},
+                {"attendance_self", "ثبت ورود/خروج خود کاربر", "پرسنلی"},
+                {"leave_balance", "مشاهده مرخصی خود کاربر", "پرسنلی"},
+                {"leave_request", "ارسال درخواست مرخصی", "پرسنلی"},
+                {"attendance_admin", "مدیریت حضور و مرخصی همه", "پرسنلی"},
+                {"personnel", "پرسنل", "مدیریتی"},
+                {"reports", "گزارشات", "مدیریتی"},
+                {"command", "فرماندهی", "مدیریتی"},
+                {"assistant", "دستیار هوشمند", "هوشمند"},
+                {"ai_settings", "تنظیم کلیدهای AI", "هوشمند"},
+                {"chat", "گفتگو", "همکاری"},
+                {"taxpayers", "مودیان", "سازمانی"},
+                {"tax_settings", "تنظیمات سامانه مودیان", "سازمانی"},
+                {"tax_send", "ارسال/گزارش مودیان", "سازمانی"},
+                {"cameras", "دوربین", "سخت‌افزار"},
+                {"alarm", "دزدگیر", "سخت‌افزار"},
+                {"hardware_control", "فرمان سخت‌افزار امنیتی", "سخت‌افزار"},
+                {"settings", "تنظیمات عمومی", "مدیریتی"},
+                {"connection_health", "سلامت اتصال", "مدیریتی"},
+                {"management_access", "مدیریت دسترسی کاربران", "مدیریتی"}
+        };
+    }
+
+    private Set<String> permissionSet(String raw) {
+        Set<String> out = new HashSet<>();
+        if (raw == null) return out;
+        for (String part : raw.split("[,;\\s]+")) {
+            String p = part == null ? "" : part.trim();
+            if (!p.isEmpty()) out.add(p);
+        }
+        return out;
+    }
+
+    private String permissionCsv(Set<String> set) {
+        if (set == null || set.isEmpty()) return "";
+        List<String> list = new ArrayList<>(set);
+        Collections.sort(list);
+        return join(list, ",");
+    }
+
+    private String allPermissionString() {
+        Set<String> all = new HashSet<>();
+        for (String[] p : permissionCatalog()) all.add(p[0]);
+        return permissionCsv(all);
+    }
+
+    private String defaultPermissionString(String role) {
+        role = canonicalAccessRole(role);
+        Set<String> s = new HashSet<>();
+        s.add("dashboard");
+        s.add("attendance");
+        s.add("attendance_self");
+        s.add("leave_balance");
+        s.add("leave_request");
+        if ("admin".equals(role) || "manager".equals(role)) return allPermissionString();
+        if ("senior".equals(role) || "visitor".equals(role)) {
+            s.add("customers"); s.add("customer_detail"); s.add("customer_call"); s.add("customer_message");
+            s.add("products"); s.add("product_detail");
+        } else if ("distributor".equals(role)) {
+            s.add("customers"); s.add("customer_detail"); s.add("customer_call"); s.add("products"); s.add("product_detail");
+        } else if ("driver".equals(role)) {
+            s.add("customers"); s.add("customer_call");
+        } else if ("worker".equals(role)) {
+            s.add("products");
+        }
+        return permissionCsv(s);
+    }
+
+    private boolean permissionEnabled(String raw, String key) {
+        return permissionSet(raw).contains(key);
+    }
+
+    private UserSession withResolvedAccessRole(Connection c, UserSession base, String login) throws Exception {
         if (base == null) return null;
         Integer visitorId = base.visitorId;
         if (visitorId == null || visitorId <= 0) visitorId = resolveVisitorIdForAccount(c, login, base.userName, base.userId);
-        return new UserSession(base.userId, visitorId, base.userName, resolveAccessRole(c, login, base.userName, base.userId, visitorId));
+        AccessProfile profile = resolveAccessProfile(c, login, base.userName, base.userId, visitorId);
+        if (!profile.enabled) throw new DbException("دسترسی این کاربر توسط مدیر غیرفعال شده است.");
+        return new UserSession(base.userId, visitorId, base.userName, profile.role, profile.permissions);
+    }
+
+    private AccessProfile resolveAccessProfile(Connection c, String login, String display, Integer userId, Integer visitorId) {
+        String role = resolveAccessRole(c, login, display, userId, visitorId);
+        String permissions = defaultPermissionString(role);
+        boolean enabled = true;
+        try {
+            if (c != null && tableExists(c, "meelano_access_users")) {
+                try (PreparedStatement ps = c.prepareStatement("SELECT TOP (1) role_key, permissions, enabled FROM dbo.meelano_access_users WHERE LOWER(LTRIM(RTRIM(username)))=LOWER(LTRIM(RTRIM(?))) OR LOWER(LTRIM(RTRIM(display_name)))=LOWER(LTRIM(RTRIM(?))) ORDER BY updated_at DESC")) {
+                    ps.setString(1, stringOr(login, ""));
+                    ps.setString(2, stringOr(display, ""));
+                    try (ResultSet r = ps.executeQuery()) {
+                        if (r.next()) {
+                            String storedRole = canonicalAccessRole(r.getString(1));
+                            if (!storedRole.isEmpty()) { role = storedRole; permissions = defaultPermissionString(role); }
+                            enabled = r.getBoolean(3);
+                            String userPerms = stringOr(r.getString(2), "").trim();
+                            if (!userPerms.isEmpty()) permissions = userPerms;
+                        }
+                    }
+                }
+            }
+            if ((permissions == null || permissions.trim().isEmpty() || permissions.equals(defaultPermissionString(role))) && c != null && tableExists(c, "meelano_access_roles")) {
+                try (PreparedStatement ps = c.prepareStatement("SELECT TOP (1) permissions FROM dbo.meelano_access_roles WHERE role_key=?")) {
+                    ps.setString(1, role);
+                    try (ResultSet r = ps.executeQuery()) { if (r.next() && r.getString(1) != null && !r.getString(1).trim().isEmpty()) permissions = r.getString(1).trim(); }
+                }
+            }
+        } catch (Exception ignored) { }
+        if (identityLooksAdmin(login, display)) { role = "admin"; permissions = allPermissionString(); enabled = true; }
+        return new AccessProfile(role, permissions, enabled);
     }
 
     private Integer resolveVisitorIdForAccount(Connection c, String login, String display, Integer userId) {
@@ -4192,10 +4348,7 @@ public class MainActivity extends Activity {
 
     private boolean canOpenPage(String page) {
         if (page == null || page.trim().isEmpty() || "login".equals(page)) return true;
-        if (isFullAccessUser()) return true;
-        String role = currentAccessRole();
-        if ("senior".equals(role) || "visitor".equals(role)) return "dashboard".equals(page) || "customers".equals(page) || "products".equals(page) || "attendance".equals(page);
-        return "dashboard".equals(page) || "attendance".equals(page);
+        return canUsePermission(pagePermissionKey(page));
     }
 
     private String sectionLabel(String page) {
@@ -4212,6 +4365,7 @@ public class MainActivity extends Activity {
         if ("cameras".equals(page)) return "دوربین";
         if ("alarm".equals(page)) return "دزدگیر";
         if ("settings".equals(page)) return "تنظیمات";
+        if ("management".equals(page)) return "مدیریت";
         return page == null ? "بخش" : page;
     }
 
@@ -5354,7 +5508,7 @@ public class MainActivity extends Activity {
         runDb(this::queryAttendanceState, new DbCallback(){ @Override public void ok(String body){ try{ renderAttendance(new JSONObject(body)); markRefresh("attendance"); }catch(Exception e){ showPageError("حضور",e,()->loadAttendance()); } } @Override public void fail(Exception e){ showPageError("حضور",e,()->loadAttendance()); }});
     }
 
-    private String queryAttendanceState() throws Exception { try(Connection c=openConnection()){ ensureMeelanoCollabTables(c); JSONObject out=new JSONObject(); String role=currentAccessRole(); boolean admin=isFullAccessUser()||"admin".equals(chatRole(c,currentAccountName()))||"manager".equals(chatRole(c,currentAccountName())); if("senior".equals(role)||"visitor".equals(role)||"user".equals(role)) admin=false; out.put("admin",admin); out.put("wifiSsid",chatSetting(c,"work_wifi_ssid","")); out.put("wifiBssid",chatSetting(c,"work_wifi_bssid","")); out.put("wifiGateway",chatSetting(c,"work_wifi_gateway","")); out.put("mine",queryAttendanceRows(c, currentAccountName(), false)); if(admin){ out.put("today",queryAttendanceRows(c,"", true)); out.put("leaves",queryLeaveRequests(c)); } else out.put("leaves",queryLeaveRequestsForUser(c,currentAccountName())); return out.toString(); } }
+    private String queryAttendanceState() throws Exception { try(Connection c=openConnection()){ ensureMeelanoCollabTables(c); JSONObject out=new JSONObject(); boolean admin=canUsePermission("attendance_admin"); out.put("admin",admin); out.put("wifiSsid",chatSetting(c,"work_wifi_ssid","")); out.put("wifiBssid",chatSetting(c,"work_wifi_bssid","")); out.put("wifiGateway",chatSetting(c,"work_wifi_gateway","")); out.put("mine",queryAttendanceRows(c, currentAccountName(), false)); if(admin){ out.put("today",queryAttendanceRows(c,"", true)); out.put("leaves",queryLeaveRequests(c)); } else out.put("leaves",queryLeaveRequestsForUser(c,currentAccountName())); return out.toString(); } }
 
     private JSONArray queryAttendanceRows(Connection c, String username, boolean todayAll) throws Exception { JSONArray arr=new JSONArray(); String sql=todayAll?"SELECT TOP (150) username,display_name,event_type,CONVERT(nvarchar(19),event_time,120),wifi_ssid,wifi_bssid,gateway FROM dbo.meelano_attendance WHERE CONVERT(date,event_time)=CONVERT(date,SYSDATETIME()) ORDER BY event_time DESC":"SELECT TOP (80) username,display_name,event_type,CONVERT(nvarchar(19),event_time,120),wifi_ssid,wifi_bssid,gateway FROM dbo.meelano_attendance WHERE username=? ORDER BY event_time DESC"; try(PreparedStatement ps=c.prepareStatement(sql)){ if(!todayAll) ps.setString(1,username); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("username",stringOr(r.getString(1),"")); o.put("display",stringOr(r.getString(2),r.getString(1))); o.put("type",stringOr(r.getString(3),"")); o.put("time",stringOr(r.getString(4),"")); o.put("ssid",stringOr(r.getString(5),"")); o.put("bssid",stringOr(r.getString(6),"")); o.put("gateway",stringOr(r.getString(7),"")); arr.put(o);} } } return arr; }
 
@@ -5367,7 +5521,7 @@ public class MainActivity extends Activity {
 
     private void addAttendanceWifiCard(JSONObject state){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(navAccent("attendance"),28),alpha(SURFACE,250)},GradientDrawable.Orientation.TL_BR,22)); JSONObject wifi=currentWifiFingerprint(); c.addView(text("مودم محل کار",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("ثبت‌شده: "+stringOr(state.optString("wifiSsid"),"تنظیم نشده")+" • فعلی: "+stringOr(wifi.optString("ssid"),"نامشخص"),10.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(state.optBoolean("admin")){ LinearLayout wr=new LinearLayout(this); wr.setOrientation(LinearLayout.HORIZONTAL); Button cap=primaryButton(withIcon("⌁", "ثبت همین مودم")); Button hours=secondaryButton(withIcon("⏱", "ساعت مجاز")); cap.setTextSize(9.6f); hours.setTextSize(9.6f); cap.setOnClickListener(v->captureWorkWifi()); hours.setOnClickListener(v->showAttendanceHoursDialog()); wr.addView(cap,weightedButtonLp()); wr.addView(hours,weightedButtonLp()); LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2); cp.setMargins(0,dp(10),0,0); c.addView(wr,cp);} LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
 
-    private void addAttendanceUserActions(JSONObject state){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(SUCCESS,24),alpha(SURFACE,250)},GradientDrawable.Orientation.RIGHT_LEFT,22)); c.addView(text("ثبت حضور با تأیید مودم",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("برای ثبت ورود یا خروج، گوشی باید به شبکه محل کار متصل باشد؛ رمز مودم در برنامه ذخیره نمی‌شود.",10.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button in=primaryButton(withIcon("↘", "ثبت ورود")); Button out=secondaryButton(withIcon("↗", "ثبت خروج")); in.setOnClickListener(v->recordAttendance("in")); out.setOnClickListener(v->recordAttendance("out")); row.addView(in,weightedButtonLp()); row.addView(out,weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(10),0,0); c.addView(row,rp); Button leave=secondaryButton(withIcon("☘", "درخواست مرخصی")); leave.setOnClickListener(v->showLeaveRequestDialog()); LinearLayout.LayoutParams lpv=new LinearLayout.LayoutParams(-1,dp(44)); lpv.setMargins(0,dp(8),0,0); c.addView(leave,lpv); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); addAttendanceRows("آخرین ورود/خروج من", state.optJSONArray("mine")); }
+    private void addAttendanceUserActions(JSONObject state){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(SUCCESS,24),alpha(SURFACE,250)},GradientDrawable.Orientation.RIGHT_LEFT,22)); c.addView(text("ثبت حضور با تأیید مودم",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("برای ثبت ورود یا خروج، گوشی باید به شبکه محل کار متصل باشد؛ رمز مودم در برنامه ذخیره نمی‌شود.",10.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(canUsePermission("attendance_self")){ LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button in=primaryButton(withIcon("↘", "ثبت ورود")); Button out=secondaryButton(withIcon("↗", "ثبت خروج")); in.setOnClickListener(v->recordAttendance("in")); out.setOnClickListener(v->recordAttendance("out")); row.addView(in,weightedButtonLp()); row.addView(out,weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(10),0,0); c.addView(row,rp); } if(canUsePermission("leave_request")){ Button leave=secondaryButton(withIcon("☘", "درخواست مرخصی")); leave.setOnClickListener(v->showLeaveRequestDialog()); LinearLayout.LayoutParams lpv=new LinearLayout.LayoutParams(-1,dp(44)); lpv.setMargins(0,dp(8),0,0); c.addView(leave,lpv); } LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); if(canUsePermission("attendance_self")) addAttendanceRows("آخرین ورود/خروج من", state.optJSONArray("mine")); }
 
     private void addAttendanceAdminBlocks(JSONObject state){ addAttendanceReportActions(state); addAttendanceRows("حضور امروز پرسنل", state.optJSONArray("today")); addLeaveBalanceCard(state.optJSONArray("leaves")); addLeaveList("درخواست‌های مرخصی", state.optJSONArray("leaves"), true); notifyPendingLeavesOnce(state.optJSONArray("leaves")); }
 
@@ -5414,7 +5568,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.33.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.34.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -5426,7 +5580,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.33.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.34.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -5621,16 +5775,20 @@ public class MainActivity extends Activity {
         String last = prefString(KEY_TAX_LAST_REPORT, "گزارشی ثبت نشده است.");
         c.addView(text((base.trim().isEmpty() ? "آدرس سرویس ثبت نشده" : "سرویس: " + base) + "\nشناسه حافظه: " + stringOr(mem, "ثبت نشده") + " • اقتصادی: " + stringOr(eco, "ثبت نشده") + "\nآخرین گزارش: " + last, 10.6f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button settings = primaryButton(withIcon("⚙", "تنظیمات دقیق")); settings.setTextSize(9.4f); settings.setOnClickListener(v -> { if (ensureManagerOnly()) showTaxpayerSettingsDialog(); });
-        Button test = secondaryButton(withIcon("✓", "تست اتصال")); test.setTextSize(9.4f); test.setOnClickListener(v -> { if (ensureManagerOnly()) testTaxpayerConnection(); });
+        Button settings = primaryButton(withIcon("⚙", "تنظیمات دقیق")); settings.setTextSize(9.4f); settings.setOnClickListener(v -> { if (ensurePermission("tax_settings", "تنظیمات مودیان")) showTaxpayerSettingsDialog(); });
+        Button test = secondaryButton(withIcon("✓", "تست اتصال")); test.setTextSize(9.4f); test.setOnClickListener(v -> { if (ensurePermission("tax_settings", "تست مودیان")) testTaxpayerConnection(); });
         row.addView(settings, weightedButtonLp()); row.addView(test, weightedButtonLp());
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
 
     private boolean ensureManagerOnly() {
-        if (isFullAccessUser()) return true;
-        Toast.makeText(this, "این عملیات فقط برای مدیر یا admin فعال است.", Toast.LENGTH_LONG).show();
+        return ensurePermission("management_access", "مدیریت");
+    }
+
+    private boolean ensurePermission(String permission, String label) {
+        if (canUsePermission(permission)) return true;
+        Toast.makeText(this, "دسترسی «" + stringOr(label, permission) + "» برای این حساب فعال نیست.", Toast.LENGTH_LONG).show();
         return false;
     }
 
@@ -5785,7 +5943,7 @@ public class MainActivity extends Activity {
     }
 
     private void sendSelectedTaxInvoices() {
-        if (!ensureManagerOnly()) return;
+        if (!ensurePermission("tax_send", "ارسال مودیان")) return;
         if (taxSelectedKeys.isEmpty()) { Toast.makeText(this,"هیچ فاکتوری انتخاب نشده است.",Toast.LENGTH_SHORT).show(); return; }
         JSONArray selected = selectedTaxRows(taxSelectedKeys);
         runNetworkJob("tax-send", () -> sendTaxRows(selected), new NetworkCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this,b,Toast.LENGTH_LONG).show(); taxSelectedKeys.clear(); loadTaxpayers(); } @Override public void fail(Exception e){ showPageError("ارسال مودیان", e, () -> loadTaxpayers()); }});
@@ -6288,7 +6446,7 @@ public class MainActivity extends Activity {
         c.setPadding(0, 0, 0, 0);
         c.setClickable(true);
         c.setBackground(gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 70 : 18), alpha(accent, isLightTheme() ? 28 : 44), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 26));
-        c.setOnClickListener(v -> showCustomerDetail(r, "all"));
+        c.setOnClickListener(v -> { if (ensurePermission("customer_detail", "جزئیات مشتری")) showCustomerDetail(r, "all"); });
         applyTouchFeedback(c);
 
         View rail = new View(this);
@@ -6361,17 +6519,17 @@ public class MainActivity extends Activity {
         actions.setOrientation(LinearLayout.HORIZONTAL);
         Button ledger = secondaryButton(withIcon("☷", "گردش حساب"));
         ledger.setTextSize(10.2f);
-        ledger.setOnClickListener(v -> showCustomerDetail(r, "all"));
+        ledger.setOnClickListener(v -> { if (ensurePermission("customer_detail", "گردش مشتری")) showCustomerDetail(r, "all"); });
         Button call = primaryButton(withIcon("☎", "تماس سریع"));
         call.setTextSize(10.2f);
-        call.setOnClickListener(v -> openPhoneDialer(firstPhone(r)));
+        call.setOnClickListener(v -> { if (ensurePermission("customer_call", "تماس مشتری")) openPhoneDialer(firstPhone(r)); });
         Button msg = secondaryButton(withIcon("✉", "پیام میلو"));
         msg.setTextSize(10.0f);
-        msg.setOnClickListener(v -> showCustomerMessageDialog(r));
-        actions.addView(ledger, weightedButtonLp());
-        actions.addView(msg, weightedButtonLp());
-        actions.addView(call, weightedButtonLp());
-        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(-1, -2); alp.setMargins(0, dp(8), 0, 0); body.addView(actions, alp);
+        msg.setOnClickListener(v -> { if (ensurePermission("customer_message", "پیام مشتری")) showCustomerMessageDialog(r); });
+        if (canUsePermission("customer_detail")) actions.addView(ledger, weightedButtonLp());
+        if (canUsePermission("customer_message")) actions.addView(msg, weightedButtonLp());
+        if (canUsePermission("customer_call")) actions.addView(call, weightedButtonLp());
+        if (actions.getChildCount() > 0) { LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(-1, -2); alp.setMargins(0, dp(8), 0, 0); body.addView(actions, alp); }
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.setMargins(0, 0, 0, dp(10));
         parent.addView(c, lp);
@@ -7496,7 +7654,7 @@ public class MainActivity extends Activity {
             canvas.drawText("گزارش مدیریتی Meelano", 490, 58, paint);
             paint.setTypeface(Typeface.DEFAULT);
             paint.setTextSize(10.5f);
-            canvas.drawText("Direct SQL Native Android • محرمانه", 490, 82, paint);
+            canvas.drawText("Direct SQL Native Android • امن", 490, 82, paint);
             paint.setColor(Color.argb(220, 255, 255, 255));
             canvas.drawText(nowText(), 240, 76, paint);
 
@@ -7554,7 +7712,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.33.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.34.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -9751,17 +9909,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(44)); lp.setMargins(0, dp(8), 0, 0); parent.addView(b, lp);
     }
 
-    private void addPrivacySettingsCard() {
-        LinearLayout c = card();
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, dp(12), 0, 0);
-        c.setBackground(gradient(new int[]{alpha(INFO, 20), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
-        c.addView(text("حالت امنیتی/محرمانه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        c.addView(text(privacyMode() ? "فعال است؛ مبلغ‌ها به شکل •••• نمایش داده می‌شوند." : "غیرفعال است؛ برای نمایش در جمع، مبلغ‌ها را مخفی کنید.", 10.8f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
-        Button toggle = privacyMode() ? secondaryButton("غیرفعال کردن حالت محرمانه") : primaryButton("فعال کردن حالت محرمانه");
-        toggle.setOnClickListener(v -> togglePrivacyMode());
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, dp(48)); tp.setMargins(0, dp(12), 0, 0); c.addView(toggle, tp);
-        content.addView(c, cp);
-    }
+    private void addPrivacySettingsCard() { }
 
     private void addConnectionHealthCard() {
         LinearLayout c = card();
@@ -9778,7 +9926,7 @@ public class MainActivity extends Activity {
 
     private void renderConnectionHealthPage() {
         content.removeAllViews();
-        addHero("صفحه سلامت اتصال", "وضعیت SQL، زمان پاسخ، آخرین موفقیت/خطا و تست اتصال بدون نمایش جزئیات محرمانه.");
+        addHero("صفحه سلامت اتصال", "وضعیت SQL، زمان پاسخ، آخرین موفقیت/خطا و تست اتصال بدون نمایش جزئیات حساس.");
         LinearLayout c = card();
         c.setBackground(gradient(new int[]{alpha(INFO, 26), alpha(SUCCESS, 18), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 26));
         c.addView(text("SQL Server Direct Health", 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
@@ -9821,7 +9969,7 @@ public class MainActivity extends Activity {
             return out.toString();
         }, new DbCallback() {
             @Override public void ok(String body) { new AlertDialog.Builder(MainActivity.this).setTitle("عیب‌یابی اتصال").setMessage(body).setPositiveButton("باشه", null).show(); if ("health".equals(activePage)) renderConnectionHealthPage(); }
-            @Override public void fail(Exception e) { new AlertDialog.Builder(MainActivity.this).setTitle("عیب‌یابی اتصال").setMessage("اتصال کامل نشد:\n" + readableError(e) + "\n\nجزئیات محرمانه اتصال نمایش داده نمی‌شود.").setPositiveButton("باشه", null).show(); if ("health".equals(activePage)) renderConnectionHealthPage(); }
+            @Override public void fail(Exception e) { new AlertDialog.Builder(MainActivity.this).setTitle("عیب‌یابی اتصال").setMessage("اتصال کامل نشد:\n" + readableError(e) + "\n\nجزئیات حساس اتصال نمایش داده نمی‌شود.").setPositiveButton("باشه", null).show(); if ("health".equals(activePage)) renderConnectionHealthPage(); }
         });
     }
 
@@ -9853,6 +10001,335 @@ public class MainActivity extends Activity {
         }
         c.addView(row, new LinearLayout.LayoutParams(-1, -2));
         content.addView(c, cp);
+    }
+
+    private void loadAccessManagement() {
+        if (!isFullAccessUser()) { renderLockedSection("management"); return; }
+        content.removeAllViews();
+        addHero("مدیریت دسترسی کاربران", "تعریف نقش و مجوز برای کاربران آتیران، ویزیتورها، ماموران پخش، رانندگان و کارگران");
+        addManualRefreshPanel("management", "بروزرسانی مدیریت کاربران", "نقش‌ها و مجوزها پس از ورود بعدی هر کاربر اعمال می‌شود", () -> loadAccessManagement());
+        addLoading(content, "در حال فراخوانی کاربران و نقش‌ها…");
+        runDb(this::queryAccessManagementSql, new DbCallback() {
+            @Override public void ok(String body) {
+                try { renderAccessManagement(new JSONObject(body)); markRefresh("management"); }
+                catch (Exception e) { showPageError("مدیریت", e, () -> loadAccessManagement()); }
+            }
+            @Override public void fail(Exception e) { showPageError("مدیریت", e, () -> loadAccessManagement()); }
+        });
+    }
+
+    private String queryAccessManagementSql() throws Exception {
+        try (Connection c = openConnection()) {
+            ensureAccessControlTables(c);
+            JSONObject out = new JSONObject();
+            JSONArray roles = queryAccessRoles(c);
+            out.put("roles", roles);
+            Map<String, JSONObject> users = new HashMap<>();
+            appendConfiguredAccessUsers(c, users);
+            appendAtiranUsers(c, users);
+            appendVisitorAccessUsers(c, users);
+            List<JSONObject> list = new ArrayList<>(users.values());
+            Collections.sort(list, new Comparator<JSONObject>() {
+                @Override public int compare(JSONObject a, JSONObject b) { return a.optString("display", a.optString("username", "")).compareToIgnoreCase(b.optString("display", b.optString("username", ""))); }
+            });
+            JSONArray arr = new JSONArray();
+            for (JSONObject u : list) {
+                String role = canonicalAccessRole(u.optString("role", "user"));
+                if (role.isEmpty()) role = "user";
+                String perms = stringOr(u.optString("permissions", ""), "").trim();
+                String effective = perms.isEmpty() ? accessRolePermissions(c, role) : perms;
+                u.put("role", role);
+                u.put("roleLabel", accessRoleLabel(role));
+                u.put("effectivePermissions", effective);
+                u.put("allowed", permissionSet(effective).size());
+                arr.put(u);
+            }
+            out.put("users", arr);
+            return out.toString();
+        }
+    }
+
+    private void ensureAccessControlTables(Connection c) throws Exception {
+        try (Statement st = c.createStatement()) {
+            st.execute("IF OBJECT_ID(N'dbo.meelano_access_roles',N'U') IS NULL CREATE TABLE dbo.meelano_access_roles (role_key nvarchar(60) NOT NULL PRIMARY KEY, role_label nvarchar(160) NULL, permissions nvarchar(max) NULL, updated_at datetime2 NOT NULL DEFAULT SYSDATETIME())");
+            st.execute("IF OBJECT_ID(N'dbo.meelano_access_users',N'U') IS NULL CREATE TABLE dbo.meelano_access_users (username nvarchar(160) NOT NULL PRIMARY KEY, display_name nvarchar(220) NULL, source nvarchar(80) NULL, source_id nvarchar(100) NULL, role_key nvarchar(60) NOT NULL DEFAULT N'user', permissions nvarchar(max) NULL, enabled bit NOT NULL DEFAULT 1, updated_at datetime2 NOT NULL DEFAULT SYSDATETIME())");
+        }
+        for (String[] role : roleCatalog()) upsertAccessRoleDefault(c, role[0], role[1], defaultPermissionString(role[0]));
+    }
+
+    private void upsertAccessRoleDefault(Connection c, String key, String label, String permissions) throws Exception {
+        try (PreparedStatement ps = c.prepareStatement("IF NOT EXISTS (SELECT 1 FROM dbo.meelano_access_roles WHERE role_key=?) INSERT INTO dbo.meelano_access_roles(role_key,role_label,permissions) VALUES(?,?,?)")) {
+            ps.setString(1, key); ps.setString(2, key); ps.setString(3, label); ps.setString(4, permissions); ps.executeUpdate();
+        }
+    }
+
+    private JSONArray queryAccessRoles(Connection c) throws Exception {
+        JSONArray arr = new JSONArray();
+        try (PreparedStatement ps = c.prepareStatement("SELECT role_key,role_label,permissions,CONVERT(nvarchar(19),updated_at,120) FROM dbo.meelano_access_roles ORDER BY CASE role_key WHEN N'admin' THEN 0 WHEN N'manager' THEN 1 WHEN N'senior' THEN 2 WHEN N'visitor' THEN 3 WHEN N'distributor' THEN 4 WHEN N'driver' THEN 5 WHEN N'worker' THEN 6 ELSE 9 END, role_key")) {
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) {
+                    JSONObject o = new JSONObject();
+                    o.put("role", canonicalAccessRole(r.getString(1)));
+                    o.put("label", stringOr(r.getString(2), accessRoleLabel(r.getString(1))));
+                    o.put("permissions", stringOr(r.getString(3), defaultPermissionString(r.getString(1))));
+                    o.put("updated", stringOr(r.getString(4), ""));
+                    o.put("allowed", permissionSet(o.optString("permissions", "")).size());
+                    arr.put(o);
+                }
+            }
+        }
+        return arr;
+    }
+
+    private String accessRolePermissions(Connection c, String role) {
+        role = canonicalAccessRole(role);
+        try {
+            if (c != null && tableExists(c, "meelano_access_roles")) {
+                try (PreparedStatement ps = c.prepareStatement("SELECT permissions FROM dbo.meelano_access_roles WHERE role_key=?")) {
+                    ps.setString(1, role);
+                    try (ResultSet r = ps.executeQuery()) { if (r.next() && r.getString(1) != null && !r.getString(1).trim().isEmpty()) return r.getString(1).trim(); }
+                }
+            }
+        } catch (Exception ignored) { }
+        return defaultPermissionString(role);
+    }
+
+    private void appendConfiguredAccessUsers(Connection c, Map<String, JSONObject> users) throws Exception {
+        if (!tableExists(c, "meelano_access_users")) return;
+        try (PreparedStatement ps = c.prepareStatement("SELECT TOP (300) username,display_name,source,source_id,role_key,permissions,enabled FROM dbo.meelano_access_users ORDER BY updated_at DESC")) {
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) addAccessCandidate(users, r.getString(1), r.getString(2), r.getString(3), r.getString(4), r.getString(5), r.getString(6), r.getBoolean(7));
+            }
+        }
+    }
+
+    private void appendAtiranUsers(Connection c, Map<String, JSONObject> users) throws Exception {
+        if (!tableExists(c, "sys_users")) return;
+        Set<String> cols = columns(c, "sys_users");
+        String id = resolveFlexible(cols, "user_id", "UserID", "id", "ID");
+        String username = resolveFlexible(cols, "user_name", "username", "UserName", "login", "name");
+        if (username == null) return;
+        String display = resolveFlexible(cols, "display_name", "full_name", "fullname", "FullName", "name", "Name", "user_name");
+        String role = resolveFlexible(cols, "role", "Role", "user_role", "access_role", "AccessRole", "semat", "سمت", "level", "AccessLevel");
+        String sql = "SELECT TOP (250) " + (id == null ? "CAST(NULL AS nvarchar(100))" : "TRY_CONVERT(nvarchar(100),[" + id + "])") + ", TRY_CONVERT(nvarchar(160),[" + username + "]), " + (display == null ? "TRY_CONVERT(nvarchar(220),[" + username + "])" : "TRY_CONVERT(nvarchar(220),[" + display + "])") + ", " + (role == null ? "CAST(NULL AS nvarchar(80))" : "TRY_CONVERT(nvarchar(80),[" + role + "])") + " FROM dbo.sys_users ORDER BY 2";
+        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
+            while (r.next()) addAccessCandidate(users, r.getString(2), r.getString(3), "کاربران آتیران", r.getString(1), stringOr(r.getString(4), "user"), "", true);
+        }
+    }
+
+    private void appendVisitorAccessUsers(Connection c, Map<String, JSONObject> users) throws Exception {
+        if (!tableExists(c, "visitors")) return;
+        Set<String> cols = columns(c, "visitors");
+        String id = resolveFlexible(cols, "vis_rdf", "rdf", "RDF", "ID", "id", "shvis");
+        String username = resolveFlexible(cols, "Username", "username", "user_name", "login", "UserName");
+        String display = resolveFlexible(cols, "vis_name", "name", "Name", "VisitorName", "moname");
+        String role = resolveFlexible(cols, "role", "Role", "vis_role", "access_role", "semat", "سمت", "level", "VisitorRole");
+        if (id == null && username == null && display == null) return;
+        String userExpr = username == null ? (display == null ? "N'visitor-' + TRY_CONVERT(nvarchar(100),[" + id + "])" : "TRY_CONVERT(nvarchar(160),[" + display + "])") : "TRY_CONVERT(nvarchar(160),[" + username + "])";
+        String dispExpr = display == null ? userExpr : "TRY_CONVERT(nvarchar(220),[" + display + "])";
+        String sql = "SELECT TOP (250) " + (id == null ? "CAST(NULL AS nvarchar(100))" : "TRY_CONVERT(nvarchar(100),[" + id + "])") + ", " + userExpr + ", " + dispExpr + ", " + (role == null ? "N'visitor'" : "TRY_CONVERT(nvarchar(80),[" + role + "])") + " FROM dbo.visitors " + activeWhere(cols, "") + " ORDER BY 3";
+        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
+            while (r.next()) addAccessCandidate(users, r.getString(2), r.getString(3), "ویزیتورها", r.getString(1), stringOr(r.getString(4), "visitor"), "", true);
+        }
+    }
+
+    private void addAccessCandidate(Map<String, JSONObject> users, String username, String display, String source, String sourceId, String role, String permissions, boolean enabled) {
+        try {
+            String u = stringOr(username, "").trim();
+            if (u.isEmpty()) return;
+            String key = normalizeIdentity(u);
+            JSONObject o = users.get(key);
+            if (o == null) { o = new JSONObject(); users.put(key, o); }
+            if (!o.has("username") || o.optString("username", "").isEmpty()) o.put("username", u);
+            if (!o.has("display") || o.optString("display", "").isEmpty()) o.put("display", stringOr(display, u));
+            if (!o.has("source") || o.optString("source", "").isEmpty() || "تنظیم‌شده".equals(o.optString("source", ""))) o.put("source", stringOr(source, "تنظیم‌شده"));
+            if (!o.has("sourceId") || o.optString("sourceId", "").isEmpty()) o.put("sourceId", stringOr(sourceId, ""));
+            String r = canonicalAccessRole(role);
+            if (r == null || r.isEmpty()) r = resolveHeuristicAccessRole(u, display, null);
+            if (!o.has("role") || o.optString("role", "user").equals("user") || (permissions != null && !permissions.trim().isEmpty())) o.put("role", r);
+            if (permissions != null && !permissions.trim().isEmpty()) o.put("permissions", permissions.trim());
+            if (!o.has("permissions")) o.put("permissions", "");
+            o.put("enabled", enabled && (!o.has("enabled") || o.optBoolean("enabled", true)));
+        } catch (Exception ignored) { }
+    }
+
+    private void renderAccessManagement(JSONObject state) throws Exception {
+        content.removeAllViews();
+        addHero("مدیریت دسترسی کاربران", "تنظیم دقیق نقش و مجوزها؛ تغییرات پس از ورود بعدی همان کاربر اعمال می‌شود.");
+        addManualRefreshPanel("management", "بروزرسانی مدیریت", "آخرین بروزرسانی: " + lastRefreshText("management"), () -> loadAccessManagement());
+        addAccessManagementIntro(state);
+        addAccessRolesSection(state.optJSONArray("roles"));
+        addAccessUsersSection(state.optJSONArray("users"));
+    }
+
+    private void addAccessManagementIntro(JSONObject state) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(navAccent("command"), 26), alpha(GOLD, 18), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 26));
+        c.addView(text("پنل مدیر دسترسی", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("کاربران از sys_users آتیران، جدول visitors و تنظیمات اختصاصی Meelano فراخوانی می‌شوند. می‌توانید برای کل نقش یا برای هر کاربر، مجوزهای جزئی مثل مشتریان، کالا، حضور، مرخصی، مودیان، دوربین، دزدگیر، AI و سلامت اتصال را روشن/خاموش کنید.", 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(dashboardMiniMetric("نقش‌ها", formatNumber(state == null || state.optJSONArray("roles") == null ? 0 : state.optJSONArray("roles").length()), "قابل تنظیم", INFO), dashboardMiniLp());
+        row.addView(dashboardMiniMetric("کاربران", formatNumber(state == null || state.optJSONArray("users") == null ? 0 : state.optJSONArray("users").length()), "آتیران/ویزیتور", SUCCESS), dashboardMiniLp());
+        row.addView(dashboardMiniMetric("اعمال", "ورود بعدی", "امن", GOLD), dashboardMiniLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addAccessRolesSection(JSONArray roles) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(GOLD, 22), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.addView(text("مجوز پیش‌فرض نقش‌ها", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("برای هر نقش یک الگوی دسترسی بسازید؛ کاربرانی که مجوز اختصاصی ندارند از همین الگو استفاده می‌کنند.", 10.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        if (roles == null || roles.length() == 0) { addEmptyTo(c, "نقشی پیدا نشد."); }
+        for (int i = 0; roles != null && i < roles.length(); i++) {
+            JSONObject r = roles.optJSONObject(i); if (r == null) continue;
+            LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(8), dp(8), dp(8), dp(8));
+            int accent = i % 3 == 0 ? INFO : (i % 3 == 1 ? SUCCESS : GOLD);
+            row.setBackground(roundedStroke(alpha(accent, 15), 16, alpha(accent, 58)));
+            LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL);
+            copy.addView(text(r.optString("label", accessRoleLabel(r.optString("role"))), 12.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+            copy.addView(text("مجوزهای فعال: " + formatNumber(r.optInt("allowed", 0)), 10.0f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+            row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+            Button edit = secondaryButton("تنظیم نقش"); edit.setTextSize(9.5f);
+            final JSONObject rr = r;
+            edit.setOnClickListener(v -> showPermissionDialog(true, rr.optString("role"), rr.optString("label"), rr.optString("role"), rr.optString("permissions", defaultPermissionString(rr.optString("role"))), true));
+            row.addView(edit, new LinearLayout.LayoutParams(dp(104), dp(38)));
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(8), 0, 0); c.addView(row, rp);
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addAccessUsersSection(JSONArray users) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(SUCCESS, 20), alpha(INFO, 12), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.addView(text("کاربران و دسترسی اختصاصی", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("برای هر کاربر می‌توانید نقش، قفل/فعال بودن و مجوزهای اختصاصی را تعیین کنید. اگر مجوز اختصاصی خالی باشد، الگوی نقش اعمال می‌شود.", 10.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        if (users == null || users.length() == 0) addEmptyTo(c, "کاربری پیدا نشد؛ جدول sys_users یا visitors را بررسی کنید.");
+        for (int i = 0; users != null && i < Math.min(120, users.length()); i++) {
+            JSONObject u = users.optJSONObject(i); if (u == null) continue;
+            addAccessUserRow(c, u, i);
+        }
+        if (users != null && users.length() > 120) c.addView(text("فقط ۱۲۰ کاربر اول نمایش داده شد؛ برای مدیریت بیشتر نقش‌های پیش‌فرض را تنظیم کنید.", 10.2f, WARNING, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addAccessUserRow(LinearLayout parent, JSONObject u, int index) {
+        int accent = u.optBoolean("enabled", true) ? (index % 2 == 0 ? SUCCESS : INFO) : DANGER;
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(8), dp(8), dp(8), dp(8));
+        box.setBackground(roundedStroke(alpha(accent, 14), 17, alpha(accent, 58)));
+        LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView avatar = text(initials(u.optString("display", u.optString("username", "ک"))), 13, onColorFor(accent), Typeface.BOLD);
+        avatar.setGravity(Gravity.CENTER); avatar.setBackground(gradient(new int[]{mix(accent, Color.WHITE, 0.20f), accent}, GradientDrawable.Orientation.TL_BR, 16));
+        head.addView(avatar, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(8), 0, dp(8), 0);
+        copy.addView(text(u.optString("display", "کاربر"), 12.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(u.optString("username", "") + " • " + u.optString("source", "") + " • " + u.optString("roleLabel", accessRoleLabel(u.optString("role"))) + " • " + (u.optBoolean("enabled", true) ? "فعال" : "قفل"), 9.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView badge = pill(formatNumber(u.optInt("allowed", 0)) + " مجوز", accent, false);
+        head.addView(badge, new LinearLayout.LayoutParams(-2, -2));
+        box.addView(head, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button role = secondaryButton("نقش"); role.setTextSize(9.2f);
+        Button perms = primaryButton("مجوزها"); perms.setTextSize(9.2f);
+        Button enabled = u.optBoolean("enabled", true) ? secondaryButton("قفل") : primaryButton("فعال"); enabled.setTextSize(9.2f);
+        final JSONObject user = u;
+        role.setOnClickListener(v -> showRolePickerDialog(user));
+        perms.setOnClickListener(v -> showPermissionDialog(false, user.optString("username"), user.optString("display"), user.optString("role", "user"), user.optString("permissions", "").trim().isEmpty() ? user.optString("effectivePermissions", defaultPermissionString(user.optString("role"))) : user.optString("permissions"), !user.optString("permissions", "").trim().isEmpty()));
+        enabled.setOnClickListener(v -> saveUserEnabled(user.optString("username"), user.optString("display"), user.optString("source"), user.optString("sourceId"), user.optString("role", "user"), !user.optBoolean("enabled", true)));
+        actions.addView(role, weightedButtonLp()); actions.addView(perms, weightedButtonLp()); actions.addView(enabled, weightedButtonLp());
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); box.addView(actions, ap);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(8), 0, 0); parent.addView(box, lp);
+    }
+
+    private void showRolePickerDialog(JSONObject user) {
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(14), dp(12), dp(14), dp(8));
+        box.addView(text("انتخاب نقش برای " + user.optString("display", user.optString("username", "کاربر")), 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        final AlertDialog[] dlg = new AlertDialog[1];
+        for (String[] role : roleCatalog()) {
+            Button b = role[0].equals(user.optString("role")) ? primaryButton(role[1]) : secondaryButton(role[1]);
+            b.setTextSize(10.2f);
+            final String rk = role[0];
+            b.setOnClickListener(v -> { if (dlg[0] != null) dlg[0].dismiss(); saveUserRole(user.optString("username"), user.optString("display"), user.optString("source"), user.optString("sourceId"), rk); });
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(42)); bp.setMargins(0, dp(7), 0, 0); box.addView(b, bp);
+        }
+        dlg[0] = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).create();
+        dlg[0].setOnShowListener(d -> styleMeelanoDialog(dlg[0], navAccent("command")));
+        dlg[0].show();
+    }
+
+    private void showPermissionDialog(boolean roleTarget, String targetKey, String title, String roleKey, String existingPerms, boolean explicit) {
+        Set<String> selected = permissionSet(existingPerms == null || existingPerms.trim().isEmpty() ? defaultPermissionString(roleKey) : existingPerms);
+        LinearLayout outer = new LinearLayout(this); outer.setOrientation(LinearLayout.VERTICAL); outer.setPadding(dp(12), dp(10), dp(12), dp(6));
+        outer.addView(text((roleTarget ? "مجوزهای نقش: " : "مجوزهای کاربر: ") + stringOr(title, targetKey), 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        outer.addView(text(roleTarget ? "این الگو برای همه کاربران همین نقش اعمال می‌شود، مگر اینکه کاربر مجوز اختصاصی داشته باشد." : (explicit ? "این کاربر مجوز اختصاصی دارد." : "در حال حاضر از نقش ارث‌بری می‌کند؛ با ذخیره، مجوز اختصاصی ثبت می‌شود."), 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout quick = new LinearLayout(this); quick.setOrientation(LinearLayout.HORIZONTAL);
+        Button defaults = secondaryButton("پیش‌فرض نقش"); defaults.setTextSize(8.6f);
+        Button all = secondaryButton("همه"); all.setTextSize(8.6f);
+        Button none = secondaryButton("هیچ‌کدام"); none.setTextSize(8.6f);
+        quick.addView(defaults, weightedButtonLp()); quick.addView(all, weightedButtonLp()); quick.addView(none, weightedButtonLp());
+        LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(-1, -2); qp.setMargins(0, dp(8), 0, dp(8)); outer.addView(quick, qp);
+        ScrollView scroll = new ScrollView(this); styleVerticalScroll(scroll);
+        LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL);
+        List<CheckBox> checks = new ArrayList<>();
+        final String[] group = {""};
+        for (String[] perm : permissionCatalog()) {
+            if (!perm[2].equals(group[0])) {
+                group[0] = perm[2];
+                TextView g = text(group[0], 12.2f, GOLD, Typeface.BOLD); g.setPadding(0, dp(8), 0, dp(2)); list.addView(g, new LinearLayout.LayoutParams(-1, -2));
+            }
+            CheckBox cb = new CheckBox(this);
+            cb.setText(perm[1]); cb.setTextColor(TEXT); cb.setTextSize(11.2f); cb.setTypeface(Typeface.DEFAULT, Typeface.BOLD); cb.setChecked(selected.contains(perm[0])); cb.setTag(perm[0]);
+            cb.setOnCheckedChangeListener((buttonView, isChecked) -> { String k = String.valueOf(buttonView.getTag()); if (isChecked) selected.add(k); else selected.remove(k); });
+            checks.add(cb); list.addView(cb, new LinearLayout.LayoutParams(-1, -2));
+        }
+        defaults.setOnClickListener(v -> { selected.clear(); selected.addAll(permissionSet(defaultPermissionString(roleKey))); for (CheckBox cb : checks) cb.setChecked(selected.contains(String.valueOf(cb.getTag()))); });
+        all.setOnClickListener(v -> { selected.clear(); selected.addAll(permissionSet(allPermissionString())); for (CheckBox cb : checks) cb.setChecked(true); });
+        none.setOnClickListener(v -> { selected.clear(); for (CheckBox cb : checks) cb.setChecked(false); });
+        scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
+        outer.addView(scroll, new LinearLayout.LayoutParams(-1, dp(390)));
+        AlertDialog dlg = new AlertDialog.Builder(this).setView(outer).setNegativeButton("بستن", null).setPositiveButton("ذخیره", null).create();
+        dlg.setOnShowListener(d -> {
+            styleMeelanoDialog(dlg, navAccent("command"));
+            Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (ok != null) ok.setOnClickListener(v -> { String csv = permissionCsv(selected); dlg.dismiss(); if (roleTarget) saveRolePermissions(roleKey, title, csv); else saveUserPermissions(targetKey, title, roleKey, csv); });
+        });
+        dlg.show();
+    }
+
+    private void saveRolePermissions(String roleKey, String label, String permissions) {
+        runDb(() -> { try (Connection c = openConnection()) { ensureAccessControlTables(c); try (PreparedStatement ps = c.prepareStatement("UPDATE dbo.meelano_access_roles SET role_label=?, permissions=?, updated_at=SYSDATETIME() WHERE role_key=?")) { ps.setString(1, stringOr(label, accessRoleLabel(roleKey))); ps.setString(2, permissions); ps.setString(3, canonicalAccessRole(roleKey)); ps.executeUpdate(); } } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this, "مجوزهای نقش ذخیره شد.", Toast.LENGTH_SHORT).show(); loadAccessManagement(); } @Override public void fail(Exception e){ showPageError("ذخیره نقش", e, () -> loadAccessManagement()); }});
+    }
+
+    private void saveUserRole(String username, String display, String source, String sourceId, String roleKey) {
+        runDb(() -> { try (Connection c = openConnection()) { ensureAccessControlTables(c); upsertAccessUser(c, username, display, source, sourceId, canonicalAccessRole(roleKey), null, true); } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this, "نقش کاربر ذخیره شد.", Toast.LENGTH_SHORT).show(); loadAccessManagement(); } @Override public void fail(Exception e){ showPageError("ذخیره نقش کاربر", e, () -> loadAccessManagement()); }});
+    }
+
+    private void saveUserPermissions(String username, String display, String roleKey, String permissions) {
+        runDb(() -> { try (Connection c = openConnection()) { ensureAccessControlTables(c); upsertAccessUser(c, username, display, "تنظیم اختصاصی", "", canonicalAccessRole(roleKey), permissions, true); } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this, "مجوزهای کاربر ذخیره شد.", Toast.LENGTH_SHORT).show(); loadAccessManagement(); } @Override public void fail(Exception e){ showPageError("ذخیره مجوز کاربر", e, () -> loadAccessManagement()); }});
+    }
+
+    private void saveUserEnabled(String username, String display, String source, String sourceId, String roleKey, boolean enabled) {
+        runDb(() -> { try (Connection c = openConnection()) { ensureAccessControlTables(c); upsertAccessUser(c, username, display, source, sourceId, canonicalAccessRole(roleKey), null, enabled); } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this, enabled ? "کاربر فعال شد." : "کاربر قفل شد.", Toast.LENGTH_SHORT).show(); loadAccessManagement(); } @Override public void fail(Exception e){ showPageError("تغییر وضعیت کاربر", e, () -> loadAccessManagement()); }});
+    }
+
+    private void upsertAccessUser(Connection c, String username, String display, String source, String sourceId, String roleKey, String permissions, boolean enabled) throws Exception {
+        String u = stringOr(username, "").trim();
+        if (u.isEmpty()) throw new DbException("نام کاربری خالی است.");
+        boolean exists;
+        try (PreparedStatement ps = c.prepareStatement("SELECT 1 FROM dbo.meelano_access_users WHERE username=?")) { ps.setString(1, u); try (ResultSet r = ps.executeQuery()) { exists = r.next(); } }
+        if (exists) {
+            String sql = permissions == null ? "UPDATE dbo.meelano_access_users SET display_name=?, source=?, source_id=?, role_key=?, enabled=?, updated_at=SYSDATETIME() WHERE username=?" : "UPDATE dbo.meelano_access_users SET display_name=?, source=?, source_id=?, role_key=?, permissions=?, enabled=?, updated_at=SYSDATETIME() WHERE username=?";
+            try (PreparedStatement ps = c.prepareStatement(sql)) {
+                ps.setString(1, stringOr(display, u)); ps.setString(2, stringOr(source, "تنظیم اختصاصی")); ps.setString(3, stringOr(sourceId, "")); ps.setString(4, canonicalAccessRole(roleKey));
+                if (permissions == null) { ps.setBoolean(5, enabled); ps.setString(6, u); }
+                else { ps.setString(5, permissions); ps.setBoolean(6, enabled); ps.setString(7, u); }
+                ps.executeUpdate();
+            }
+        } else {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO dbo.meelano_access_users(username,display_name,source,source_id,role_key,permissions,enabled) VALUES(?,?,?,?,?,?,?)")) {
+                ps.setString(1, u); ps.setString(2, stringOr(display, u)); ps.setString(3, stringOr(source, "تنظیم اختصاصی")); ps.setString(4, stringOr(sourceId, "")); ps.setString(5, canonicalAccessRole(roleKey)); ps.setString(6, permissions == null ? "" : permissions); ps.setBoolean(7, enabled); ps.executeUpdate();
+            }
+        }
     }
 
     private void renderSettings() {
@@ -9890,7 +10367,6 @@ public class MainActivity extends Activity {
         addQuickLoginSettingsCard();
         addLocalSecurityCard();
         addReminderSettingsCard();
-        addPrivacySettingsCard();
         addConnectionHealthCard();
         addExperienceSettingsCard();
         addIconSystemCard();
@@ -9901,7 +10377,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.33.0\nاین نسخه دسترسی نقش‌محور را فعال می‌کند: مدیر/admin همه بخش‌ها را می‌بیند، کاربر ارشد/ویزیتور فقط داشبورد مشتریان مرتبط، مشتریان، کالاها و حضور شخصی را دارد، بخش‌های دیگر قفل نمایش داده می‌شوند و اطلاعات SQL همچنان مخفی است.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.34.0\nاین نسخه دکمه مدیریت دسترسی را جایگزین دکمه قبلی بالای برنامه می‌کند، بخش قبلی را حذف می‌کند و پنل کامل نقش/مجوز برای کاربران آتیران، ویزیتورها، مامور پخش، راننده و کارگر می‌سازد؛ مجوزها پس از ورود کاربر اعمال می‌شوند.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -10069,15 +10545,11 @@ public class MainActivity extends Activity {
     }
 
     private boolean privacyMode() {
-        return prefs != null && prefs.getBoolean(KEY_PRIVACY_MODE, false);
+        return false;
     }
 
     private void togglePrivacyMode() {
-        if (prefs == null) return;
-        boolean next = !privacyMode();
-        prefs.edit().putBoolean(KEY_PRIVACY_MODE, next).apply();
-        Toast.makeText(this, next ? "حالت محرمانه فعال شد؛ مبلغ‌ها مخفی می‌شوند." : "حالت محرمانه غیرفعال شد.", Toast.LENGTH_SHORT).show();
-        rebuildUiAfterThemeChange();
+        Toast.makeText(this, "مدیریت دسترسی کاربران جایگزین دکمه قبلی شده است.", Toast.LENGTH_SHORT).show();
     }
 
     private String money(Object value) {
@@ -10138,14 +10610,30 @@ public class MainActivity extends Activity {
         final Integer visitorId;
         final String userName;
         final String accessRole;
+        final String permissions;
         UserSession(Integer userId, Integer visitorId, String userName) {
-            this(userId, visitorId, userName, "");
+            this(userId, visitorId, userName, "", "");
         }
         UserSession(Integer userId, Integer visitorId, String userName, String accessRole) {
+            this(userId, visitorId, userName, accessRole, "");
+        }
+        UserSession(Integer userId, Integer visitorId, String userName, String accessRole, String permissions) {
             this.userId = userId;
             this.visitorId = visitorId;
             this.userName = userName;
             this.accessRole = accessRole == null ? "" : accessRole;
+            this.permissions = permissions == null ? "" : permissions;
+        }
+    }
+
+    private static class AccessProfile {
+        final String role;
+        final String permissions;
+        final boolean enabled;
+        AccessProfile(String role, String permissions, boolean enabled) {
+            this.role = role == null ? "user" : role;
+            this.permissions = permissions == null ? "" : permissions;
+            this.enabled = enabled;
         }
     }
 
