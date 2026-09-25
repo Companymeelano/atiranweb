@@ -13,6 +13,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -26,10 +27,13 @@ import android.graphics.drawable.GradientDrawable;
 import android.hardware.biometrics.BiometricPrompt;
 import android.os.Build;
 import android.net.Uri;
+import android.net.wifi.WifiManager;
+import android.net.wifi.WifiInfo;
 import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.os.PowerManager;
 import android.provider.Settings;
+import android.provider.OpenableColumns;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
@@ -72,6 +76,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.Statement;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -131,6 +136,8 @@ public class MainActivity extends Activity {
     private static final int REQ_ASSISTANT_VOICE = 9401;
     private static final int REQ_BARCODE_SCAN = 9402;
     private static final int REQ_TTS_CHECK = 9403;
+    private static final int REQ_CHAT_ATTACHMENT = 9404;
+    private static final int REQ_WIFI_PERMISSION = 9405;
 
     private static final int[] S_HOST = {122, 126, 103, 120, 125, 122, 103, 120, 125, 126, 103, 120, 112};
     private static final int[] S_USER = {8, 45, 36, 32, 39, 8, 39};
@@ -138,7 +145,7 @@ public class MainActivity extends Activity {
     private static final int[] S_DB = {8, 61, 32, 59, 40, 39, 123};
     private static final int S_KEY = 73;
     private static final int SQL_PORT = 1433;
-    private static final String LOCAL_KEY_ALIAS = "meelano_local_secret_v322";
+    private static final String LOCAL_KEY_ALIAS = "meelano_local_secret_v323";
 
     private int NAVY = Color.rgb(7, 9, 16);
     private int SURFACE = Color.rgb(18, 22, 31);
@@ -188,6 +195,7 @@ public class MainActivity extends Activity {
     private String productsCacheJson = "";
     private String productsCacheQuery = "";
     private String productsCacheFilter = "all";
+    private String pendingChatAttachmentKind = "file";
     private final Map<String, String> customerLedgerCache = new HashMap<>();
 
     private static final Set<String> SAFE_TABLES = new HashSet<>(Arrays.asList(
@@ -578,7 +586,7 @@ public class MainActivity extends Activity {
         tools.setGravity(Gravity.CENTER_VERTICAL);
         tools.setPadding(dp(2), 0, dp(2), 0);
         addHeaderTool(tools, "⌕", "جستجوی سراسری", INFO, v -> showGlobalSearchDialog());
-        addHeaderTool(tools, privacyMode() ? "••" : "۱۲", "محدودیت نمایش اعداد", privacyMode() ? DANGER : GOLD, v -> togglePrivacyMode());
+        addHeaderTool(tools, privacyMode() ? "•••" : "۱۲۳", "محدودیت نمایش اعداد", privacyMode() ? DANGER : GOLD, v -> togglePrivacyMode());
         addHeaderTool(tools, "◐", "انتخاب تم", GOLD_2, v -> showThemeChooser());
         addHeaderTool(tools, "⚙", "تنظیمات", SUCCESS, v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings"); });
         addHeaderTool(tools, "⎋", "خروج", DANGER, v -> { if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید."); else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید."); });
@@ -1238,7 +1246,7 @@ public class MainActivity extends Activity {
         navStrip.setGravity(Gravity.CENTER);
         navStrip.setPadding(dp(8), dp(7), dp(8), dp(7));
         navStrip.setBackground(gradient(new int[]{alpha(HEADER_START, 238), alpha(SURFACE_2, 210)}, GradientDrawable.Orientation.LEFT_RIGHT, 0));
-        shell.addView(navStrip, new LinearLayout.LayoutParams(-1, dp(118)));
+        shell.addView(navStrip, new LinearLayout.LayoutParams(-1, dp(162)));
 
         ScrollView scroll = new ScrollView(this);
         styleVerticalScroll(scroll);
@@ -1258,14 +1266,19 @@ public class MainActivity extends Activity {
         navStrip.setOrientation(LinearLayout.VERTICAL);
         LinearLayout row1 = navRow();
         LinearLayout row2 = navRow();
+        LinearLayout row3 = navRow();
         navStrip.addView(row1, new LinearLayout.LayoutParams(-1, 0, 1f));
         navStrip.addView(row2, new LinearLayout.LayoutParams(-1, 0, 1f));
+        navStrip.addView(row3, new LinearLayout.LayoutParams(-1, 0, 1f));
         addNav(row1, "dashboard", "داشبورد", "◈");
-        addNav(row1, "command", "فرماندهی", "⚡");
-        addNav(row1, "assistant", "دستیار", "✦");
-        addNav(row2, "customers", "مشتریان", "👥");
-        addNav(row2, "products", "کالا", "◼");
+        addNav(row1, "customers", "مشتریان", "👥");
+        addNav(row1, "products", "کالا", "◼");
         addNav(row2, "reports", "گزارشات", "⌁");
+        addNav(row2, "command", "فرماندهی", "⚡");
+        addNav(row2, "assistant", "دستیار", "✦");
+        addNav(row3, "chat", "گفتگو", "☷");
+        addNav(row3, "personnel", "پرسنل", "♙");
+        addNav(row3, "attendance", "حضور", "⌚");
     }
 
     private LinearLayout navRow() {
@@ -1302,7 +1315,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1f); tp.setMargins(dp(4), 0, dp(4), 0);
         tab.addView(title, tp);
         tab.setOnClickListener(v -> showApp(key));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(47), 1f);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(43), 1f);
         lp.setMargins(dp(3), dp(3), dp(3), dp(3));
         parent.addView(tab, lp);
     }
@@ -1313,6 +1326,9 @@ public class MainActivity extends Activity {
         if ("customers".equals(key)) return SUCCESS;
         if ("products".equals(key)) return WARNING;
         if ("reports".equals(key)) return INFO;
+        if ("chat".equals(key)) return Color.rgb(126, 87, 255);
+        if ("personnel".equals(key)) return mix(SUCCESS, INFO, 0.35f);
+        if ("attendance".equals(key)) return mix(GOLD, SUCCESS, 0.30f);
         return GOLD;
     }
 
@@ -1322,6 +1338,9 @@ public class MainActivity extends Activity {
         switch (activePage) {
             case "command": loadCommandCenter(); break;
             case "assistant": showAssistant(); break;
+            case "chat": loadChatRoom(); break;
+            case "personnel": loadPersonnel(); break;
+            case "attendance": loadAttendance(); break;
             case "customers": loadCustomers(customersCacheQuery == null ? "" : customersCacheQuery, customersCacheFilter == null ? "all" : customersCacheFilter); break;
             case "products": loadProducts(productsCacheQuery == null ? "" : productsCacheQuery, productsCacheFilter == null ? "all" : productsCacheFilter); break;
             case "sales": loadTable("فروش و اسناد", "نمای مستقیم از جدول فروش", "sailfact", ""); break;
@@ -1522,7 +1541,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.22.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.23.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -2474,8 +2493,12 @@ public class MainActivity extends Activity {
 
     private void renderDashboardToday(JSONObject today) {
         if (today == null) return;
-        addDailyFinanceDashboardBlock("sales", "فروش روز", "انتخاب تاریخ، مشاهده منحنی و ورود به فاکتورها/دریافتی‌ها", ir.meelano.android.R.drawable.icon_sales, today.optJSONObject("sales"), GOLD);
-        addDailyFinanceDashboardBlock("purchase", "خرید روز", "انتخاب تاریخ، مشاهده منحنی و ورود به اسناد/پرداختی‌ها", ir.meelano.android.R.drawable.icon_products, today.optJSONObject("purchases"), INFO);
+        JSONObject salesBlock = today.optJSONObject("sales");
+        JSONObject purchaseBlock = today.optJSONObject("purchases");
+        try { if (salesBlock != null && (salesBlock.optJSONArray("items") == null || salesBlock.optJSONArray("items").length() == 0)) salesBlock.put("items", today.optJSONArray("todayItems")); } catch (Exception ignored) { }
+        try { if (purchaseBlock != null && (purchaseBlock.optJSONArray("items") == null || purchaseBlock.optJSONArray("items").length() == 0)) purchaseBlock.put("items", today.optJSONArray("purchaseItems")); } catch (Exception ignored) { }
+        addDailyFinanceDashboardBlock("sales", "فروش روز", "انتخاب تاریخ، مشاهده منحنی و ورود به فاکتورها/دریافتی‌ها", ir.meelano.android.R.drawable.icon_sales, salesBlock, GOLD);
+        addDailyFinanceDashboardBlock("purchase", "خرید روز", "انتخاب تاریخ، مشاهده منحنی و ورود به اسناد/پرداختی‌ها", ir.meelano.android.R.drawable.icon_products, purchaseBlock, INFO);
         addCheckDashboardSection("چک‌های دریافتی", "تفکیک صندوق، بانک، خرج‌شده، استرداد و سایر دسته‌ها", true, today.optJSONObject("getChecks"), SUCCESS);
         addCheckDashboardSection("چک‌های پرداختی", "تفکیک پاس‌شده، در راه، سفید/استفاده‌نشده و سایر دسته‌ها", false, today.optJSONObject("putChecks"), WARNING);
         addDashboardBankTable(today.optJSONArray("banks"));
@@ -3584,6 +3607,418 @@ public class MainActivity extends Activity {
             if (row != null) row.addView(c, cp);
         }
     }
+
+    private String currentAccountName() {
+        String u = prefs == null ? "" : prefs.getString(KEY_LAST_USER, "");
+        if (u == null || u.trim().isEmpty()) u = session == null ? "" : session.userName;
+        return u == null || u.trim().isEmpty() ? "user" : u.trim();
+    }
+
+    private boolean isAdminUser() {
+        String u = currentAccountName();
+        return u != null && ("admin".equalsIgnoreCase(u.trim()) || "administrator".equalsIgnoreCase(u.trim()));
+    }
+
+    private String sqlText(String v) {
+        return v == null ? "" : v.replace("'", "''");
+    }
+
+    private void ensureMeelanoCollabTables(Connection c) throws Exception {
+        try (Statement st = c.createStatement()) {
+            st.execute("IF OBJECT_ID(N'dbo.meelano_chat_members',N'U') IS NULL CREATE TABLE dbo.meelano_chat_members (username nvarchar(120) NOT NULL PRIMARY KEY, display_name nvarchar(220) NULL, role nvarchar(30) NOT NULL DEFAULT N'user', kicked bit NOT NULL DEFAULT 0, muted_until datetime2 NULL, last_seen datetime2 NULL)");
+            st.execute("IF OBJECT_ID(N'dbo.meelano_chat_settings',N'U') IS NULL CREATE TABLE dbo.meelano_chat_settings (setting_key nvarchar(80) NOT NULL PRIMARY KEY, setting_value nvarchar(max) NULL, updated_at datetime2 NOT NULL DEFAULT SYSDATETIME())");
+            st.execute("IF OBJECT_ID(N'dbo.meelano_chat_messages',N'U') IS NULL CREATE TABLE dbo.meelano_chat_messages (id bigint IDENTITY(1,1) NOT NULL PRIMARY KEY, sender nvarchar(120) NOT NULL, display_name nvarchar(220) NULL, kind nvarchar(30) NOT NULL DEFAULT N'text', body nvarchar(max) NULL, attachment_name nvarchar(260) NULL, attachment_mime nvarchar(160) NULL, attachment_data varbinary(max) NULL, pinned bit NOT NULL DEFAULT 0, scheduled_at datetime2 NULL, created_at datetime2 NOT NULL DEFAULT SYSDATETIME(), deleted bit NOT NULL DEFAULT 0)");
+            st.execute("IF OBJECT_ID(N'dbo.meelano_attendance',N'U') IS NULL CREATE TABLE dbo.meelano_attendance (id bigint IDENTITY(1,1) NOT NULL PRIMARY KEY, username nvarchar(120) NOT NULL, display_name nvarchar(220) NULL, event_type nvarchar(20) NOT NULL, event_time datetime2 NOT NULL DEFAULT SYSDATETIME(), wifi_ssid nvarchar(200) NULL, wifi_bssid nvarchar(100) NULL, gateway nvarchar(80) NULL, note nvarchar(500) NULL)");
+            st.execute("IF OBJECT_ID(N'dbo.meelano_leave_requests',N'U') IS NULL CREATE TABLE dbo.meelano_leave_requests (id bigint IDENTITY(1,1) NOT NULL PRIMARY KEY, username nvarchar(120) NOT NULL, display_name nvarchar(220) NULL, leave_type nvarchar(80) NOT NULL, start_date nvarchar(30) NOT NULL, end_date nvarchar(30) NOT NULL, hours nvarchar(40) NULL, reason nvarchar(700) NULL, status nvarchar(30) NOT NULL DEFAULT N'pending', manager_note nvarchar(700) NULL, created_at datetime2 NOT NULL DEFAULT SYSDATETIME(), decided_at datetime2 NULL)");
+        }
+        upsertCollabMember(c);
+    }
+
+    private void upsertCollabMember(Connection c) throws Exception {
+        String username = currentAccountName();
+        String display = session == null ? username : stringOr(session.userName, username);
+        String role = isAdminUser() ? "admin" : "user";
+        String sql = "IF EXISTS (SELECT 1 FROM dbo.meelano_chat_members WHERE username=?) " +
+                "UPDATE dbo.meelano_chat_members SET display_name=?, role=CASE WHEN role=N'user' AND ?=N'admin' THEN N'admin' ELSE role END, last_seen=SYSDATETIME() WHERE username=? " +
+                "ELSE INSERT INTO dbo.meelano_chat_members(username,display_name,role,kicked,last_seen) VALUES(?,?,?,0,SYSDATETIME())";
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, username); ps.setString(2, display); ps.setString(3, role); ps.setString(4, username);
+            ps.setString(5, username); ps.setString(6, display); ps.setString(7, role); ps.executeUpdate();
+        }
+    }
+
+    private String chatSetting(Connection c, String key, String fallback) {
+        try (PreparedStatement ps = c.prepareStatement("SELECT setting_value FROM dbo.meelano_chat_settings WHERE setting_key=?")) {
+            ps.setString(1, key);
+            try (ResultSet r = ps.executeQuery()) { if (r.next()) return stringOr(r.getString(1), fallback); }
+        } catch (Exception ignored) { }
+        return fallback;
+    }
+
+    private void setChatSetting(Connection c, String key, String value) throws Exception {
+        try (PreparedStatement ps = c.prepareStatement("IF EXISTS (SELECT 1 FROM dbo.meelano_chat_settings WHERE setting_key=?) UPDATE dbo.meelano_chat_settings SET setting_value=?, updated_at=SYSDATETIME() WHERE setting_key=? ELSE INSERT INTO dbo.meelano_chat_settings(setting_key,setting_value) VALUES(?,?)")) {
+            ps.setString(1, key); ps.setString(2, value); ps.setString(3, key); ps.setString(4, key); ps.setString(5, value); ps.executeUpdate();
+        }
+    }
+
+    private String loadChatRoomSql() throws Exception {
+        try (Connection c = openConnection()) {
+            ensureMeelanoCollabTables(c);
+            String username = currentAccountName();
+            JSONObject out = new JSONObject();
+            out.put("username", username);
+            out.put("display", session == null ? username : session.userName);
+            out.put("admin", isAdminUser() || "admin".equals(chatRole(c, username)) || "manager".equals(chatRole(c, username)));
+            out.put("closed", "1".equals(chatSetting(c, "chat_closed", "0")));
+            out.put("silentUntil", chatSetting(c, "silent_until", ""));
+            out.put("scheduleDelay", prefs == null ? 0 : prefs.getInt("chat_schedule_delay", 0));
+            out.put("members", queryChatMembers(c));
+            out.put("kicked", isChatKicked(c, username));
+            out.put("muted", isChatMuted(c, username));
+            JSONArray msgs = new JSONArray();
+            String sql = "SELECT TOP (80) id,sender,display_name,kind,body,attachment_name,attachment_mime,pinned,CONVERT(nvarchar(19),created_at,120),CASE WHEN attachment_data IS NULL THEN 0 ELSE DATALENGTH(attachment_data) END FROM dbo.meelano_chat_messages WHERE deleted=0 AND (scheduled_at IS NULL OR scheduled_at<=SYSDATETIME()) ORDER BY pinned DESC, created_at DESC, id DESC";
+            try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
+                while (r.next()) {
+                    JSONObject m = new JSONObject();
+                    m.put("id", r.getLong(1)); m.put("sender", stringOr(r.getString(2), "")); m.put("display", stringOr(r.getString(3), r.getString(2)));
+                    m.put("kind", stringOr(r.getString(4), "text")); m.put("body", stringOr(r.getString(5), "")); m.put("file", stringOr(r.getString(6), ""));
+                    m.put("mime", stringOr(r.getString(7), "")); m.put("pinned", r.getBoolean(8)); m.put("time", stringOr(r.getString(9), "")); m.put("bytes", r.getLong(10)); msgs.put(m);
+                }
+            }
+            out.put("messages", msgs);
+            return out.toString();
+        }
+    }
+
+    private String chatRole(Connection c, String username) {
+        try (PreparedStatement ps = c.prepareStatement("SELECT role FROM dbo.meelano_chat_members WHERE username=?")) {
+            ps.setString(1, username);
+            try (ResultSet r = ps.executeQuery()) { if (r.next()) return stringOr(r.getString(1), "user"); }
+        } catch (Exception ignored) { }
+        return isAdminUser() ? "admin" : "user";
+    }
+
+    private boolean isChatKicked(Connection c, String username) {
+        try (PreparedStatement ps = c.prepareStatement("SELECT kicked FROM dbo.meelano_chat_members WHERE username=?")) {
+            ps.setString(1, username);
+            try (ResultSet r = ps.executeQuery()) { return r.next() && r.getBoolean(1); }
+        } catch (Exception ignored) { return false; }
+    }
+
+    private boolean isChatMuted(Connection c, String username) {
+        try (PreparedStatement ps = c.prepareStatement("SELECT CASE WHEN muted_until IS NOT NULL AND muted_until>SYSDATETIME() THEN 1 ELSE 0 END FROM dbo.meelano_chat_members WHERE username=?")) {
+            ps.setString(1, username);
+            try (ResultSet r = ps.executeQuery()) { return r.next() && r.getInt(1) == 1; }
+        } catch (Exception ignored) { return false; }
+    }
+
+    private JSONArray queryChatMembers(Connection c) throws Exception {
+        JSONArray arr = new JSONArray();
+        try (PreparedStatement ps = c.prepareStatement("SELECT TOP (80) username,display_name,role,kicked,CONVERT(nvarchar(19),last_seen,120) FROM dbo.meelano_chat_members ORDER BY last_seen DESC")) {
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) {
+                    JSONObject o = new JSONObject(); o.put("username", stringOr(r.getString(1), "")); o.put("display", stringOr(r.getString(2), r.getString(1))); o.put("role", stringOr(r.getString(3), "user")); o.put("kicked", r.getBoolean(4)); o.put("last", stringOr(r.getString(5), "")); arr.put(o);
+                }
+            }
+        }
+        return arr;
+    }
+
+    private void loadChatRoom() {
+        content.removeAllViews();
+        addHero("گفتگو", "چت‌روم گروهی مدیر و کارکنان؛ بدون چت خصوصی بین کاربران");
+        addManualRefreshPanel("chat", "بروزرسانی گفتگو", "پیام‌ها از اتاق گفتگوی مشترک خوانده می‌شوند", () -> loadChatRoom());
+        addLoading(content, "در حال دریافت گفتگو…");
+        runDb(this::loadChatRoomSql, new DbCallback() {
+            @Override public void ok(String body) { try { renderChatRoom(new JSONObject(body)); } catch (Exception e) { showPageError("گفتگو", e, () -> loadChatRoom()); } }
+            @Override public void fail(Exception e) { showPageError("گفتگو", e, () -> loadChatRoom()); }
+        });
+    }
+
+    private void renderChatRoom(JSONObject state) {
+        content.removeAllViews();
+        addHero("گفتگو", "اتاق عمومی پرسنل Meelano؛ کاربران دیده می‌شوند اما گفتگوی خصوصی وجود ندارد.");
+        addManualRefreshPanel("chat", "تازه‌سازی گفتگو", state.optBoolean("closed") ? "گفتگو موقتاً بسته است" : "ارسال گروهی فعال است", () -> loadChatRoom());
+        boolean admin = state.optBoolean("admin");
+        if (state.optBoolean("kicked")) { addEmptyTo(content, "دسترسی شما به اتاق گفتگو توسط مدیر بسته شده است."); return; }
+        if (admin) addChatAdminPanel(state);
+        addChatMembersStrip(state.optJSONArray("members"));
+        JSONArray messages = state.optJSONArray("messages");
+        if (messages == null || messages.length() == 0) addEmptyTo(content, "هنوز پیامی در گفتگو ثبت نشده است.");
+        else for (int i = 0; i < messages.length(); i++) addChatMessageCard(messages.optJSONObject(i), admin);
+        addChatComposer(state);
+    }
+
+    private void addChatMembersStrip(JSONArray members) {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(navAccent("chat"), 28), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        c.addView(text("اعضای گفتگو", 14.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        if (members != null) {
+            LinearLayout row = null;
+            for (int i = 0; i < Math.min(6, members.length()); i++) {
+                if (i % 3 == 0) { row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); c.addView(row, new LinearLayout.LayoutParams(-1, -2)); }
+                JSONObject m = members.optJSONObject(i);
+                TextView chip = text((m == null ? "کاربر" : m.optString("display", "کاربر")) + (m != null && "admin".equals(m.optString("role")) ? " ★" : ""), 9.2f, TEXT, Typeface.BOLD);
+                chip.setGravity(Gravity.CENTER); chip.setSingleLine(true); chip.setEllipsize(TextUtils.TruncateAt.END);
+                chip.setBackground(roundedStroke(alpha(navAccent("chat"), 18), 999, alpha(navAccent("chat"), 66)));
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(32), 1f); cp.setMargins(dp(3), dp(6), dp(3), 0);
+                if (row != null) row.addView(chip, cp);
+            }
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addChatMessageCard(JSONObject m, boolean admin) {
+        if (m == null) return;
+        int accent = m.optBoolean("pinned") ? GOLD : navAccent("chat");
+        LinearLayout c = card(); c.setPadding(dp(12), dp(10), dp(12), dp(10));
+        c.setBackground(roundedStroke(alpha(accent, m.optBoolean("pinned") ? 25 : 14), 18, alpha(accent, 68)));
+        String head = (m.optBoolean("pinned") ? "📌 " : "") + m.optString("display", m.optString("sender", "کاربر")) + " • " + m.optString("time", "") + "  #" + m.optLong("id");
+        c.addView(text(head, 10.5f, accent, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        if (!m.optString("body", "").isEmpty()) {
+            TextView body = text(m.optString("body", ""), 12.4f, TEXT, Typeface.NORMAL); body.setLineSpacing(dp(2), 1.06f); c.addView(body, new LinearLayout.LayoutParams(-1, -2));
+        }
+        if (!m.optString("file", "").isEmpty()) {
+            TextView f = text("پیوست: " + m.optString("file") + " • " + compactBytes(m.optLong("bytes")) + " • " + m.optString("kind", "file"), 10.4f, MUTED, Typeface.BOLD);
+            f.setBackground(roundedStroke(alpha(accent, 16), 14, alpha(accent, 58))); f.setPadding(dp(8), dp(6), dp(8), dp(6));
+            LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(-1, -2); fp.setMargins(0, dp(6), 0, 0); c.addView(f, fp);
+        }
+        if (admin) {
+            LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+            Button pin = secondaryButton(m.optBoolean("pinned") ? "برداشتن پین" : "پین"); pin.setTextSize(9.2f);
+            Button del = secondaryButton("حذف"); del.setTextSize(9.2f);
+            long id = m.optLong("id"); boolean nextPinned = !m.optBoolean("pinned");
+            pin.setOnClickListener(v -> chatAdminMessageAction(id, nextPinned, false));
+            del.setOnClickListener(v -> chatAdminMessageAction(id, false, true));
+            row.addView(pin, weightedButtonLp()); row.addView(del, weightedButtonLp());
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(7), 0, 0); c.addView(row, rp);
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(8)); content.addView(c, lp);
+    }
+
+    private String compactBytes(long b) {
+        if (b <= 0) return "بدون حجم";
+        if (b > 1024L * 1024L) return formatNumber(b / 1024d / 1024d) + " MB";
+        return formatNumber(b / 1024d) + " KB";
+    }
+
+    private void addChatComposer(JSONObject state) {
+        boolean admin = state.optBoolean("admin");
+        boolean closed = state.optBoolean("closed");
+        boolean muted = state.optBoolean("muted");
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(navAccent("chat"), 30), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 24));
+        if (closed && !admin) { c.addView(text("گفتگو موقتاً توسط مدیر بسته شده است.", 12.5f, WARNING, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2)); content.addView(c, new LinearLayout.LayoutParams(-1, -2)); return; }
+        if (muted && !admin) { c.addView(text("ارسال پیام شما موقتاً بی‌صدا/محدود شده است.", 12.5f, WARNING, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2)); content.addView(c, new LinearLayout.LayoutParams(-1, -2)); return; }
+        EditText input = input("پیام گروهی…", "", false);
+        input.setMinLines(2); input.setMaxLines(4); c.addView(input, new LinearLayout.LayoutParams(-1, dp(74)));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        Button send = primaryButton(state.optInt("scheduleDelay", 0) > 0 ? "ارسال زمان‌دار" : "ارسال"); send.setTextSize(10.2f);
+        Button sticker = secondaryButton("استیکر"); sticker.setTextSize(10.2f);
+        send.setOnClickListener(v -> sendChatText(input.getText().toString()));
+        sticker.setOnClickListener(v -> sendChatText("😊✨"));
+        row.addView(send, weightedButtonLp()); row.addView(sticker, weightedButtonLp()); c.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
+        Button photo = secondaryButton("عکس"); Button video = secondaryButton("ویدیو"); Button audio = secondaryButton("ویس"); Button file = secondaryButton("فایل");
+        photo.setTextSize(9.3f); video.setTextSize(9.3f); audio.setTextSize(9.3f); file.setTextSize(9.3f);
+        photo.setOnClickListener(v -> pickChatAttachment("image", "image/*")); video.setOnClickListener(v -> pickChatAttachment("video", "video/*")); audio.setOnClickListener(v -> pickChatAttachment("audio", "audio/*")); file.setOnClickListener(v -> pickChatAttachment("file", "*/*"));
+        row2.addView(photo, weightedButtonLp()); row2.addView(video, weightedButtonLp()); row2.addView(audio, weightedButtonLp()); row2.addView(file, weightedButtonLp());
+        LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(6), 0, 0); c.addView(row2, r2p);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(6), 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addChatAdminPanel(JSONObject state) {
+        LinearLayout c = card(); c.setBackground(gradient(new int[]{alpha(DANGER, 20), alpha(navAccent("chat"), 22), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.addView(text("مدیریت گفتگو", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("بستن موقت، سکوت، پین پیام، زمان‌بندی ارسال، اخراج یا اعطای دسترسی مدیر/کارمند", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout r1 = new LinearLayout(this); r1.setOrientation(LinearLayout.HORIZONTAL);
+        Button close = secondaryButton(state.optBoolean("closed") ? "بازکردن گفتگو" : "بستن گفتگو");
+        Button silent = secondaryButton("بی‌صدا ۱ ساعت");
+        close.setTextSize(9.4f); silent.setTextSize(9.4f);
+        close.setOnClickListener(v -> chatSetClosed(!state.optBoolean("closed")));
+        silent.setOnClickListener(v -> chatSetSilentOneHour());
+        r1.addView(close, weightedButtonLp()); r1.addView(silent, weightedButtonLp()); c.addView(r1, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout r2 = new LinearLayout(this); r2.setOrientation(LinearLayout.HORIZONTAL);
+        Button schedule = secondaryButton("ارسال ۱۵ دقیقه بعد"); Button grant = secondaryButton("مدیر/کارمند");
+        schedule.setTextSize(9.4f); grant.setTextSize(9.4f);
+        schedule.setOnClickListener(v -> { if (prefs != null) prefs.edit().putInt("chat_schedule_delay", 15).apply(); Toast.makeText(this, "پیام بعدی زمان‌دار شد.", Toast.LENGTH_SHORT).show(); loadChatRoom(); });
+        grant.setOnClickListener(v -> showChatMemberAdminDialog(false));
+        r2.addView(schedule, weightedButtonLp()); r2.addView(grant, weightedButtonLp()); LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(6), 0, 0); c.addView(r2, r2p);
+        LinearLayout r3 = new LinearLayout(this); r3.setOrientation(LinearLayout.HORIZONTAL);
+        Button kick = secondaryButton("اخراج/بازگردانی"); Button mute = secondaryButton("سکوت کاربر");
+        kick.setTextSize(9.4f); mute.setTextSize(9.4f);
+        kick.setOnClickListener(v -> showChatMemberAdminDialog(true));
+        mute.setOnClickListener(v -> showChatMuteDialog());
+        r3.addView(kick, weightedButtonLp()); r3.addView(mute, weightedButtonLp()); LinearLayout.LayoutParams r3p = new LinearLayout.LayoutParams(-1, -2); r3p.setMargins(0, dp(6), 0, 0); c.addView(r3, r3p);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void sendChatText(String text) {
+        String body = text == null ? "" : text.trim(); if (body.isEmpty()) return;
+        runDb(() -> { insertChatMessage("text", body, null, null, null); return "ok"; }, new DbCallback() { @Override public void ok(String b) { loadChatRoom(); } @Override public void fail(Exception e) { showPageError("ارسال گفتگو", e, () -> loadChatRoom()); } });
+    }
+
+    private void insertChatMessage(String kind, String body, String fileName, String mime, byte[] data) throws Exception {
+        try (Connection c = openConnection()) {
+            ensureMeelanoCollabTables(c);
+            String username = currentAccountName();
+            boolean admin = isAdminUser() || "admin".equals(chatRole(c, username)) || "manager".equals(chatRole(c, username));
+            if (isChatKicked(c, username)) throw new DbException("دسترسی شما به گفتگو بسته شده است.");
+            if (!admin && "1".equals(chatSetting(c, "chat_closed", "0"))) throw new DbException("گفتگو موقتاً توسط مدیر بسته شده است.");
+            if (!admin && isChatMuted(c, username)) throw new DbException("ارسال پیام شما موقتاً محدود است.");
+            int delay = prefs == null ? 0 : prefs.getInt("chat_schedule_delay", 0);
+            String display = session == null ? username : stringOr(session.userName, username);
+            String sql = delay > 0 ? "INSERT INTO dbo.meelano_chat_messages(sender,display_name,kind,body,attachment_name,attachment_mime,attachment_data,scheduled_at) VALUES(?,?,?,?,?,?,?,DATEADD(minute,?,SYSDATETIME()))" : "INSERT INTO dbo.meelano_chat_messages(sender,display_name,kind,body,attachment_name,attachment_mime,attachment_data) VALUES(?,?,?,?,?,?,?)";
+            try (PreparedStatement ps = c.prepareStatement(sql)) {
+                ps.setString(1, username); ps.setString(2, display); ps.setString(3, kind == null ? "text" : kind); ps.setString(4, body); ps.setString(5, fileName); ps.setString(6, mime); ps.setBytes(7, data); if (delay > 0) ps.setInt(8, delay); ps.executeUpdate();
+            }
+            if (prefs != null && delay > 0) prefs.edit().putInt("chat_schedule_delay", 0).apply();
+        }
+    }
+
+    private void pickChatAttachment(String kind, String mime) {
+        pendingChatAttachmentKind = kind == null ? "file" : kind;
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType(mime == null ? "*/*" : mime);
+        try { startActivityForResult(i, REQ_CHAT_ATTACHMENT); }
+        catch (Exception ex) { Toast.makeText(this, "انتخاب فایل روی این دستگاه در دسترس نیست.", Toast.LENGTH_SHORT).show(); }
+    }
+
+    private String displayNameForUri(Uri uri) {
+        if (uri == null) return "attachment";
+        try (Cursor cursor = getContentResolver().query(uri, null, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (idx >= 0) return stringOr(cursor.getString(idx), "attachment");
+            }
+        } catch (Exception ignored) { }
+        return stringOr(uri.getLastPathSegment(), "attachment");
+    }
+
+    private byte[] readUriBytes(Uri uri) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (InputStream in = getContentResolver().openInputStream(uri)) {
+            if (in == null) return new byte[0];
+            byte[] buf = new byte[8192]; int n;
+            while ((n = in.read(buf)) >= 0) out.write(buf, 0, n);
+        }
+        return out.toByteArray();
+    }
+
+    private void handleChatAttachment(Uri uri) {
+        if (uri == null) return;
+        String name = displayNameForUri(uri);
+        String mime = getContentResolver().getType(uri);
+        String kind = pendingChatAttachmentKind == null ? "file" : pendingChatAttachmentKind;
+        executor.execute(() -> {
+            try {
+                byte[] data = readUriBytes(uri);
+                insertChatMessage(kind, "", name, mime, data);
+                runOnUiThread(() -> { Toast.makeText(this, "پیوست در گفتگو ارسال شد.", Toast.LENGTH_SHORT).show(); loadChatRoom(); });
+            } catch (Exception ex) { runOnUiThread(() -> showPageError("ارسال پیوست", ex, () -> loadChatRoom())); }
+        });
+    }
+
+    private void chatSetClosed(boolean closed) { runDb(() -> { try (Connection c = openConnection()) { ensureMeelanoCollabTables(c); setChatSetting(c, "chat_closed", closed ? "1" : "0"); } return "ok"; }, new DbCallback() { @Override public void ok(String b) { loadChatRoom(); } @Override public void fail(Exception e) { showPageError("مدیریت گفتگو", e, () -> loadChatRoom()); } }); }
+    private void chatSetSilentOneHour() { runDb(() -> { try (Connection c = openConnection()) { ensureMeelanoCollabTables(c); setChatSetting(c, "silent_until", nowText() + " +۱ ساعت"); } return "ok"; }, new DbCallback() { @Override public void ok(String b) { Toast.makeText(MainActivity.this, "گفتگو برای اعلان‌ها بی‌صدا شد.", Toast.LENGTH_SHORT).show(); loadChatRoom(); } @Override public void fail(Exception e) { showPageError("مدیریت گفتگو", e, () -> loadChatRoom()); } }); }
+
+    private void chatAdminMessageAction(long id, boolean pin, boolean del) {
+        runDb(() -> { try (Connection c = openConnection()) { ensureMeelanoCollabTables(c); try (PreparedStatement ps = c.prepareStatement(del ? "UPDATE dbo.meelano_chat_messages SET deleted=1 WHERE id=?" : "UPDATE dbo.meelano_chat_messages SET pinned=? WHERE id=?")) { if (del) ps.setLong(1, id); else { ps.setBoolean(1, pin); ps.setLong(2, id); } ps.executeUpdate(); } } return "ok"; }, new DbCallback() { @Override public void ok(String b) { loadChatRoom(); } @Override public void fail(Exception e) { showPageError("مدیریت پیام", e, () -> loadChatRoom()); } });
+    }
+
+    private void showChatMemberAdminDialog(boolean kickMode) {
+        EditText user = input("نام کاربری", "", false);
+        new AlertDialog.Builder(this).setTitle(kickMode ? "اخراج یا بازگردانی کاربر" : "اعطای دسترسی").setView(user).setNegativeButton("بستن", null).setNeutralButton(kickMode ? "بازگردانی" : "کارمند", (d,w) -> chatMemberUpdate(user.getText().toString(), kickMode ? "restore" : "user")).setPositiveButton(kickMode ? "اخراج" : "مدیر", (d,w) -> chatMemberUpdate(user.getText().toString(), kickMode ? "kick" : "admin")).show();
+    }
+
+    private void showChatMuteDialog() {
+        EditText user = input("نام کاربری برای سکوت ۲ ساعت", "", false);
+        new AlertDialog.Builder(this).setTitle("سکوت کاربر").setView(user).setNegativeButton("بستن", null).setPositiveButton("اعمال", (d,w) -> chatMemberUpdate(user.getText().toString(), "mute")).show();
+    }
+
+    private void chatMemberUpdate(String username, String action) {
+        String u = username == null ? "" : username.trim(); if (u.isEmpty()) return;
+        runDb(() -> { try (Connection c = openConnection()) { ensureMeelanoCollabTables(c); String sql; if ("kick".equals(action)) sql = "UPDATE dbo.meelano_chat_members SET kicked=1 WHERE username=?"; else if ("restore".equals(action)) sql = "UPDATE dbo.meelano_chat_members SET kicked=0, muted_until=NULL WHERE username=?"; else if ("mute".equals(action)) sql = "UPDATE dbo.meelano_chat_members SET muted_until=DATEADD(hour,2,SYSDATETIME()) WHERE username=?"; else sql = "UPDATE dbo.meelano_chat_members SET role=? WHERE username=?"; try (PreparedStatement ps = c.prepareStatement(sql)) { if ("admin".equals(action) || "user".equals(action)) { ps.setString(1, action); ps.setString(2, u); } else ps.setString(1, u); ps.executeUpdate(); } } return "ok"; }, new DbCallback() { @Override public void ok(String b) { loadChatRoom(); } @Override public void fail(Exception e) { showPageError("مدیریت کاربر", e, () -> loadChatRoom()); } });
+    }
+
+    private void loadPersonnel() {
+        content.removeAllViews(); addHero("پرسنل", "کارت حرفه‌ای پرسنل، مانده حساب و عملکرد لحظه‌ای"); addManualRefreshPanel("personnel", "بروزرسانی دستی پرسنل", "اطلاعات تا تازه‌سازی دستی ثابت می‌ماند", () -> loadPersonnel()); addLoading(content, "در حال دریافت پرسنل…");
+        runDb(this::queryPersonnel, new DbCallback() { @Override public void ok(String body) { try { renderPersonnel(new JSONArray(body)); markRefresh("personnel"); } catch (Exception e) { showPageError("پرسنل", e, () -> loadPersonnel()); } } @Override public void fail(Exception e) { showPageError("پرسنل", e, () -> loadPersonnel()); } });
+    }
+
+    private String queryPersonnel() throws Exception {
+        try (Connection c = openConnection()) {
+            Set<String> v = columns(c, "visitors"); Set<String> sail = columns(c, "sailfact");
+            String id = resolve(v, "vis_rdf", "rdf", "ID", "id"); String name = resolve(v, "vis_name", "name", "Name", "MONAME"); String username = resolve(v, "Username", "user_name", "user", "login");
+            String phone = resolve(v, "mobile", "Mobile", "tel", "Tell", "phone"); String balance = resolve(v, "man", "mande", "balance", "Mandeh", "hesab");
+            if (id == null) return "[]";
+            String nameExpr = name == null ? "TRY_CONVERT(nvarchar(220),v.[" + id + "])" : "TRY_CONVERT(nvarchar(220),v.[" + name + "])";
+            String userExpr = username == null ? "CAST(NULL AS nvarchar(120))" : "TRY_CONVERT(nvarchar(120),v.[" + username + "])";
+            String phoneExpr = phone == null ? "CAST(NULL AS nvarchar(120))" : "TRY_CONVERT(nvarchar(120),v.[" + phone + "])";
+            String balExpr = balance == null ? "CAST(0 AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),v.[" + balance + "])";
+            String join = ""; String docCount="CAST(0 AS bigint)", saleTotal="CAST(0 AS decimal(19,2))", lastDate="CAST(NULL AS nvarchar(30))";
+            if (hasCol(sail, "vis_rdf") && hasCol(sail, "all")) { join = " LEFT JOIN dbo.sailfact s ON TRY_CONVERT(nvarchar(100),s.vis_rdf)=TRY_CONVERT(nvarchar(100),v.[" + id + "])"; docCount="COUNT(s.vis_rdf)"; saleTotal="ISNULL(SUM(TRY_CONVERT(decimal(19,2),s.[all])),0)"; if (hasCol(sail,"date")) lastDate="MAX(TRY_CONVERT(nvarchar(30),s.[date]))"; }
+            String where = activeWhere(v, "v");
+            String sql = "SELECT TOP (120) TRY_CONVERT(nvarchar(100),v.[" + id + "]), " + nameExpr + ", " + userExpr + ", " + phoneExpr + ", " + balExpr + ", " + docCount + ", " + saleTotal + ", " + lastDate + " FROM dbo.visitors v" + join + " " + where + " GROUP BY v.[" + id + "]," + nameExpr + "," + userExpr + "," + phoneExpr + "," + balExpr + " ORDER BY " + nameExpr;
+            JSONArray arr = new JSONArray(); try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("id", stringOr(r.getString(1), "")); o.put("name", stringOr(r.getString(2), "پرسنل")); o.put("username", stringOr(r.getString(3), "")); o.put("phone", stringOr(r.getString(4), "")); o.put("balance", r.getDouble(5)); o.put("docs", r.getLong(6)); o.put("sales", r.getDouble(7)); o.put("last", stringOr(r.getString(8), "")); arr.put(o); } }
+            return arr.toString();
+        }
+    }
+
+    private void renderPersonnel(JSONArray rows) {
+        content.removeAllViews(); addHero("پرسنل", "مانده، فروش، آخرین فعالیت و گردش اختصاصی هر نفر"); addManualRefreshPanel("personnel", "بروزرسانی دستی پرسنل", "آخرین بروزرسانی: " + lastRefreshText("personnel"), () -> loadPersonnel());
+        if (rows == null || rows.length() == 0) { addEmptyTo(content, "پرسنلی پیدا نشد."); return; }
+        for (int i=0;i<rows.length();i++) { JSONObject r=rows.optJSONObject(i); if (r==null) continue; LinearLayout c=card(); int accent=i%3==0?SUCCESS:(i%3==1?INFO:GOLD); c.setBackground(gradient(new int[]{alpha(accent, 26), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 22)); c.addView(text(r.optString("name","پرسنل"), 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2)); c.addView(text("نام کاربری: " + stringOr(r.optString("username"), "—") + " • کد: " + r.optString("id","—"), 10.3f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2)); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.addView(customerMiniMetric("مانده", money(r.opt("balance")), accent), weightedMiniLp()); row.addView(customerMiniMetric("فروش", compactMoney(r.opt("sales")), GOLD), weightedMiniLp()); row.addView(customerMiniMetric("فاکتور", formatNumber(r.opt("docs")), INFO), weightedMiniLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(8),0,0); c.addView(row,rp); TextView more=text("مشاهده گردش حساب، فاکتورها، دریافت‌ها و پرداخت‌ها", 10.4f, accent, Typeface.BOLD); more.setGravity(Gravity.CENTER); LinearLayout.LayoutParams mp=new LinearLayout.LayoutParams(-1,-2); mp.setMargins(0,dp(8),0,0); c.addView(more,mp); c.setClickable(true); c.setOnClickListener(v -> showPersonnelDetail(r)); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(10)); content.addView(c,lp); }
+    }
+
+    private void showPersonnelDetail(JSONObject person) {
+        content.removeAllViews(); addHero("پرونده پرسنلی", person.optString("name","پرسنل")); Button back=secondaryButton("بازگشت به پرسنل"); back.setOnClickListener(v -> loadPersonnel()); content.addView(back, new LinearLayout.LayoutParams(-1, dp(48))); addLoading(content, "در حال دریافت پرونده پرسنل…");
+        runDb(() -> queryPersonnelDetail(person.optString("id","")), new DbCallback(){ @Override public void ok(String body){ try { renderPersonnelDetail(person, new JSONObject(body)); } catch(Exception e){ showPageError("پرسنل", e, () -> showPersonnelDetail(person)); } } @Override public void fail(Exception e){ showPageError("پرسنل", e, () -> showPersonnelDetail(person)); }});
+    }
+
+    private String queryPersonnelDetail(String id) throws Exception {
+        try(Connection c=openConnection()) { JSONObject out=new JSONObject(); JSONArray docs=new JSONArray(); Set<String> sail=columns(c,"sailfact"); if(id!=null&&!id.isEmpty()&&hasCol(sail,"vis_rdf")&&hasCol(sail,"shfacfo")){ String date=resolve(sail,"date"); String amount=resolve(sail,"all"); String shmo=resolve(sail,"shmo"); String paid=resolve(sail,"MabDaryaftFactor","Daryaft","received"); String sql="SELECT TOP (120) TRY_CONVERT(nvarchar(80),shfacfo), "+(date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),["+date+"])") +", "+(shmo==null?"CAST(NULL AS nvarchar(100))":"TRY_CONVERT(nvarchar(100),["+shmo+"])") +", "+(amount==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),["+amount+"])") +", "+(paid==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),["+paid+"])") +" FROM dbo.sailfact WHERE TRY_CONVERT(nvarchar(100),vis_rdf)=?"+activeAnd(sail,"")+" ORDER BY "+(date==null?"1":"["+date+"] DESC"); try(PreparedStatement ps=c.prepareStatement(sql)){ ps.setString(1,id); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("number",stringOr(r.getString(1),"—")); o.put("date",stringOr(r.getString(2),"")); o.put("party",stringOr(r.getString(3),"")); o.put("amount",r.getDouble(4)); o.put("paid",r.getDouble(5)); docs.put(o); } } } } out.put("documents", docs); return out.toString(); }
+    }
+
+    private void renderPersonnelDetail(JSONObject person, JSONObject data) {
+        content.removeAllViews(); addHero("پرونده پرسنلی", person.optString("name","پرسنل") + " • مانده " + money(person.opt("balance"))); Button back=secondaryButton("بازگشت به پرسنل"); back.setOnClickListener(v -> loadPersonnel()); LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(48)); bp.setMargins(0,0,0,dp(12)); content.addView(back,bp); LinearLayout top=card(); top.setBackground(gradient(new int[]{alpha(navAccent("personnel"),30), alpha(SURFACE,250)}, GradientDrawable.Orientation.TL_BR,22)); top.addView(text("اطلاعات ضروری",15,TEXT,Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2)); top.addView(text("نام کاربری: "+stringOr(person.optString("username"),"—")+" • تماس: "+stringOr(person.optString("phone"),"—")+" • آخرین فعالیت: "+stringOr(person.optString("last"),"—"),10.5f,MUTED,Typeface.NORMAL), new LinearLayout.LayoutParams(-1,-2)); content.addView(top,new LinearLayout.LayoutParams(-1,-2)); JSONArray docs=data.optJSONArray("documents"); if(docs==null||docs.length()==0){ addEmptyTo(content,"فاکتور یا گردش قابل نمایش برای این پرسنل پیدا نشد."); return;} LinearLayout list=card(); list.addView(text("گردش فاکتورها و دریافت‌ها",15,TEXT,Typeface.BOLD), new LinearLayout.LayoutParams(-1,-2)); for(int i=0;i<Math.min(120,docs.length());i++){ JSONObject d=docs.optJSONObject(i); LinearLayout line=checkDashboardRow("فاکتور "+d.optString("number","—")+" • "+d.optString("date",""), d.opt("amount"), d.opt("paid"), navAccent("personnel")); list.addView(line, compactRowLp()); } LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,dp(10),0,dp(12)); content.addView(list,lp);
+    }
+
+    private void loadAttendance() {
+        content.removeAllViews(); addHero("حضور", "ثبت حضور با مودم محل کار، مرخصی و گزارش مدیریتی"); addManualRefreshPanel("attendance", "بروزرسانی حضور و غیاب", "نمای فعلی ثابت است تا تازه‌سازی دستی", () -> loadAttendance()); addLoading(content,"در حال دریافت حضور و غیاب…");
+        runDb(this::queryAttendanceState, new DbCallback(){ @Override public void ok(String body){ try{ renderAttendance(new JSONObject(body)); markRefresh("attendance"); }catch(Exception e){ showPageError("حضور",e,()->loadAttendance()); } } @Override public void fail(Exception e){ showPageError("حضور",e,()->loadAttendance()); }});
+    }
+
+    private String queryAttendanceState() throws Exception { try(Connection c=openConnection()){ ensureMeelanoCollabTables(c); JSONObject out=new JSONObject(); boolean admin=isAdminUser()||"admin".equals(chatRole(c,currentAccountName()))||"manager".equals(chatRole(c,currentAccountName())); out.put("admin",admin); out.put("wifiSsid",chatSetting(c,"work_wifi_ssid","")); out.put("wifiBssid",chatSetting(c,"work_wifi_bssid","")); out.put("wifiGateway",chatSetting(c,"work_wifi_gateway","")); out.put("mine",queryAttendanceRows(c, currentAccountName(), false)); if(admin){ out.put("today",queryAttendanceRows(c,"", true)); out.put("leaves",queryLeaveRequests(c)); } else out.put("leaves",queryLeaveRequestsForUser(c,currentAccountName())); return out.toString(); } }
+
+    private JSONArray queryAttendanceRows(Connection c, String username, boolean todayAll) throws Exception { JSONArray arr=new JSONArray(); String sql=todayAll?"SELECT TOP (150) username,display_name,event_type,CONVERT(nvarchar(19),event_time,120),wifi_ssid,wifi_bssid,gateway FROM dbo.meelano_attendance WHERE CONVERT(date,event_time)=CONVERT(date,SYSDATETIME()) ORDER BY event_time DESC":"SELECT TOP (80) username,display_name,event_type,CONVERT(nvarchar(19),event_time,120),wifi_ssid,wifi_bssid,gateway FROM dbo.meelano_attendance WHERE username=? ORDER BY event_time DESC"; try(PreparedStatement ps=c.prepareStatement(sql)){ if(!todayAll) ps.setString(1,username); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("username",stringOr(r.getString(1),"")); o.put("display",stringOr(r.getString(2),r.getString(1))); o.put("type",stringOr(r.getString(3),"")); o.put("time",stringOr(r.getString(4),"")); o.put("ssid",stringOr(r.getString(5),"")); o.put("bssid",stringOr(r.getString(6),"")); o.put("gateway",stringOr(r.getString(7),"")); arr.put(o);} } } return arr; }
+
+    private JSONArray queryLeaveRequests(Connection c) throws Exception { JSONArray arr=new JSONArray(); try(PreparedStatement ps=c.prepareStatement("SELECT TOP (80) id,username,display_name,leave_type,start_date,end_date,hours,reason,status,created_at FROM dbo.meelano_leave_requests ORDER BY CASE WHEN status=N'pending' THEN 0 ELSE 1 END, created_at DESC")){ try(ResultSet r=ps.executeQuery()){ while(r.next()) arr.put(leaveRow(r)); } } return arr; }
+    private JSONArray queryLeaveRequestsForUser(Connection c,String username) throws Exception { JSONArray arr=new JSONArray(); try(PreparedStatement ps=c.prepareStatement("SELECT TOP (30) id,username,display_name,leave_type,start_date,end_date,hours,reason,status,created_at FROM dbo.meelano_leave_requests WHERE username=? ORDER BY created_at DESC")){ ps.setString(1,username); try(ResultSet r=ps.executeQuery()){ while(r.next()) arr.put(leaveRow(r)); } } return arr; }
+    private JSONObject leaveRow(ResultSet r) throws Exception { JSONObject o=new JSONObject(); o.put("id",r.getLong(1)); o.put("username",stringOr(r.getString(2),"")); o.put("display",stringOr(r.getString(3),r.getString(2))); o.put("type",stringOr(r.getString(4),"")); o.put("start",stringOr(r.getString(5),"")); o.put("end",stringOr(r.getString(6),"")); o.put("hours",stringOr(r.getString(7),"")); o.put("reason",stringOr(r.getString(8),"")); o.put("status",stringOr(r.getString(9),"")); o.put("created",stringOr(r.getString(10),"")); return o; }
+
+    private void renderAttendance(JSONObject state) {
+        content.removeAllViews(); addHero("حضور", state.optBoolean("admin")?"پنل مدیریت حضور، خروج و مرخصی پرسنل":"ثبت ورود/خروج و درخواست مرخصی"); addManualRefreshPanel("attendance","بروزرسانی حضور","آخرین بروزرسانی: "+lastRefreshText("attendance"),()->loadAttendance()); addAttendanceWifiCard(state); if(state.optBoolean("admin")) addAttendanceAdminBlocks(state); else { addAttendanceUserActions(state); addLeaveList("درخواست‌های مرخصی من", state.optJSONArray("leaves"), false); } }
+
+    private void addAttendanceWifiCard(JSONObject state){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(navAccent("attendance"),28),alpha(SURFACE,250)},GradientDrawable.Orientation.TL_BR,22)); JSONObject wifi=currentWifiFingerprint(); c.addView(text("مودم محل کار",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("ثبت‌شده: "+stringOr(state.optString("wifiSsid"),"تنظیم نشده")+" • فعلی: "+stringOr(wifi.optString("ssid"),"نامشخص"),10.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(state.optBoolean("admin")){ Button cap=primaryButton("ثبت همین مودم به عنوان محل کار"); cap.setOnClickListener(v->captureWorkWifi()); LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,dp(44)); cp.setMargins(0,dp(10),0,0); c.addView(cap,cp);} LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
+
+    private void addAttendanceUserActions(JSONObject state){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(SUCCESS,24),alpha(SURFACE,250)},GradientDrawable.Orientation.RIGHT_LEFT,22)); c.addView(text("ثبت حضور با تأیید مودم",15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); c.addView(text("برای ثبت ورود یا خروج، گوشی باید به شبکه محل کار متصل باشد؛ رمز مودم در برنامه ذخیره نمی‌شود.",10.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button in=primaryButton("ثبت ورود"); Button out=secondaryButton("ثبت خروج"); in.setOnClickListener(v->recordAttendance("in")); out.setOnClickListener(v->recordAttendance("out")); row.addView(in,weightedButtonLp()); row.addView(out,weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(10),0,0); c.addView(row,rp); Button leave=secondaryButton("درخواست مرخصی"); leave.setOnClickListener(v->showLeaveRequestDialog()); LinearLayout.LayoutParams lpv=new LinearLayout.LayoutParams(-1,dp(44)); lpv.setMargins(0,dp(8),0,0); c.addView(leave,lpv); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); addAttendanceRows("آخرین ورود/خروج من", state.optJSONArray("mine")); }
+
+    private void addAttendanceAdminBlocks(JSONObject state){ addAttendanceRows("حضور امروز پرسنل", state.optJSONArray("today")); addLeaveList("درخواست‌های مرخصی", state.optJSONArray("leaves"), true); }
+    private void addAttendanceRows(String title, JSONArray rows){ LinearLayout c=card(); c.addView(text(title,15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); if(rows==null||rows.length()==0)c.addView(text("رکوردی ثبت نشده است.",11,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,dp(54))); else for(int i=0;i<Math.min(120,rows.length());i++){ JSONObject r=rows.optJSONObject(i); LinearLayout line=checkDashboardRow(("in".equals(r.optString("type"))?"ورود":"خروج")+" • "+r.optString("display",r.optString("username"))+" • "+r.optString("time"),0,r.optString("ssid",""),navAccent("attendance")); c.addView(line,compactRowLp()); } LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
+    private void addLeaveList(String title, JSONArray rows, boolean admin){ LinearLayout c=card(); c.setBackground(gradient(new int[]{alpha(INFO,20),alpha(SURFACE,250)},GradientDrawable.Orientation.TL_BR,22)); c.addView(text(title,15,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); if(rows==null||rows.length()==0)c.addView(text("درخواستی ثبت نشده است.",11,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,dp(54))); else for(int i=0;i<Math.min(80,rows.length());i++){ JSONObject r=rows.optJSONObject(i); LinearLayout item=new LinearLayout(this); item.setOrientation(LinearLayout.VERTICAL); item.setPadding(dp(9),dp(8),dp(9),dp(8)); item.setBackground(roundedStroke(alpha(navAccent("attendance"),16),16,alpha(navAccent("attendance"),60))); item.addView(text("#"+r.optLong("id")+" • "+r.optString("display")+" • "+leaveStatusFa(r.optString("status")),11.2f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); item.addView(text(r.optString("type")+" • "+r.optString("start")+" تا "+r.optString("end")+" • "+r.optString("hours"),10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(!r.optString("reason").isEmpty()) item.addView(text(r.optString("reason"),10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2)); if(admin&&"pending".equals(r.optString("status"))){ LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button ok=primaryButton("تأیید"); Button no=secondaryButton("رد"); long id=r.optLong("id"); ok.setOnClickListener(v->decideLeave(id,true)); no.setOnClickListener(v->decideLeave(id,false)); row.addView(ok,weightedButtonLp()); row.addView(no,weightedButtonLp()); item.addView(row,new LinearLayout.LayoutParams(-1,-2)); } LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(-1,-2); ip.setMargins(0,dp(7),0,0); c.addView(item,ip);} LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp); }
+    private String leaveStatusFa(String s){ if("approved".equals(s))return "تأیید شده"; if("rejected".equals(s))return "رد شده"; return "در انتظار"; }
+
+    private JSONObject currentWifiFingerprint(){ JSONObject o=new JSONObject(); try{ if(Build.VERSION.SDK_INT>=23&&checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){ requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, REQ_WIFI_PERMISSION); o.put("error","نیاز به مجوز موقعیت برای خواندن نام WiFi"); return o;} WifiManager wm=(WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE); if(wm==null)return o; WifiInfo info=wm.getConnectionInfo(); if(info!=null){ String ssid=info.getSSID(); if(ssid!=null)ssid=ssid.replace("\"",""); o.put("ssid",ssid); o.put("bssid",stringOr(info.getBSSID(),"")); } try{ int g=wm.getDhcpInfo()==null?0:wm.getDhcpInfo().gateway; o.put("gateway", ((g)&0xff)+"."+((g>>8)&0xff)+"."+((g>>16)&0xff)+"."+((g>>24)&0xff)); }catch(Exception ignored){} }catch(Exception ignored){} return o; }
+    private void captureWorkWifi(){ JSONObject w=currentWifiFingerprint(); runDb(() -> { try(Connection c=openConnection()){ ensureMeelanoCollabTables(c); setChatSetting(c,"work_wifi_ssid",w.optString("ssid","")); setChatSetting(c,"work_wifi_bssid",w.optString("bssid","")); setChatSetting(c,"work_wifi_gateway",w.optString("gateway","")); } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this,"مودم محل کار ثبت شد.",Toast.LENGTH_SHORT).show(); loadAttendance(); } @Override public void fail(Exception e){ showPageError("ثبت مودم",e,()->loadAttendance()); }}); }
+    private void recordAttendance(String type){ JSONObject w=currentWifiFingerprint(); runDb(() -> { try(Connection c=openConnection()){ ensureMeelanoCollabTables(c); String ssid=chatSetting(c,"work_wifi_ssid",""); String bssid=chatSetting(c,"work_wifi_bssid",""); String gateway=chatSetting(c,"work_wifi_gateway",""); boolean ok=(!bssid.isEmpty()&&bssid.equalsIgnoreCase(w.optString("bssid")))||(!ssid.isEmpty()&&ssid.equals(w.optString("ssid")))||(!gateway.isEmpty()&&gateway.equals(w.optString("gateway"))); if(!ok) throw new DbException("برای ثبت حضور باید به مودم محل کار متصل باشید."); try(PreparedStatement ps=c.prepareStatement("INSERT INTO dbo.meelano_attendance(username,display_name,event_type,wifi_ssid,wifi_bssid,gateway,note) VALUES(?,?,?,?,?,?,?)")){ ps.setString(1,currentAccountName()); ps.setString(2,session==null?currentAccountName():session.userName); ps.setString(3,type); ps.setString(4,w.optString("ssid","")); ps.setString(5,w.optString("bssid","")); ps.setString(6,w.optString("gateway","")); ps.setString(7,"ثبت از موبایل"); ps.executeUpdate(); } } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this, "in".equals(type)?"حضور شما ثبت شد":"خروج شما ثبت شد", Toast.LENGTH_LONG).show(); loadAttendance(); } @Override public void fail(Exception e){ showPageError("ثبت حضور",e,()->loadAttendance()); }}); }
+
+    private void showLeaveRequestDialog(){ LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(14),dp(12),dp(14),dp(8)); final String[] type={"مرخصی استحقاقی"}; Button typeBtn=secondaryButton(type[0]); typeBtn.setOnClickListener(v->{ String[] items={"مرخصی استحقاقی","مرخصی استعلاجی","مرخصی ساعتی","ماموریت","سایر"}; new AlertDialog.Builder(this).setItems(items,(d,which)->{type[0]=items[which]; typeBtn.setText(type[0]);}).show(); }); Button start=secondaryButton(todayDateText()); Button end=secondaryButton(todayDateText()); start.setOnClickListener(v->showDatePickForButton(start)); end.setOnClickListener(v->showDatePickForButton(end)); EditText hours=input("ساعت/مدت", "", false); EditText reason=input("توضیح درخواست", "", false); reason.setMinLines(2); box.addView(typeBtn,new LinearLayout.LayoutParams(-1,dp(46))); box.addView(start,new LinearLayout.LayoutParams(-1,dp(46))); box.addView(end,new LinearLayout.LayoutParams(-1,dp(46))); box.addView(hours,new LinearLayout.LayoutParams(-1,dp(46))); box.addView(reason,new LinearLayout.LayoutParams(-1,dp(76))); new AlertDialog.Builder(this).setTitle("درخواست مرخصی").setView(box).setNegativeButton("بستن",null).setPositiveButton("ارسال",(d,w)->submitLeaveRequest(type[0],start.getText().toString(),end.getText().toString(),hours.getText().toString(),reason.getText().toString())).show(); }
+    private void showDatePickForButton(Button b){ Calendar cal=Calendar.getInstance(new Locale("fa","IR")); DatePicker picker=new DatePicker(this); picker.init(cal.get(Calendar.YEAR),cal.get(Calendar.MONTH),cal.get(Calendar.DAY_OF_MONTH),(v,y,m,d)->{}); new AlertDialog.Builder(this).setTitle("انتخاب تاریخ").setView(picker).setNegativeButton("بستن",null).setPositiveButton("ثبت",(d,w)->b.setText(String.format(Locale.US,"%04d/%02d/%02d",picker.getYear(),picker.getMonth()+1,picker.getDayOfMonth()))).show(); }
+    private void submitLeaveRequest(String type,String start,String end,String hours,String reason){ runDb(() -> { try(Connection c=openConnection()){ ensureMeelanoCollabTables(c); try(PreparedStatement ps=c.prepareStatement("INSERT INTO dbo.meelano_leave_requests(username,display_name,leave_type,start_date,end_date,hours,reason) VALUES(?,?,?,?,?,?,?)")){ ps.setString(1,currentAccountName()); ps.setString(2,session==null?currentAccountName():session.userName); ps.setString(3,type); ps.setString(4,start); ps.setString(5,end); ps.setString(6,hours); ps.setString(7,reason); ps.executeUpdate(); } } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this,"درخواست مرخصی ارسال شد.",Toast.LENGTH_SHORT).show(); showLocalNotification("درخواست مرخصی", "درخواست شما ثبت شد و برای مدیر قابل مشاهده است.", false); loadAttendance(); } @Override public void fail(Exception e){ showPageError("مرخصی",e,()->loadAttendance()); }}); }
+    private void decideLeave(long id, boolean approve){ runDb(() -> { try(Connection c=openConnection()){ ensureMeelanoCollabTables(c); try(PreparedStatement ps=c.prepareStatement("UPDATE dbo.meelano_leave_requests SET status=?, decided_at=SYSDATETIME(), manager_note=? WHERE id=?")){ ps.setString(1,approve?"approved":"rejected"); ps.setString(2,approve?"تأیید مدیر":"رد مدیر"); ps.setLong(3,id); ps.executeUpdate(); } } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ loadAttendance(); } @Override public void fail(Exception e){ showPageError("مرخصی",e,()->loadAttendance()); }}); }
+
 
     private void loadCustomers(String query) {
         loadCustomers(query, "all", false);
@@ -4912,7 +5347,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.22.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.23.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -7232,7 +7667,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.22.0\nاین نسخه خوشامد زمان‌محور، داشبورد خلوت‌تر، ادغام اقلام فروش/خرید روز در جدول‌های اصلی، حذف پرسش نام پس از ورود، هدر بدون دکمه اتصال و قفل سریع سه‌بعدی تم‌محور را اضافه می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.23.0\nاین نسخه گفتگو گروهی مدیر و کارکنان، پرسنل، حضور و غیاب مودم‌محور، درخواست مرخصی، مدیریت کامل گفتگو و نمایش بهتر سرجمع اقلام فروش روز را اضافه می‌کند؛ جزئیات اتصال در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -7649,6 +8084,8 @@ public class MainActivity extends Activity {
                 pendingTtsText = "";
                 speakAssistantText(pending);
             }
+        } else if (requestCode == REQ_CHAT_ATTACHMENT && resultCode == RESULT_OK && data != null) {
+            handleChatAttachment(data.getData());
         } else if (requestCode == REQ_BARCODE_SCAN && resultCode == RESULT_OK && data != null) {
             String code = data.getStringExtra("SCAN_RESULT");
             if (code == null || code.trim().isEmpty()) code = data.getStringExtra("SCAN_RESULT_BYTES");
