@@ -135,6 +135,7 @@ public class MainActivity extends Activity {
     private static final String KEY_QUICK_USER_ID = "quick_user_id";
     private static final String KEY_QUICK_VISITOR_ID = "quick_visitor_id";
     private static final String KEY_QUICK_USER_NAME = "quick_user_name";
+    private static final String KEY_QUICK_ROLE = "quick_access_role";
     private static final String KEY_PRIVACY_MODE = "privacy_mode";
     private static final String KEY_WIDGET_SUMMARY = "widget_summary";
     private static final String KEY_LAST_CONNECTION_OK = "last_connection_ok";
@@ -1184,6 +1185,7 @@ public class MainActivity extends Activity {
                     UserSession s = authenticate(u, p);
                     runOnUiThread(() -> {
                         session = s;
+                        clearUserScopedCaches();
                         prefs.edit().putString(KEY_LAST_USER, u).apply();
                         storeQuickSession(s);
                         login.setEnabled(true);
@@ -1243,6 +1245,7 @@ public class MainActivity extends Activity {
         if (prefs == null || s == null) return;
         SharedPreferences.Editor e = prefs.edit();
         e.putString(KEY_QUICK_USER_NAME, s.userName == null ? "" : s.userName);
+        e.putString(KEY_QUICK_ROLE, s.accessRole == null ? "" : s.accessRole);
         if (s.userId == null) e.remove(KEY_QUICK_USER_ID); else e.putInt(KEY_QUICK_USER_ID, s.userId);
         if (s.visitorId == null) e.remove(KEY_QUICK_VISITOR_ID); else e.putInt(KEY_QUICK_VISITOR_ID, s.visitorId);
         e.apply();
@@ -1254,7 +1257,8 @@ public class MainActivity extends Activity {
         if (name == null || name.trim().isEmpty()) return null;
         Integer uid = prefs.contains(KEY_QUICK_USER_ID) ? prefs.getInt(KEY_QUICK_USER_ID, 0) : null;
         Integer vid = prefs.contains(KEY_QUICK_VISITOR_ID) ? prefs.getInt(KEY_QUICK_VISITOR_ID, 0) : null;
-        return new UserSession(uid, vid, name);
+        String role = prefs.getString(KEY_QUICK_ROLE, "");
+        return new UserSession(uid, vid, name, role);
     }
 
     private void maybePromptQuickPinSetup() {
@@ -1389,6 +1393,7 @@ public class MainActivity extends Activity {
         UserSession s = storedQuickSession();
         if (s == null) { Toast.makeText(this, "جلسه ذخیره‌شده پیدا نشد.", Toast.LENGTH_SHORT).show(); return; }
         session = s;
+        clearUserScopedCaches();
         setConnectionStatus("connected");
         Toast.makeText(this, "ورود سریع انجام شد.", Toast.LENGTH_SHORT).show();
         showApp("dashboard");
@@ -1405,7 +1410,7 @@ public class MainActivity extends Activity {
         TextView title = text("ورود انجام نشد", 17, TEXT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         box.addView(title, new LinearLayout.LayoutParams(-1, -2));
-        TextView body = text((message == null || message.trim().isEmpty() ? "ارتباط برقرار نشد. اینترنت، VPN یا دسترسی سرور را بررسی کنید." : message) + "\n\nدوباره تلاش کنید؛ جزئیات فنی اتصال نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView body = text((message == null || message.trim().isEmpty() ? "ارتباط برقرار نشد. اینترنت یا دسترسی سرور را بررسی کنید." : message) + "\n\nدوباره تلاش کنید؛ جزئیات فنی اتصال نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
         body.setGravity(Gravity.CENTER);
         body.setLineSpacing(dp(3), 1.05f);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2);
@@ -1496,6 +1501,7 @@ public class MainActivity extends Activity {
 
     private void addNav(LinearLayout parent, String key, String label, String icon) {
         boolean active = key.equals(activePage);
+        boolean locked = !canOpenPage(key);
         int accent = navAccent(key);
         LinearLayout tab = new LinearLayout(this);
         tab.setOrientation(LinearLayout.HORIZONTAL);
@@ -1503,18 +1509,20 @@ public class MainActivity extends Activity {
         tab.setPadding(dp(5), dp(4), dp(5), dp(4));
         tab.setClickable(true);
         tab.setFocusable(true);
-        tab.setBackground(active ? luxuryButtonBg(accent, true, 19) : luxuryButtonBg(accent, false, 19));
+        tab.setAlpha(locked && !active ? 0.64f : 1f);
+        tab.setBackground(active ? luxuryButtonBg(accent, true, 19) : luxuryButtonBg(locked ? MUTED : accent, false, 19));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) tab.setElevation(dp(active ? 7 : 2));
         applyTouchFeedback(tab);
 
-        TextView badge = text(icon, icon != null && icon.length() > 1 ? 12.5f : 16, active ? onColorFor(accent) : accent, Typeface.BOLD);
+        String visibleIcon = locked ? "🔒" : icon;
+        TextView badge = text(visibleIcon, visibleIcon != null && visibleIcon.length() > 1 ? 12.5f : 16, active ? onColorFor(accent) : (locked ? alpha(MUTED, 190) : accent), Typeface.BOLD);
         badge.setGravity(Gravity.CENTER);
         badge.setSingleLine(true);
         badge.setShadowLayer(dp(active ? 3 : 1), 0, dp(1), alpha(Color.BLACK, active ? 145 : 55));
-        badge.setBackground(roundedStroke(active ? alpha(Color.WHITE, isLightTheme() ? 58 : 38) : alpha(accent, 18), 13, active ? alpha(Color.WHITE, 105) : alpha(accent, 70)));
+        badge.setBackground(roundedStroke(active ? alpha(Color.WHITE, isLightTheme() ? 58 : 38) : alpha(locked ? MUTED : accent, 18), 13, active ? alpha(Color.WHITE, 105) : alpha(locked ? MUTED : accent, 70)));
         tab.addView(badge, new LinearLayout.LayoutParams(dp(30), dp(30)));
 
-        TextView title = text(label, 10.2f, active ? onColorFor(accent) : TEXT, Typeface.BOLD);
+        TextView title = text(label, 10.2f, active ? onColorFor(accent) : (locked ? alpha(MUTED, 210) : TEXT), Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         title.setSingleLine(true);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1f); tp.setMargins(dp(4), 0, dp(4), 0);
@@ -1543,6 +1551,7 @@ public class MainActivity extends Activity {
     private boolean getRtlMode() { return prefs == null || prefs.getBoolean("rtl_mode", true); }
 
     private void renderActivePage() {
+        if (!canOpenPage(activePage)) { renderLockedSection(activePage); return; }
         switch (activePage) {
             case "command": loadCommandCenter(); break;
             case "assistant": showAssistant(); break;
@@ -1754,7 +1763,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.32.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.33.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -2127,7 +2136,7 @@ public class MainActivity extends Activity {
                 try (ResultSet r = ps.executeQuery()) {
                     if (r.next()) {
                         Integer uid = r.getObject(3) == null ? null : r.getInt(3);
-                        return new UserSession(uid, r.getObject(1) == null ? null : r.getInt(1), stringOr(r.getString(2), user));
+                        return withResolvedAccessRole(c, new UserSession(uid, r.getObject(1) == null ? null : r.getInt(1), stringOr(r.getString(2), user)), user);
                     }
                 }
             }
@@ -2150,7 +2159,7 @@ public class MainActivity extends Activity {
                         String textPassword = r.getString(3);
                         if (passwordMatches(rawPassword, textPassword, pass)) {
                             Integer visitor = r.getObject(4) == null ? null : r.getInt(4);
-                            return new UserSession(r.getInt(1), visitor, stringOr(r.getString(2), user));
+                            return withResolvedAccessRole(c, new UserSession(r.getInt(1), visitor, stringOr(r.getString(2), user)), user);
                         }
                     }
                 }
@@ -2220,6 +2229,7 @@ public class MainActivity extends Activity {
     }
 
     private void renderDashboardJson(JSONObject j, boolean cached) throws Exception {
+        if (!isFullAccessUser()) { renderRoleDashboardJson(j, cached); return; }
         content.removeAllViews();
         JSONObject today = j.optJSONObject("today");
         addGoodMorningManagerCard(today, cached);
@@ -2227,6 +2237,74 @@ public class MainActivity extends Activity {
         addDashboardKpiTable(j.optJSONArray("kpis"));
         renderDashboardToday(today);
         updateHomeWidgetFromDashboard(today);
+    }
+
+    private void renderRoleDashboardJson(JSONObject j, boolean cached) throws Exception {
+        content.removeAllViews();
+        JSONObject today = j == null ? null : j.optJSONObject("today");
+        addRoleWelcomeCard(today, cached);
+        addRoleDashboardShortcuts();
+        int before = content.getChildCount();
+        if (today != null) addDashboardInsightTable(today);
+        if (content.getChildCount() == before) {
+            LinearLayout empty = new LinearLayout(this);
+            empty.setOrientation(LinearLayout.VERTICAL);
+            content.addView(empty, new LinearLayout.LayoutParams(-1, -2));
+            addEmptyTo(empty, currentVisitorScopeId() == null ? "برای این حساب هنوز ویزیتور/محدوده مشتری مشخص نشده است؛ مدیر باید نقش یا ویزیتور را تنظیم کند." : "برای مشتریان مرتبط با شما موردی در بدهکار، تسویه‌نشده یا بدون خرید پیدا نشد.");
+        }
+        updateHomeWidgetFromDashboard(today);
+    }
+
+    private void addRoleWelcomeCard(JSONObject today, boolean cached) {
+        LinearLayout c = card();
+        c.setPadding(dp(12), dp(12), dp(12), dp(12));
+        int accent = navAccent("dashboard");
+        c.setBackground(gradient(new int[]{alpha(accent, 30), alpha(SUCCESS, 18), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 28));
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(report3dIcon("🔐", accent), new LinearLayout.LayoutParams(dp(46), dp(46)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(9), 0, dp(7), 0);
+        copy.addView(text(timeGreetingTitle() + " " + displayFirstName(), 16.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        String scope = currentVisitorScopeId() == null ? "محدوده مشتری هنوز به ویزیتور وصل نشده" : "نمای مشتریان ویزیتور شما";
+        copy.addView(text("دسترسی: " + accessRoleLabel(currentAccessRole()) + " • " + scope + (cached ? " • داده ذخیره‌شده" : ""), 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        head.addView(circularDashboardAction("⟳", "بروزرسانی داشبورد", INFO, v -> loadDashboard(true)), new LinearLayout.LayoutParams(dp(38), dp(38)));
+        c.addView(head, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(dashboardMiniMetric("بدهکاران", formatNumber(today == null ? 0 : today.optJSONArray("topDebtors") == null ? 0 : today.optJSONArray("topDebtors").length()), "مشتریان شما", DANGER), dashboardMiniLp());
+        row.addView(dashboardMiniMetric("تسویه‌نشده", formatNumber(today == null ? 0 : today.optJSONArray("overdueInvoices") == null ? 0 : today.optJSONArray("overdueInvoices").length()), "فاکتور معوق", WARNING), dashboardMiniLp());
+        row.addView(dashboardMiniMetric("بدون خرید", formatNumber(today == null ? 0 : today.optJSONArray("inactiveCustomers") == null ? 0 : today.optJSONArray("inactiveCustomers").length()), "فرصت پیگیری", INFO), dashboardMiniLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2);
+        rp.setMargins(0, dp(10), 0, 0);
+        c.addView(row, rp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.setMargins(0, 0, 0, dp(12));
+        content.addView(c, lp);
+    }
+
+    private void addRoleDashboardShortcuts() {
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(GOLD, 22), alpha(INFO, 14), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
+        c.addView(text("دسترسی‌های فعال شما", 14.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("سایر بخش‌ها برای این نقش به‌صورت قفل دیده می‌شوند و فقط مدیر می‌تواند آن‌ها را باز کند.", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        addRoleShortcut(row, "customers", "مشتریان");
+        addRoleShortcut(row, "products", "کالاها");
+        addRoleShortcut(row, "attendance", "حضور من");
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void addRoleShortcut(LinearLayout row, String page, String label) {
+        Button b = canOpenPage(page) ? primaryButton(label) : secondaryButton("🔒 " + label);
+        b.setTextSize(9.5f);
+        b.setOnClickListener(v -> showApp(page));
+        row.addView(b, weightedButtonLp());
     }
 
     private String queryDashboard() throws Exception {
@@ -3677,10 +3755,18 @@ public class MainActivity extends Activity {
         String shmo = resolve(cols, "SHMO", "shmo"); String name = resolve(cols, "MONAME", "Name", "CusName"); String balance = resolve(cols, "man", "Balance", "Mandeh");
         if (balance == null || shmo == null) return new JSONArray();
         String label = name == null ? "TRY_CONVERT(nvarchar(120),c.[" + shmo + "])" : "TRY_CONVERT(nvarchar(250),c.[" + name + "])";
-        String sql = "SELECT TOP (8) TRY_CONVERT(nvarchar(100),c.[" + shmo + "]), " + label + ", TRY_CONVERT(decimal(19,2),c.[" + balance + "]) FROM dbo.CUSTOMERS c WHERE TRY_CONVERT(decimal(19,2),c.[" + balance + "])>0 ORDER BY 3 DESC";
+        List<String> where = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
+        where.add("TRY_CONVERT(decimal(19,2),c.[" + balance + "])>0");
+        String scope = customerScopeCondition(cols, "c", params);
+        if (!scope.isEmpty()) where.add(scope);
+        String sql = "SELECT TOP (8) TRY_CONVERT(nvarchar(100),c.[" + shmo + "]), " + label + ", TRY_CONVERT(decimal(19,2),c.[" + balance + "]) FROM dbo.CUSTOMERS c WHERE " + join(where, " AND ") + " ORDER BY 3 DESC";
         JSONArray arr = new JSONArray();
-        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
-            while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("party", stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("hint", "مانده بدهی"); o.put("value", r.getDouble(3)); arr.put(o); }
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            setParams(ps, params);
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("party", stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("hint", "مانده بدهی"); o.put("value", r.getDouble(3)); arr.put(o); }
+            }
         }
         return arr;
     }
@@ -3692,14 +3778,24 @@ public class MainActivity extends Activity {
         String visitorId = resolve(sail, "vis_rdf", "VisitorID", "visitor"); String visKey = resolve(vis, "rdf", "RDF", "id", "ID"); String visName = resolve(vis, "name", "Name", "vis_name", "VisitorName", "moname");
         String nameExpr = custName != null && shmo != null && custCode != null ? "COALESCE(TRY_CONVERT(nvarchar(250),c.[" + custName + "]),N'بدون نام')" : "N'بدون نام'";
         String codeExpr = shmo == null ? "CAST(NULL AS nvarchar(100))" : "TRY_CONVERT(nvarchar(100),s.[" + shmo + "])";
-        String join = custName != null && shmo != null && custCode != null ? " LEFT JOIN dbo.CUSTOMERS c ON TRY_CONVERT(nvarchar(100),c.[" + custCode + "])=TRY_CONVERT(nvarchar(100),s.[" + shmo + "])" : "";
+        String joinSql = custName != null && shmo != null && custCode != null ? " LEFT JOIN dbo.CUSTOMERS c ON TRY_CONVERT(nvarchar(100),c.[" + custCode + "])=TRY_CONVERT(nvarchar(100),s.[" + shmo + "])" : "";
         String visitorExpr = visitorId != null && visKey != null && visName != null ? "COALESCE(TRY_CONVERT(nvarchar(150),v.[" + visName + "]),N'بدون ویزیتور')" : "N'بدون ویزیتور'";
-        if (visitorId != null && visKey != null && visName != null) join += " LEFT JOIN dbo.visitors v ON TRY_CONVERT(nvarchar(100),v.[" + visKey + "])=TRY_CONVERT(nvarchar(100),s.[" + visitorId + "])";
+        if (visitorId != null && visKey != null && visName != null) joinSql += " LEFT JOIN dbo.visitors v ON TRY_CONVERT(nvarchar(100),v.[" + visKey + "])=TRY_CONVERT(nvarchar(100),s.[" + visitorId + "])";
         String number = hasCol(sail, "shfacfo") ? "TRY_CONVERT(nvarchar(80),s.shfacfo)" : "CAST(NULL AS nvarchar(80))";
-        String sql = "SELECT TOP (8) " + codeExpr + ", " + nameExpr + ", TRY_CONVERT(decimal(19,2),s.[all]), s.t_date, -dbo.dif_date_alan(s.t_date), " + visitorExpr + ", " + number + " FROM dbo.sailfact s" + join + " WHERE s.tasvieh='f' AND NULLIF(s.t_date,'') IS NOT NULL AND dbo.dif_date_alan(s.t_date)<0" + activeAnd(sail, "s") + " ORDER BY -dbo.dif_date_alan(s.t_date) DESC";
+        List<String> where = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
+        where.add("s.tasvieh='f'");
+        where.add("NULLIF(s.t_date,'') IS NOT NULL");
+        where.add("dbo.dif_date_alan(s.t_date)<0");
+        String scope = salesScopeCondition(sail, "s", params);
+        if (!scope.isEmpty()) where.add(scope);
+        String sql = "SELECT TOP (8) " + codeExpr + ", " + nameExpr + ", TRY_CONVERT(decimal(19,2),s.[all]), s.t_date, -dbo.dif_date_alan(s.t_date), " + visitorExpr + ", " + number + " FROM dbo.sailfact s" + joinSql + " WHERE " + join(where, " AND ") + activeAnd(sail, "s") + " ORDER BY -dbo.dif_date_alan(s.t_date) DESC";
         JSONArray arr = new JSONArray();
-        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
-            while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("party", stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("dueDate", stringOr(r.getString(4), "")); o.put("days", r.getLong(5)); o.put("visitor", stringOr(r.getString(6), "بدون ویزیتور")); o.put("invoice", stringOr(r.getString(7), "")); o.put("hint", "تاخیر " + formatNumber(r.getLong(5)) + " روز"); o.put("value", r.getDouble(3)); arr.put(o); }
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            setParams(ps, params);
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("party", stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("dueDate", stringOr(r.getString(4), "")); o.put("days", r.getLong(5)); o.put("visitor", stringOr(r.getString(6), "بدون ویزیتور")); o.put("invoice", stringOr(r.getString(7), "")); o.put("hint", "تاخیر " + formatNumber(r.getLong(5)) + " روز"); o.put("value", r.getDouble(3)); arr.put(o); }
+            }
         }
         return arr;
     }
@@ -3710,10 +3806,18 @@ public class MainActivity extends Activity {
         String shmo = resolve(cols, "SHMO", "shmo"); String name = resolve(cols, "MONAME", "Name", "CusName"); String sailShmo = resolve(sail, "shmo", "SHMO");
         if (shmo == null || sailShmo == null) return new JSONArray();
         String label = name == null ? "TRY_CONVERT(nvarchar(120),c.[" + shmo + "])" : "TRY_CONVERT(nvarchar(250),c.[" + name + "])";
-        String sql = "SELECT TOP (8) TRY_CONVERT(nvarchar(100),c.[" + shmo + "]), " + label + ", CAST(0 AS decimal(19,2)), N'بدون خرید ثبت‌شده' FROM dbo.CUSTOMERS c WHERE NOT EXISTS (SELECT 1 FROM dbo.sailfact s WHERE TRY_CONVERT(nvarchar(100),s.[" + sailShmo + "])=TRY_CONVERT(nvarchar(100),c.[" + shmo + "])) ORDER BY " + label;
+        List<String> where = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
+        where.add("NOT EXISTS (SELECT 1 FROM dbo.sailfact s WHERE TRY_CONVERT(nvarchar(100),s.[" + sailShmo + "])=TRY_CONVERT(nvarchar(100),c.[" + shmo + "]))");
+        String scope = customerScopeCondition(cols, "c", params);
+        if (!scope.isEmpty()) where.add(scope);
+        String sql = "SELECT TOP (8) TRY_CONVERT(nvarchar(100),c.[" + shmo + "]), " + label + ", CAST(0 AS decimal(19,2)), N'بدون خرید ثبت‌شده' FROM dbo.CUSTOMERS c WHERE " + join(where, " AND ") + " ORDER BY " + label;
         JSONArray arr = new JSONArray();
-        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
-            while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("party", stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("hint", stringOr(r.getString(4), "بدون خرید")); o.put("value", r.getDouble(3)); arr.put(o); }
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            setParams(ps, params);
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("party", stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("hint", stringOr(r.getString(4), "بدون خرید")); o.put("value", r.getDouble(3)); arr.put(o); }
+            }
         }
         return arr;
     }
@@ -3927,8 +4031,216 @@ public class MainActivity extends Activity {
     }
 
     private boolean isAdminUser() {
-        String u = currentAccountName();
-        return u != null && ("admin".equalsIgnoreCase(u.trim()) || "administrator".equalsIgnoreCase(u.trim()));
+        return identityLooksAdmin(currentAccountName(), session == null ? "" : session.userName);
+    }
+
+    private boolean isFullAccessUser() {
+        String role = currentAccessRole();
+        return isAdminUser() || "admin".equals(role) || "manager".equals(role);
+    }
+
+    private String currentAccessRole() {
+        if (session != null && session.accessRole != null && !session.accessRole.trim().isEmpty()) {
+            String role = canonicalAccessRole(session.accessRole);
+            if (!"user".equals(role)) return role;
+        }
+        return resolveHeuristicAccessRole(currentAccountName(), session == null ? "" : session.userName, session == null ? null : session.visitorId);
+    }
+
+    private String resolveHeuristicAccessRole(String login, String display, Integer visitorId) {
+        if (identityLooksAdmin(login, display)) return "admin";
+        if (identityLooksSenior(login, display)) return "senior";
+        if (visitorId != null && visitorId > 0) return "visitor";
+        return "user";
+    }
+
+    private String normalizeIdentity(String value) {
+        if (value == null) return "";
+        return value.toLowerCase(Locale.US).replace('ي', 'ی').replace('ك', 'ک').replace('ة', 'ه').replace("‌", " ").trim();
+    }
+
+    private boolean identityLooksAdmin(String login, String display) {
+        String rawLogin = login == null ? "" : login.trim();
+        if ("admin".equalsIgnoreCase(rawLogin) || "administrator".equalsIgnoreCase(rawLogin)) return true;
+        String n = normalizeIdentity((login == null ? "" : login) + " " + (display == null ? "" : display));
+        String compact = n.replace(" ", "");
+        return compact.equals("مدیر") || compact.equals("مدير") || compact.contains("مدیرکل") || compact.contains("مديرکل") || compact.contains("modir") || compact.contains("manager");
+    }
+
+    private boolean identityLooksSenior(String login, String display) {
+        String n = normalizeIdentity((login == null ? "" : login) + " " + (display == null ? "" : display));
+        String compact = n.replace(" ", "");
+        return (compact.contains("شادی") && compact.contains("نظری")) || compact.contains("shadinazari") || compact.contains("shadinazary") || compact.contains("shadynazari") || compact.contains("senior") || compact.contains("supervisor") || compact.contains("کاربرارشد") || compact.contains("ارشد");
+    }
+
+    private String canonicalAccessRole(String value) {
+        String v = normalizeIdentity(value);
+        if (v.isEmpty()) return "";
+        if (v.contains("admin") || v.contains("administrator") || v.contains("مدیرکل") || v.contains("مديرکل")) return "admin";
+        if (v.contains("manager") || v.contains("مدیر") || v.contains("مدير") || v.contains("modir")) return "manager";
+        if (v.contains("senior") || v.contains("supervisor") || v.contains("ارشد")) return "senior";
+        if (v.contains("visitor") || v.contains("ویزیت") || v.contains("ويزيت") || v.contains("بازاریاب")) return "visitor";
+        return "user";
+    }
+
+    private String accessRoleLabel(String role) {
+        role = canonicalAccessRole(role);
+        if ("admin".equals(role)) return "مدیر اصلی";
+        if ("manager".equals(role)) return "مدیر";
+        if ("senior".equals(role)) return "کاربر ارشد";
+        if ("visitor".equals(role)) return "ویزیتور";
+        return "کاربر محدود";
+    }
+
+    private UserSession withResolvedAccessRole(Connection c, UserSession base, String login) {
+        if (base == null) return null;
+        Integer visitorId = base.visitorId;
+        if (visitorId == null || visitorId <= 0) visitorId = resolveVisitorIdForAccount(c, login, base.userName, base.userId);
+        return new UserSession(base.userId, visitorId, base.userName, resolveAccessRole(c, login, base.userName, base.userId, visitorId));
+    }
+
+    private Integer resolveVisitorIdForAccount(Connection c, String login, String display, Integer userId) {
+        try {
+            if (c == null || !tableExists(c, "visitors")) return null;
+            Set<String> cols = columns(c, "visitors");
+            String vid = resolveFlexible(cols, "vis_rdf", "rdf", "RDF", "ID", "id", "shvis");
+            if (vid == null) return null;
+            List<String> where = new ArrayList<>();
+            List<Object> params = new ArrayList<>();
+            String userIdCol = resolveFlexible(cols, "UserID", "user_id", "userid");
+            if (userId != null && userId > 0 && userIdCol != null) { where.add("TRY_CONVERT(nvarchar(100),[" + userIdCol + "])=?"); params.add(String.valueOf(userId)); }
+            String uname = resolveFlexible(cols, "Username", "username", "user_name", "login", "UserName");
+            if (uname != null && login != null && !login.trim().isEmpty()) { where.add("LOWER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(160),[" + uname + "]))))=LOWER(LTRIM(RTRIM(?)))"); params.add(login.trim()); }
+            String name = resolveFlexible(cols, "vis_name", "name", "Name", "VisitorName", "moname");
+            if (name != null && display != null && !display.trim().isEmpty()) { where.add("LOWER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(220),[" + name + "]))))=LOWER(LTRIM(RTRIM(?)))"); params.add(display.trim()); }
+            if (where.isEmpty()) return null;
+            String sql = "SELECT TOP (1) TRY_CONVERT(int,[" + vid + "]) FROM dbo.visitors WHERE (" + join(where, " OR ") + ")" + activeAnd(cols, "") + " ORDER BY [" + vid + "]";
+            try (PreparedStatement ps = c.prepareStatement(sql)) {
+                setParams(ps, params);
+                try (ResultSet r = ps.executeQuery()) { if (r.next() && r.getObject(1) != null) return r.getInt(1); }
+            }
+        } catch (Exception ignored) { }
+        return null;
+    }
+
+    private String resolveAccessRole(Connection c, String login, String display, Integer userId, Integer visitorId) {
+        try {
+            if (identityLooksAdmin(login, display)) return "admin";
+            String explicit = roleFromAccessTable(c, login, display);
+            if (!explicit.isEmpty() && !"user".equals(explicit)) return explicit;
+            explicit = roleFromFlexibleTable(c, "sys_users", "user_id", userId, new String[]{"role", "Role", "user_role", "access_role", "AccessRole", "semat", "سمت", "level", "AccessLevel"});
+            if (!explicit.isEmpty() && !"user".equals(explicit)) return explicit;
+            explicit = roleFromFlexibleTable(c, "visitors", "vis_rdf", visitorId, new String[]{"role", "Role", "vis_role", "access_role", "semat", "سمت", "level", "VisitorRole"});
+            if (!explicit.isEmpty() && !"user".equals(explicit)) return explicit;
+        } catch (Exception ignored) { }
+        return resolveHeuristicAccessRole(login, display, visitorId);
+    }
+
+    private String roleFromAccessTable(Connection c, String login, String display) {
+        try {
+            if (c == null || !tableExists(c, "meelano_chat_members")) return "";
+            try (PreparedStatement ps = c.prepareStatement("SELECT TOP (1) role FROM dbo.meelano_chat_members WHERE LOWER(LTRIM(RTRIM(username)))=LOWER(LTRIM(RTRIM(?))) OR LOWER(LTRIM(RTRIM(display_name)))=LOWER(LTRIM(RTRIM(?)))")) {
+                ps.setString(1, stringOr(login, "")); ps.setString(2, stringOr(display, ""));
+                try (ResultSet r = ps.executeQuery()) { if (r.next()) return canonicalAccessRole(r.getString(1)); }
+            }
+        } catch (Exception ignored) { }
+        return "";
+    }
+
+    private String roleFromFlexibleTable(Connection c, String table, String idCandidate, Integer id, String[] roleCandidates) {
+        try {
+            if (c == null || id == null || id <= 0 || !tableExists(c, table)) return "";
+            Set<String> cols = columns(c, table);
+            String idCol = resolveFlexible(cols, idCandidate, "ID", "id", "UserID", "user_id", "rdf", "RDF");
+            String roleCol = resolveFlexible(cols, roleCandidates);
+            if (idCol == null || roleCol == null) return "";
+            try (PreparedStatement ps = c.prepareStatement("SELECT TOP (1) TRY_CONVERT(nvarchar(160),[" + roleCol + "]) FROM dbo.[" + table + "] WHERE TRY_CONVERT(nvarchar(100),[" + idCol + "])=?")) {
+                ps.setString(1, String.valueOf(id));
+                try (ResultSet r = ps.executeQuery()) { if (r.next()) return canonicalAccessRole(r.getString(1)); }
+            }
+        } catch (Exception ignored) { }
+        return "";
+    }
+
+    private Integer currentVisitorScopeId() {
+        return session == null ? null : session.visitorId;
+    }
+
+    private boolean restrictCustomerData() {
+        return !isFullAccessUser();
+    }
+
+    private String customerScopeCondition(Set<String> cols, String alias, List<Object> params) {
+        if (!restrictCustomerData()) return "";
+        Integer vid = currentVisitorScopeId();
+        String vis = resolveFlexible(cols, "vis_rdf", "VisitorID", "visid", "visitor", "shvis");
+        if (vid == null || vid <= 0 || vis == null) return "1=0";
+        params.add(String.valueOf(vid));
+        String p = alias == null || alias.trim().isEmpty() ? "" : alias.trim() + ".";
+        return "TRY_CONVERT(nvarchar(100)," + p + "[" + vis + "])=?";
+    }
+
+    private String salesScopeCondition(Set<String> cols, String alias, List<Object> params) {
+        if (!restrictCustomerData()) return "";
+        Integer vid = currentVisitorScopeId();
+        String vis = resolveFlexible(cols, "vis_rdf", "VisitorID", "visid", "visitor", "shvis");
+        if (vid == null || vid <= 0 || vis == null) return "1=0";
+        params.add(String.valueOf(vid));
+        String p = alias == null || alias.trim().isEmpty() ? "" : alias.trim() + ".";
+        return "TRY_CONVERT(nvarchar(100)," + p + "[" + vis + "])=?";
+    }
+
+    private boolean canOpenPage(String page) {
+        if (page == null || page.trim().isEmpty() || "login".equals(page)) return true;
+        if (isFullAccessUser()) return true;
+        String role = currentAccessRole();
+        if ("senior".equals(role) || "visitor".equals(role)) return "dashboard".equals(page) || "customers".equals(page) || "products".equals(page) || "attendance".equals(page);
+        return "dashboard".equals(page) || "attendance".equals(page);
+    }
+
+    private String sectionLabel(String page) {
+        if ("dashboard".equals(page)) return "داشبورد";
+        if ("customers".equals(page)) return "مشتریان";
+        if ("products".equals(page)) return "کالاها";
+        if ("reports".equals(page)) return "گزارشات";
+        if ("command".equals(page)) return "فرماندهی";
+        if ("assistant".equals(page)) return "دستیار";
+        if ("chat".equals(page)) return "گفتگو";
+        if ("personnel".equals(page)) return "پرسنل";
+        if ("attendance".equals(page)) return "حضور و غیاب";
+        if ("taxpayers".equals(page)) return "مودیان";
+        if ("cameras".equals(page)) return "دوربین";
+        if ("alarm".equals(page)) return "دزدگیر";
+        if ("settings".equals(page)) return "تنظیمات";
+        return page == null ? "بخش" : page;
+    }
+
+    private void clearUserScopedCaches() {
+        dashboardCacheJson = ""; reportsCacheJson = ""; customersCacheJson = ""; productsCacheJson = "";
+        customersCacheQuery = ""; customersCacheFilter = "all"; customersCacheAllRows = false; customersSortOrder = "smart";
+        productsCacheQuery = ""; productsCacheFilter = "all";
+        customerLedgerCache.clear(); taxCurrentInvoices = new JSONArray();
+        if (prefs != null) prefs.edit().remove(KEY_CACHE_DASHBOARD).remove(KEY_CACHE_REPORTS).apply();
+    }
+
+    private void renderLockedSection(String page) {
+        content.removeAllViews();
+        String label = sectionLabel(page);
+        addHero("بخش قفل‌شده", label + " برای نقش «" + accessRoleLabel(currentAccessRole()) + "» فعال نیست.");
+        LinearLayout c = card();
+        c.setGravity(Gravity.CENTER_HORIZONTAL);
+        c.setBackground(gradient(new int[]{alpha(DANGER, 26), alpha(GOLD, 18), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 28));
+        c.addView(report3dIcon("🔒", DANGER), new LinearLayout.LayoutParams(dp(62), dp(62)));
+        TextView title = text("دسترسی محدود", 17, TEXT, Typeface.BOLD); title.setGravity(Gravity.CENTER); c.addView(title, new LinearLayout.LayoutParams(-1, -2));
+        TextView body = text("این حساب با نام کاربری/رمز خودش وارد شده و فقط بخش‌های مجاز نقش خود را می‌بیند. مدیر اصلی یا نقش مدیر می‌تواند همه آیتم‌ها و تنظیمات مدیریتی را باز کند.", 11.1f, MUTED, Typeface.NORMAL);
+        body.setGravity(Gravity.CENTER); body.setLineSpacing(dp(2), 1.05f);
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2); bp.setMargins(0, dp(8), 0, dp(10)); c.addView(body, bp);
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        Button dash = primaryButton("داشبورد"); dash.setOnClickListener(v -> showApp("dashboard")); row.addView(dash, weightedButtonLp());
+        Button attendance = secondaryButton("حضور من"); attendance.setOnClickListener(v -> showApp("attendance")); row.addView(attendance, weightedButtonLp());
+        if (canOpenPage("customers")) { Button customers = secondaryButton("مشتریان"); customers.setOnClickListener(v -> showApp("customers")); row.addView(customers, weightedButtonLp()); }
+        c.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
 
     private String sqlText(String v) {
@@ -5042,7 +5354,7 @@ public class MainActivity extends Activity {
         runDb(this::queryAttendanceState, new DbCallback(){ @Override public void ok(String body){ try{ renderAttendance(new JSONObject(body)); markRefresh("attendance"); }catch(Exception e){ showPageError("حضور",e,()->loadAttendance()); } } @Override public void fail(Exception e){ showPageError("حضور",e,()->loadAttendance()); }});
     }
 
-    private String queryAttendanceState() throws Exception { try(Connection c=openConnection()){ ensureMeelanoCollabTables(c); JSONObject out=new JSONObject(); boolean admin=isAdminUser()||"admin".equals(chatRole(c,currentAccountName()))||"manager".equals(chatRole(c,currentAccountName())); out.put("admin",admin); out.put("wifiSsid",chatSetting(c,"work_wifi_ssid","")); out.put("wifiBssid",chatSetting(c,"work_wifi_bssid","")); out.put("wifiGateway",chatSetting(c,"work_wifi_gateway","")); out.put("mine",queryAttendanceRows(c, currentAccountName(), false)); if(admin){ out.put("today",queryAttendanceRows(c,"", true)); out.put("leaves",queryLeaveRequests(c)); } else out.put("leaves",queryLeaveRequestsForUser(c,currentAccountName())); return out.toString(); } }
+    private String queryAttendanceState() throws Exception { try(Connection c=openConnection()){ ensureMeelanoCollabTables(c); JSONObject out=new JSONObject(); String role=currentAccessRole(); boolean admin=isFullAccessUser()||"admin".equals(chatRole(c,currentAccountName()))||"manager".equals(chatRole(c,currentAccountName())); if("senior".equals(role)||"visitor".equals(role)||"user".equals(role)) admin=false; out.put("admin",admin); out.put("wifiSsid",chatSetting(c,"work_wifi_ssid","")); out.put("wifiBssid",chatSetting(c,"work_wifi_bssid","")); out.put("wifiGateway",chatSetting(c,"work_wifi_gateway","")); out.put("mine",queryAttendanceRows(c, currentAccountName(), false)); if(admin){ out.put("today",queryAttendanceRows(c,"", true)); out.put("leaves",queryLeaveRequests(c)); } else out.put("leaves",queryLeaveRequestsForUser(c,currentAccountName())); return out.toString(); } }
 
     private JSONArray queryAttendanceRows(Connection c, String username, boolean todayAll) throws Exception { JSONArray arr=new JSONArray(); String sql=todayAll?"SELECT TOP (150) username,display_name,event_type,CONVERT(nvarchar(19),event_time,120),wifi_ssid,wifi_bssid,gateway FROM dbo.meelano_attendance WHERE CONVERT(date,event_time)=CONVERT(date,SYSDATETIME()) ORDER BY event_time DESC":"SELECT TOP (80) username,display_name,event_type,CONVERT(nvarchar(19),event_time,120),wifi_ssid,wifi_bssid,gateway FROM dbo.meelano_attendance WHERE username=? ORDER BY event_time DESC"; try(PreparedStatement ps=c.prepareStatement(sql)){ if(!todayAll) ps.setString(1,username); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("username",stringOr(r.getString(1),"")); o.put("display",stringOr(r.getString(2),r.getString(1))); o.put("type",stringOr(r.getString(3),"")); o.put("time",stringOr(r.getString(4),"")); o.put("ssid",stringOr(r.getString(5),"")); o.put("bssid",stringOr(r.getString(6),"")); o.put("gateway",stringOr(r.getString(7),"")); arr.put(o);} } } return arr; }
 
@@ -5102,7 +5414,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.32.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.33.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -5114,7 +5426,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.32.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.33.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -5317,8 +5629,8 @@ public class MainActivity extends Activity {
     }
 
     private boolean ensureManagerOnly() {
-        if (isAdminUser()) return true;
-        Toast.makeText(this, "این عملیات فقط برای مدیر اصلی admin فعال است.", Toast.LENGTH_LONG).show();
+        if (isFullAccessUser()) return true;
+        Toast.makeText(this, "این عملیات فقط برای مدیر یا admin فعال است.", Toast.LENGTH_LONG).show();
         return false;
     }
 
@@ -5939,6 +6251,8 @@ public class MainActivity extends Activity {
                 }
                 where.add("(" + join(parts, " OR ") + ")");
             }
+            String scope = customerScopeCondition(cols, "c", params);
+            if (!scope.isEmpty()) where.add(scope);
             boolean canSales = hasCol(saleCols, "shmo") && hasCol(saleCols, "all");
             boolean canChecks = hasCol(checkCols, "shmo") && hasCol(checkCols, "getchkmab");
             String saleDate = resolve(saleCols, "date", "t_date", "Date");
@@ -7240,7 +7554,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.32.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.33.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -9587,7 +9901,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.32.0\nاین نسخه آیکن M و ماه را پررنگ‌تر و سه‌بعدی‌تر می‌کند، مانده پرسنل را با fallback از مشتریان اختصاصی و مانده فاکتورهای فروش محاسبه می‌کند، تنظیمات دستیار هوشمند را با کلیدهای ستاره‌ای و تست سلامت برای OpenAI/Gemini/Groq/GapGPT کامل‌تر می‌سازد؛ جزئیات اتصال SQL همچنان در UI نمایش داده نمی‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.33.0\nاین نسخه دسترسی نقش‌محور را فعال می‌کند: مدیر/admin همه بخش‌ها را می‌بیند، کاربر ارشد/ویزیتور فقط داشبورد مشتریان مرتبط، مشتریان، کالاها و حضور شخصی را دارد، بخش‌های دیگر قفل نمایش داده می‌شوند و اطلاعات SQL همچنان مخفی است.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -9823,10 +10137,15 @@ public class MainActivity extends Activity {
         final Integer userId;
         final Integer visitorId;
         final String userName;
+        final String accessRole;
         UserSession(Integer userId, Integer visitorId, String userName) {
+            this(userId, visitorId, userName, "");
+        }
+        UserSession(Integer userId, Integer visitorId, String userName, String accessRole) {
             this.userId = userId;
             this.visitorId = visitorId;
             this.userName = userName;
+            this.accessRole = accessRole == null ? "" : accessRole;
         }
     }
 
