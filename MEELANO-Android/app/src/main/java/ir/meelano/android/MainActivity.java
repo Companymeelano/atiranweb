@@ -160,6 +160,8 @@ public class MainActivity extends Activity {
     private static final String KEY_TAX_LAST_REPORT = "taxpayer_last_report";
     private static final String KEY_CAMERA_HOST = "camera_dvr_host";
     private static final String KEY_CAMERA_PORT = "camera_dvr_port";
+    private static final String KEY_CAMERA_STREAM_PORT = "camera_rtsp_stream_port";
+    private static final String KEY_CAMERA_P2P_MODE = "camera_p2p_direct_mode";
     private static final String KEY_CAMERA_USER = "camera_dvr_user";
     private static final String KEY_CAMERA_PASS = "camera_dvr_pass";
     private static final String KEY_CAMERA_CHANNELS = "camera_dvr_channels";
@@ -655,7 +657,21 @@ public class MainActivity extends Activity {
         LiveMeelanoLogoView logo = new LiveMeelanoLogoView(this, compact);
         logo.setContentDescription("لوگوی Meelano با ترکیب M و A");
         logo.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        logo.setMinimumWidth(dp(compact ? 48 : 96));
+        logo.setMinimumHeight(dp(compact ? 48 : 96));
         return logo;
+    }
+
+    private View headerLogoView() {
+        FrameLayout shell = new FrameLayout(this);
+        shell.setClipChildren(false);
+        shell.setClipToPadding(false);
+        shell.setPadding(dp(3), dp(3), dp(3), dp(3));
+        shell.setBackground(roundedStroke(alpha(Color.WHITE, isLightTheme() ? 70 : 18), 20, alpha(GOLD, isLightTheme() ? 95 : 120)));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) shell.setElevation(dp(7));
+        View logo = liveMeelanoLogo(true);
+        shell.addView(logo, new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER));
+        return shell;
     }
 
     private class LiveMeelanoLogoView extends View {
@@ -791,6 +807,7 @@ public class MainActivity extends Activity {
         LinearLayout headerWrap = new LinearLayout(this);
         headerWrap.setOrientation(LinearLayout.VERTICAL);
         headerWrap.setPadding(dp(8), dp(8), dp(8), dp(8));
+        headerWrap.setClipChildren(false);
         headerWrap.setClipToPadding(false);
         headerWrap.setFitsSystemWindows(true);
         headerWrap.setBackground(gradient(new int[]{mix(HEADER_START, INFO, 0.10f), mix(HEADER_END, GOLD_2, 0.08f), HEADER_END}, GradientDrawable.Orientation.LEFT_RIGHT, 0));
@@ -799,9 +816,13 @@ public class MainActivity extends Activity {
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
         header.setPadding(dp(2), 0, dp(2), 0);
+        header.setClipChildren(false);
+        header.setClipToPadding(false);
 
-        View logo = liveMeelanoLogo(true);
-        header.addView(logo, new LinearLayout.LayoutParams(dp(50), dp(50)));
+        View logo = headerLogoView();
+        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(dp(58), dp(58));
+        logoLp.setMargins(0, 0, dp(4), 0);
+        header.addView(logo, logoLp);
 
         LinearLayout titles = new LinearLayout(this);
         titles.setOrientation(LinearLayout.VERTICAL);
@@ -815,7 +836,7 @@ public class MainActivity extends Activity {
         status = text("", 1, Color.TRANSPARENT, Typeface.NORMAL);
         titles.addView(appTitle, new LinearLayout.LayoutParams(-1, -2));
         titles.addView(subtitle, new LinearLayout.LayoutParams(-1, -2));
-        header.addView(titles, new LinearLayout.LayoutParams(0, dp(50), 1f));
+        header.addView(titles, new LinearLayout.LayoutParams(0, dp(56), 1f));
 
         connectionIndicator = null;
 
@@ -828,11 +849,11 @@ public class MainActivity extends Activity {
         addHeaderTool(tools, "✺", "انتخاب تم", GOLD_2, v -> showThemeChooser());
         addHeaderTool(tools, "⚙", "تنظیمات", SUCCESS, v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings"); });
         addHeaderTool(tools, "⎋", "خروج", DANGER, v -> { if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید."); else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید."); });
-        header.addView(tools, new LinearLayout.LayoutParams(-2, dp(52)));
-        headerWrap.addView(header, new LinearLayout.LayoutParams(-1, dp(60)));
+        header.addView(tools, new LinearLayout.LayoutParams(-2, dp(56)));
+        headerWrap.addView(header, new LinearLayout.LayoutParams(-1, dp(64)));
         setConnectionStatus(session == null ? "idle" : "connected");
 
-        root.addView(headerWrap, new LinearLayout.LayoutParams(-1, dp(76)));
+        root.addView(headerWrap, new LinearLayout.LayoutParams(-1, dp(82)));
 
         stage = new FrameLayout(this);
         stage.setBackgroundColor(NAVY);
@@ -6508,17 +6529,68 @@ public class MainActivity extends Activity {
     }
 
     private void addCameraSettingsCard() {
-        LinearLayout c=card(); int accent=navAccent("cameras"); c.setBackground(gradient(new int[]{alpha(accent,30),alpha(SURFACE,248)},GradientDrawable.Orientation.TL_BR,24));
-        c.addView(text("تنظیمات DVR",15.5f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
-        c.addView(text("IP: "+stringOr(prefString(KEY_CAMERA_HOST,""),"ثبت نشده")+" • Port: "+prefString(KEY_CAMERA_PORT,"554")+" • کانال‌ها: "+prefString(KEY_CAMERA_CHANNELS,"4")+" • چیدمان: "+prefString(KEY_CAMERA_LAYOUT,"2"),10.5f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
-        LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button set=primaryButton(withIcon("⚙","تنظیم DVR")); Button test=secondaryButton(withIcon("⌁","تست پورت")); set.setTextSize(9.2f); test.setTextSize(9.2f); set.setOnClickListener(v->showCameraSettingsDialog()); test.setOnClickListener(v->testCameraConnection()); row.addView(set,weightedButtonLp()); row.addView(test,weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(10),0,0); c.addView(row,rp); LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp);
+        LinearLayout c = card();
+        int accent = navAccent("cameras");
+        c.setBackground(gradient(new int[]{alpha(accent, 30), alpha(SURFACE, 248)}, GradientDrawable.Orientation.TL_BR, 24));
+        c.addView(text("تنظیمات DVR / P2P", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        String host = prefString(KEY_CAMERA_HOST, "");
+        String servicePort = cameraServicePortText();
+        String streamPort = cameraStreamPortText();
+        String p2p = prefString(KEY_CAMERA_P2P_MODE, "1").equals("1") ? "فعال" : "خاموش";
+        c.addView(text("IP: " + stringOr(host, "ثبت نشده") + " • پورت P2P/دستگاه: " + servicePort + " • RTSP: " + streamPort + " • P2P: " + p2p + " • کانال‌ها: " + prefString(KEY_CAMERA_CHANNELS, "4"), 10.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("برای دستگاه‌های Dahua/XVR با پورت 37777، تست ارتباط روی پورت دستگاه انجام می‌شود و تصویر زنده با RTSP امنِ ذخیره‌شده در گوشی پخش می‌شود.", 10.0f, alpha(TEXT, 210), Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        Button set = primaryButton(withIcon("⚙", "تنظیم DVR"));
+        Button test = secondaryButton(withIcon("⌁", "تست P2P/RTSP"));
+        set.setTextSize(9.2f); test.setTextSize(9.2f);
+        set.setOnClickListener(v -> showCameraSettingsDialog());
+        test.setOnClickListener(v -> testCameraConnection());
+        row.addView(set, weightedButtonLp()); row.addView(test, weightedButtonLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
 
     private void showCameraSettingsDialog() {
-        LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(10),dp(8),dp(10),dp(4)); box.addView(text("تنظیمات دوربین مداربسته",16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
-        EditText host=input("IP یا دامنه DVR",prefString(KEY_CAMERA_HOST,""),false); EditText port=input("Port RTSP/HTTP",prefString(KEY_CAMERA_PORT,"554"),false); EditText user=input("نام کاربری DVR",prefString(KEY_CAMERA_USER,""),false); EditText pass=input("کلمه عبور"+(prefSecret(KEY_CAMERA_PASS).isEmpty()?"":" • ذخیره‌شده"),"",true); EditText channels=input("تعداد کانال",prefString(KEY_CAMERA_CHANNELS,"4"),false); EditText tpl=input("قالب پخش زنده",prefString(KEY_CAMERA_TEMPLATE,"rtsp://{user}:{pass}@{host}:{port}/cam/realmonitor?channel={ch}&subtype=0"),false); EditText replay=input("قالب بازپخش",prefString(KEY_CAMERA_REPLAY_TEMPLATE,"rtsp://{user}:{pass}@{host}:{port}/cam/playback?channel={ch}"),false);
-        for(EditText e:new EditText[]{host,port,user,pass,channels,tpl,replay}){ LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(-1,dp(48)); ep.setMargins(0,dp(8),0,0); box.addView(e,ep); }
-        AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("ذخیره",null).create(); dlg.setOnShowListener(di->{ styleMeelanoDialog(dlg,navAccent("cameras")); Button ok=dlg.getButton(AlertDialog.BUTTON_POSITIVE); if(ok!=null)ok.setOnClickListener(v->{ SharedPreferences.Editor ed=prefs.edit(); ed.putString(KEY_CAMERA_HOST,host.getText().toString().trim()); ed.putString(KEY_CAMERA_PORT,port.getText().toString().trim()); ed.putString(KEY_CAMERA_USER,user.getText().toString().trim()); ed.putString(KEY_CAMERA_CHANNELS,channels.getText().toString().trim()); ed.putString(KEY_CAMERA_TEMPLATE,tpl.getText().toString().trim()); ed.putString(KEY_CAMERA_REPLAY_TEMPLATE,replay.getText().toString().trim()); if(pass.getText()!=null&&pass.getText().toString().trim().length()>0)putSecret(ed,KEY_CAMERA_PASS,pass.getText().toString()); ed.apply(); dlg.dismiss(); renderCamerasPage(); }); }); dlg.show();
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(10), dp(8), dp(10), dp(4));
+        box.addView(text("تنظیمات دوربین مداربسته", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        box.addView(text("اطلاعات ورود فقط داخل حافظه امن همین گوشی ذخیره می‌شود و داخل APK یا کد قرار نمی‌گیرد.", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        EditText host = input("IP یا دامنه DVR", prefString(KEY_CAMERA_HOST, ""), false);
+        EditText servicePort = input("پورت دستگاه / P2P", prefString(KEY_CAMERA_PORT, "37777"), false);
+        EditText streamPort = input("پورت پخش RTSP", prefString(KEY_CAMERA_STREAM_PORT, cameraDefaultStreamPort(prefString(KEY_CAMERA_PORT, "37777"))), false);
+        EditText user = input("نام کاربری DVR", prefString(KEY_CAMERA_USER, ""), false);
+        EditText pass = input("کلمه عبور" + (prefSecret(KEY_CAMERA_PASS).isEmpty() ? "" : " • ذخیره‌شده"), "", true);
+        EditText channels = input("تعداد کانال", prefString(KEY_CAMERA_CHANNELS, "4"), false);
+        EditText tpl = input("قالب پخش زنده", prefString(KEY_CAMERA_TEMPLATE, defaultCameraLiveTemplate()), false);
+        EditText replay = input("قالب بازپخش", prefString(KEY_CAMERA_REPLAY_TEMPLATE, defaultCameraReplayTemplate()), false);
+        for (EditText e : new EditText[]{host, servicePort, streamPort, user, pass, channels, tpl, replay}) {
+            LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, dp(48)); ep.setMargins(0, dp(8), 0, 0); box.addView(e, ep);
+        }
+        CheckBox p2p = new CheckBox(this);
+        p2p.setText("حالت P2P/Direct برای DVRهای پورت 37777 فعال باشد");
+        p2p.setTextColor(TEXT); p2p.setTextSize(10.5f); p2p.setChecked(prefString(KEY_CAMERA_P2P_MODE, "1").equals("1"));
+        box.addView(p2p, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        Button dahua = secondaryButton("پروفایل 37777 / Dahua"); dahua.setTextSize(8.8f);
+        dahua.setOnClickListener(v -> { servicePort.setText("37777"); streamPort.setText("554"); tpl.setText(defaultCameraLiveTemplate()); replay.setText(defaultCameraReplayTemplate()); p2p.setChecked(true); });
+        row.addView(dahua, weightedButtonLp());
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, -2); rlp.setMargins(0, dp(8), 0, 0); box.addView(row, rlp);
+        AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).setPositiveButton("ذخیره", null).create();
+        dlg.setOnShowListener(di -> { styleMeelanoDialog(dlg, navAccent("cameras")); Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE); if (ok != null) ok.setOnClickListener(v -> {
+            SharedPreferences.Editor ed = prefs.edit();
+            ed.putString(KEY_CAMERA_HOST, host.getText().toString().trim());
+            ed.putString(KEY_CAMERA_PORT, servicePort.getText().toString().trim());
+            ed.putString(KEY_CAMERA_STREAM_PORT, streamPort.getText().toString().trim());
+            ed.putString(KEY_CAMERA_USER, user.getText().toString().trim());
+            ed.putString(KEY_CAMERA_CHANNELS, channels.getText().toString().trim());
+            ed.putString(KEY_CAMERA_TEMPLATE, tpl.getText().toString().trim());
+            ed.putString(KEY_CAMERA_REPLAY_TEMPLATE, replay.getText().toString().trim());
+            ed.putString(KEY_CAMERA_P2P_MODE, p2p.isChecked() ? "1" : "0");
+            if (pass.getText() != null && pass.getText().toString().trim().length() > 0) putSecret(ed, KEY_CAMERA_PASS, pass.getText().toString());
+            ed.apply(); dlg.dismiss(); renderCamerasPage();
+        }); });
+        dlg.show();
     }
 
     private void addCameraGridCard() {
@@ -6546,11 +6618,50 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(12)); content.addView(c,lp);
     }
 
-    private void testCameraConnection(){ String host=prefString(KEY_CAMERA_HOST,"").trim(); int port=prefIntText(KEY_CAMERA_PORT,554); if(host.isEmpty()){Toast.makeText(this,"IP دوربین را ثبت کنید.",Toast.LENGTH_SHORT).show();return;} runNetworkJob("camera-test",()->testTcp(host,port),new NetworkCallback(){@Override public void ok(String b){Toast.makeText(MainActivity.this,"ارتباط با DVR برقرار شد.",Toast.LENGTH_LONG).show();}@Override public void fail(Exception e){showPageError("تست دوربین",e,()->renderCamerasPage());}}); }
+    private String defaultCameraLiveTemplate() { return "rtsp://{user}:{pass}@{host}:{streamPort}/cam/realmonitor?channel={ch}&subtype=0"; }
+    private String defaultCameraReplayTemplate() { return "rtsp://{user}:{pass}@{host}:{streamPort}/cam/playback?channel={ch}"; }
+    private String cameraServicePortText() { return stringOr(prefString(KEY_CAMERA_PORT, "37777"), "37777"); }
+    private String cameraDefaultStreamPort(String servicePort) { return "37777".equals(normalizeDigits(stringOr(servicePort, "")).trim()) ? "554" : stringOr(servicePort, "554"); }
+    private String cameraStreamPortText() { return stringOr(prefString(KEY_CAMERA_STREAM_PORT, cameraDefaultStreamPort(cameraServicePortText())), cameraDefaultStreamPort(cameraServicePortText())); }
 
-    private String testTcp(String host,int port)throws Exception{ try(Socket s=new Socket()){ s.connect(new InetSocketAddress(host,port),7000); return "ok"; } }
+    private void testCameraConnection() {
+        String host = prefString(KEY_CAMERA_HOST, "").trim();
+        if (host.isEmpty()) { Toast.makeText(this, "IP دوربین را ثبت کنید.", Toast.LENGTH_SHORT).show(); return; }
+        runNetworkJob("camera-test", () -> {
+            StringBuilder ok = new StringBuilder();
+            int service = parsePort(cameraServicePortText(), 37777);
+            int stream = parsePort(cameraStreamPortText(), service == 37777 ? 554 : service);
+            testTcp(host, service, 7000); ok.append("P2P/Device ").append(service).append(" ✓");
+            if (stream != service) { testTcp(host, stream, 7000); ok.append(" • RTSP ").append(stream).append(" ✓"); }
+            return ok.toString();
+        }, new NetworkCallback() {
+            @Override public void ok(String b) { Toast.makeText(MainActivity.this, "ارتباط دوربین برقرار شد: " + b, Toast.LENGTH_LONG).show(); }
+            @Override public void fail(Exception e) { showPageError("تست دوربین", e, () -> renderCamerasPage()); }
+        });
+    }
 
-    private String cameraUrl(int ch, boolean replay){ String tpl=prefString(replay?KEY_CAMERA_REPLAY_TEMPLATE:KEY_CAMERA_TEMPLATE, replay?"rtsp://{user}:{pass}@{host}:{port}/cam/playback?channel={ch}":"rtsp://{user}:{pass}@{host}:{port}/cam/realmonitor?channel={ch}&subtype=0"); return tpl.replace("{host}",prefString(KEY_CAMERA_HOST,"")).replace("{port}",prefString(KEY_CAMERA_PORT,"554")).replace("{user}",urlPart(prefString(KEY_CAMERA_USER,""))).replace("{pass}",urlPart(prefSecret(KEY_CAMERA_PASS))).replace("{ch}",String.valueOf(ch)); }
+    private int parsePort(String value, int fallback) {
+        try { int p = Integer.parseInt(normalizeDigits(value == null ? "" : value).trim()); return p > 0 && p <= 65535 ? p : fallback; }
+        catch (Exception ignored) { return fallback; }
+    }
+
+    private String testTcp(String host, int port, int timeoutMs) throws Exception {
+        try (Socket s = new Socket()) { s.connect(new InetSocketAddress(host, port), timeoutMs); return "ok"; }
+    }
+
+    private String cameraUrl(int ch, boolean replay) {
+        String tpl = prefString(replay ? KEY_CAMERA_REPLAY_TEMPLATE : KEY_CAMERA_TEMPLATE, replay ? defaultCameraReplayTemplate() : defaultCameraLiveTemplate());
+        String servicePort = cameraServicePortText();
+        String streamPort = cameraStreamPortText();
+        boolean rtsp = tpl.trim().toLowerCase(Locale.US).startsWith("rtsp://");
+        return tpl.replace("{host}", prefString(KEY_CAMERA_HOST, "").trim())
+                .replace("{servicePort}", servicePort)
+                .replace("{streamPort}", streamPort)
+                .replace("{port}", rtsp ? streamPort : servicePort)
+                .replace("{user}", urlPart(prefString(KEY_CAMERA_USER, "")))
+                .replace("{pass}", urlPart(prefSecret(KEY_CAMERA_PASS)))
+                .replace("{ch}", String.valueOf(ch));
+    }
     private String urlPart(String v){ try{return URLEncoder.encode(v==null?"":v,"UTF-8");}catch(Exception ignored){return v==null?"":v;} }
 
     private void showCameraPlayer(int ch, boolean replay){ String url=cameraUrl(ch,replay); if(prefString(KEY_CAMERA_HOST,"").trim().isEmpty()){Toast.makeText(this,"ابتدا تنظیمات DVR را ثبت کنید.",Toast.LENGTH_SHORT).show();return;} LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(8),dp(8),dp(8),dp(4)); box.addView(text((replay?"بازپخش ":"پخش زنده ")+"دوربین "+formatNumber(ch),16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); VideoView video=new VideoView(this); MediaController mc=new MediaController(this); mc.setAnchorView(video); video.setMediaController(mc); video.setVideoURI(Uri.parse(url)); FrameLayout wrap=new FrameLayout(this); wrap.setBackgroundColor(Color.BLACK); wrap.addView(video,new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER)); LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(-1,dp(280)); vp.setMargins(0,dp(8),0,dp(8)); box.addView(wrap,vp); LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button play=primaryButton("شروع پخش"); Button zoom=secondaryButton("زوم ×۱.۳"); Button external=secondaryButton("پلیر خارجی"); final float[] scale={1f}; play.setOnClickListener(v->{ try{video.start();}catch(Exception ex){Toast.makeText(this,"پخش شروع نشد: "+shortError(ex),Toast.LENGTH_LONG).show();} }); zoom.setOnClickListener(v->{ scale[0]=scale[0]<1.6f?scale[0]+0.3f:1f; video.setScaleX(scale[0]); video.setScaleY(scale[0]); zoom.setText("زوم ×"+String.format(Locale.US,"%.1f",scale[0])); }); external.setOnClickListener(v->openExternalStream(url)); row.addView(play,weightedButtonLp()); row.addView(zoom,weightedButtonLp()); row.addView(external,weightedButtonLp()); box.addView(row,new LinearLayout.LayoutParams(-1,-2)); AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",(d,w)->{try{video.stopPlayback();}catch(Exception ignored){}}).create(); styleMeelanoDialog(dlg,navAccent("cameras")); dlg.setOnShowListener(d-> { try{ video.start(); }catch(Exception ignored){} }); dlg.show(); }
@@ -7800,7 +7911,7 @@ public class MainActivity extends Activity {
         int count = 0;
         for (int i = 0; rows != null && i < rows.length(); i++) {
             JSONObject r = rows.optJSONObject(i);
-            if (r != null && r.optDouble(key, 0) > 0) count++;
+            if (hasPositiveNumber(r, key)) count++;
         }
         return count;
     }
@@ -7887,8 +7998,8 @@ public class MainActivity extends Activity {
         ProductVisualProfile vp = productVisualProfile(r);
         int accent = vp.accent;
         boolean selected = cartFindIndex(safeDisplayText(r.opt("کد"), "")) >= 0;
-        boolean price1Ok = r.optDouble("قیمت_فروش", 0) > 0;
-        boolean price2Ok = r.optDouble("قیمت_فروش۲", 0) > 0;
+        boolean price1Ok = hasPositiveNumber(r, "قیمت_فروش");
+        boolean price2Ok = hasPositiveNumber(r, "قیمت_فروش۲");
         LinearLayout c = card();
         c.setPadding(dp(11), dp(11), dp(11), dp(11));
         GradientDrawable cardBg = gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 88 : 18), alpha(price2Ok ? WARNING : accent, isLightTheme() ? 34 : 56), alpha(SURFACE_2, 246)}, GradientDrawable.Orientation.TL_BR, 30);
@@ -7946,7 +8057,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams p2rp = new LinearLayout.LayoutParams(-1, -2); p2rp.setMargins(0, dp(6), 0, 0); c.addView(price2Ribbon, p2rp);
 
         LinearLayout stockRow = new LinearLayout(this); stockRow.setOrientation(LinearLayout.HORIZONTAL);
-        stockRow.addView(showcaseMetric("موجودی", stockWithUnit(r), r.optDouble("موجودی", 0) > 0 ? SUCCESS : DANGER, false), showcaseCellLp(1.25f, 58));
+        stockRow.addView(showcaseMetric("موجودی", stockWithUnit(r), jsonDouble(r, "موجودی", 0) > 0 ? SUCCESS : DANGER, false), showcaseCellLp(1.25f, 58));
         stockRow.addView(showcaseMetric("واحد شمارش", unitOrDash(r), INFO, false), showcaseCellLp(1f, 58));
         stockRow.addView(showcaseMetric("تعداد در بسته", numberOrDash(r, "تعداد_در_بسته"), navAccent("showcase"), false), showcaseCellLp(1f, 58));
         LinearLayout.LayoutParams srp = new LinearLayout.LayoutParams(-1, -2); srp.setMargins(0, dp(7), 0, 0); c.addView(stockRow, srp);
@@ -7956,7 +8067,7 @@ public class MainActivity extends Activity {
         extraRow.addView(showcaseMetric("خرید", compactMoney(r.opt("مبلغ_خرید")), INFO, false), showcaseCellLp(1f, 56));
         extraRow.addView(showcaseMetric("وضعیت سبد", selected ? "انتخاب شده" : "انتخاب نشده", selected ? SUCCESS : MUTED, false), showcaseCellLp(1f, 56));
         LinearLayout.LayoutParams erp = new LinearLayout.LayoutParams(-1, -2); erp.setMargins(0, dp(7), 0, 0); c.addView(extraRow, erp);
-        if (!compactUi() && index < 8) addMiniInsightBars(c, "نبض ویترین", new String[]{"موجودی", "فروش", "قیمت۲"}, new double[]{Math.max(0, r.optDouble("موجودی", 0)), Math.max(0, r.optDouble("مبلغ_فروش", 0)), Math.max(0, r.optDouble("قیمت_فروش۲", 0))}, new int[]{r.optDouble("موجودی", 0) > 0 ? SUCCESS : DANGER, GOLD, price2Ok ? WARNING : accent});
+        if (!compactUi() && index < 8) addMiniInsightBars(c, "نبض ویترین", new String[]{"موجودی", "فروش", "قیمت۲"}, new double[]{Math.max(0, jsonDouble(r, "موجودی", 0)), Math.max(0, jsonDouble(r, "مبلغ_فروش", 0)), Math.max(0, jsonDouble(r, "قیمت_فروش۲", 0))}, new int[]{jsonDouble(r, "موجودی", 0) > 0 ? SUCCESS : DANGER, GOLD, price2Ok ? WARNING : accent});
 
         if (canOpenPage("cart")) {
             EditText qty = input("تعداد/وزن", cartQtyFor(safeDisplayText(r.opt("کد"), "")), false);
@@ -8083,7 +8194,7 @@ public class MainActivity extends Activity {
         hero.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
         box.addView(hero, new LinearLayout.LayoutParams(-1, -2));
 
-        boolean price2Ok = r.optDouble("قیمت_فروش۲", 0) > 0;
+        boolean price2Ok = hasPositiveNumber(r, "قیمت_فروش۲");
         LinearLayout prices = new LinearLayout(this); prices.setOrientation(LinearLayout.HORIZONTAL);
         prices.addView(showcaseMetric("قیمت فروش ۱", moneyOrDash(r, "قیمت_فروش"), GOLD, true), showcaseCellLp(1f, 66));
         prices.addView(showcaseMetric("قیمت فروش ۲ ✦", price2Ok ? moneyOrDash(r, "قیمت_فروش۲") : "—", WARNING, true), showcaseCellLp(1.1f, 66));
@@ -8095,7 +8206,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams p2sp = new LinearLayout.LayoutParams(-1, -2); p2sp.setMargins(0, dp(7), 0, 0); box.addView(p2Status, p2sp);
 
         LinearLayout info1 = new LinearLayout(this); info1.setOrientation(LinearLayout.HORIZONTAL);
-        info1.addView(showcaseMetric("موجودی", stockWithUnit(r), r.optDouble("موجودی", 0) > 0 ? SUCCESS : DANGER, false), showcaseCellLp(1.2f, 60));
+        info1.addView(showcaseMetric("موجودی", stockWithUnit(r), jsonDouble(r, "موجودی", 0) > 0 ? SUCCESS : DANGER, false), showcaseCellLp(1.2f, 60));
         info1.addView(showcaseMetric("واحد", unitOrDash(r), INFO, false), showcaseCellLp(1f, 60));
         info1.addView(showcaseMetric("در بسته", numberOrDash(r, "تعداد_در_بسته"), accent, false), showcaseCellLp(1f, 60));
         LinearLayout.LayoutParams i1p = new LinearLayout.LayoutParams(-1, -2); i1p.setMargins(0, dp(7), 0, 0); box.addView(info1, i1p);
@@ -8119,7 +8230,7 @@ public class MainActivity extends Activity {
             LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
             Button add1 = themedActionButton("افزودن قیمت ۱", navAccent("cart"), true); add1Ref[0] = add1;
             Button add2 = themedActionButton(price2Ok ? "افزودن قیمت ۲ ✦" : "قیمت ۲ ندارد", WARNING, price2Ok); add2Ref[0] = add2;
-            boolean p1 = r.optDouble("قیمت_فروش", 0) > 0;
+            boolean p1 = hasPositiveNumber(r, "قیمت_فروش");
             add1.setEnabled(p1); add1.setAlpha(p1 ? 1f : 0.52f); add2.setEnabled(price2Ok); add2.setAlpha(price2Ok ? 1f : 0.52f);
             actions.addView(add1, showcaseButtonLp(1f)); actions.addView(add2, showcaseButtonLp(1f));
             LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(-1, -2); alp.setMargins(0, dp(9), 0, 0); box.addView(actions, alp);
@@ -8184,14 +8295,14 @@ public class MainActivity extends Activity {
             String code = safeDisplayText(product.opt("کد"), "");
             int ix = cartFindIndex(code);
             JSONObject old = ix >= 0 ? visitorCartItems.optJSONObject(ix) : null;
-            double price1 = product.optDouble("قیمت_فروش", 0);
-            double price2 = product.optDouble("قیمت_فروش۲", 0);
+            double price1 = jsonDouble(product, "قیمت_فروش", 0);
+            double price2 = jsonDouble(product, "قیمت_فروش۲", 0);
             int tier = priceTier == 2 && price2 > 0 ? 2 : 1;
             double price = tier == 2 ? price2 : price1;
             JSONObject item = new JSONObject();
             item.put("code", code); item.put("name", safeDisplayText(product.opt("نام"), "محصول")); item.put("unit", safeDisplayText(product.opt("واحد"), "")); item.put("qty", qty);
             item.put("price", price); item.put("price1", price1); item.put("price2", price2); item.put("priceTier", String.valueOf(tier));
-            item.put("stock", product.optDouble("موجودی", 0)); item.put("pack", product.optDouble("تعداد_در_بسته", 1)); item.put("image", product.optString("تصویر", ""));
+            item.put("stock", jsonDouble(product, "موجودی", 0)); item.put("pack", jsonDouble(product, "تعداد_در_بسته", 1)); item.put("image", product.optString("تصویر", ""));
             item.put("lineDiscount", old == null ? 0 : old.optDouble("lineDiscount", 0)); item.put("note", old == null ? "" : old.optString("note", "")); item.put("amount", cartItemNet(item));
             if (ix >= 0) visitorCartItems.put(ix, item); else visitorCartItems.put(item);
         } catch (Exception ignored) { }
@@ -9062,6 +9173,30 @@ public class MainActivity extends Activity {
         if (value == null || JSONObject.NULL.equals(value)) return fallback;
         String v = String.valueOf(value).trim();
         return isNullishText(v) ? fallback : v;
+    }
+
+    private double numericValue(Object value, double fallback) {
+        if (value == null || JSONObject.NULL.equals(value)) return fallback;
+        if (value instanceof Number) return ((Number) value).doubleValue();
+        String raw = String.valueOf(value);
+        if (isNullishText(raw)) return fallback;
+        try {
+            String n = normalizeDigits(raw)
+                    .replace("ریال", "").replace("تومان", "")
+                    .replace("٬", "").replace("،", "").replace(",", "")
+                    .replace("٫", ".").replace(" ", "").replace("\u00A0", "")
+                    .trim();
+            if (n.isEmpty()) return fallback;
+            return Double.parseDouble(n);
+        } catch (Exception ignored) { return fallback; }
+    }
+
+    private double jsonDouble(JSONObject r, String key, double fallback) {
+        return r == null ? fallback : numericValue(r.opt(key), fallback);
+    }
+
+    private boolean hasPositiveNumber(JSONObject r, String key) {
+        return jsonDouble(r, key, 0) > 0;
     }
 
     private String moneyOrDash(JSONObject r, String key) {
@@ -12807,7 +12942,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android v3.43.3\nاین نسخه بخش قیمت فروش ۲ را در ویترین برجسته‌تر می‌کند، فیلتر «قیمت ۲ دار» اضافه می‌کند و با کش ویترین، رندر مرحله‌ای و تصویرهای سبک‌تر، لگ کار با ویترین را کاهش می‌دهد.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android v3.43.4\nاین نسخه علت نمایش نشدن قیمت فروش ۲ در ویترین را رفع می‌کند، اتصال دوربین‌های DVR/P2P را با پورت دستگاه و RTSP جداگانه پایدارتر می‌سازد و لوگوی بالای صفحه و آیکن برنامه را لوکس‌تر و دقیق‌تر نمایش می‌دهد.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -12945,7 +13080,9 @@ public class MainActivity extends Activity {
             JSONObject o = new JSONObject();
             for (int i = 1; i <= n; i++) {
                 Object v = r.getObject(i);
-                o.put(md.getColumnLabel(i), v == null ? JSONObject.NULL : String.valueOf(v));
+                if (v == null) o.put(md.getColumnLabel(i), JSONObject.NULL);
+                else if (v instanceof Number) o.put(md.getColumnLabel(i), v);
+                else o.put(md.getColumnLabel(i), String.valueOf(v));
             }
             arr.put(o);
         }
