@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Meelano</string>
+    <string name="settings">تنظیمات</string>
+    <string name="web_url_hint">ورود با حساب Meelano</string>
+    <string name="android_subtitle">نسخه اتصال مستقیم SQL</string>
+</resources>

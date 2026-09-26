@@ -1,0 +1,146 @@
+name: Build MEELANO Direct SQL Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - arena/01a0d321-atiranweb
+    paths:
+      - 'MEELANO-Android/**'
+      - 'MEELANO-Android-APK-Project.zip'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Show Android and Gradle toolchain
+        working-directory: MEELANO-Android
+        run: |
+          java -version
+          chmod +x ./gradlew
+          ./gradlew --version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          if [ -d "$ANDROID_HOME/platforms" ]; then ls "$ANDROID_HOME/platforms" | tail -20; fi
+
+      - name: Accept Android licenses and ensure SDK 35
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0' || true
+
+      - name: Verify this is native Android, not PWA wrapper
+        run: |
+          if grep -R "android.webkit\|loadUrl" -n MEELANO-Android/app/src/main/java; then
+            echo "Browser wrapper code detected; direct native build refused."
+            exit 1
+          fi
+
+      - name: Build installable direct SQL APKs
+        id: build_apk
+        continue-on-error: true
+        working-directory: MEELANO-Android
+        run: |
+          set +e
+          chmod +x ./gradlew
+          ./gradlew :app:assembleRelease :app:assembleDebug --stacktrace 2>&1 | tee ../android-build.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Commit build log on failure
+        if: steps.build_apk.outcome == 'failure'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android-build.log
+          git commit -m "Add Android build failure log [skip ci]" || exit 0
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Stop after failed build
+        if: steps.build_apk.outcome == 'failure'
+        run: exit 1
+
+      - name: Collect APK files
+        run: |
+          mkdir -p artifacts
+          cp MEELANO-Android/app/build/outputs/apk/release/app-release.apk artifacts/MEELANO-Android-DirectSQL-v3.43.4.apk
+          cp MEELANO-Android/app/build/outputs/apk/debug/app-debug.apk artifacts/MEELANO-Android-DirectSQL-v3.43.4-debug.apk
+          sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
+
+      - name: Commit installable direct SQL APK to this branch
+        if: github.event_name == 'push'
+        run: |
+          git rm -f --ignore-unmatch MEELANO-Android-Native-v2.0.0.apk MEELANO-Android-Native-v2.0.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.0.0.apk MEELANO-Android-DirectSQL-v3.0.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.0.1.apk MEELANO-Android-DirectSQL-v3.0.1-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.1.0.apk MEELANO-Android-DirectSQL-v3.1.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.2.0.apk MEELANO-Android-DirectSQL-v3.2.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.3.0.apk MEELANO-Android-DirectSQL-v3.3.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.4.0.apk MEELANO-Android-DirectSQL-v3.4.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.5.0.apk MEELANO-Android-DirectSQL-v3.5.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.6.0.apk MEELANO-Android-DirectSQL-v3.6.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.7.0.apk MEELANO-Android-DirectSQL-v3.7.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.8.0.apk MEELANO-Android-DirectSQL-v3.8.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.9.0.apk MEELANO-Android-DirectSQL-v3.9.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.10.0.apk MEELANO-Android-DirectSQL-v3.10.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.11.0.apk MEELANO-Android-DirectSQL-v3.11.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.12.0.apk MEELANO-Android-DirectSQL-v3.12.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.13.0.apk MEELANO-Android-DirectSQL-v3.13.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.14.0.apk MEELANO-Android-DirectSQL-v3.14.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.15.0.apk MEELANO-Android-DirectSQL-v3.15.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.16.0.apk MEELANO-Android-DirectSQL-v3.16.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.17.0.apk MEELANO-Android-DirectSQL-v3.17.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.18.0.apk MEELANO-Android-DirectSQL-v3.18.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.19.0.apk MEELANO-Android-DirectSQL-v3.19.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.20.0.apk MEELANO-Android-DirectSQL-v3.20.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.21.0.apk MEELANO-Android-DirectSQL-v3.21.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.22.0.apk MEELANO-Android-DirectSQL-v3.22.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.23.0.apk MEELANO-Android-DirectSQL-v3.23.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.24.0.apk MEELANO-Android-DirectSQL-v3.24.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.25.0.apk MEELANO-Android-DirectSQL-v3.25.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.26.0.apk MEELANO-Android-DirectSQL-v3.26.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.27.0.apk MEELANO-Android-DirectSQL-v3.27.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.28.0.apk MEELANO-Android-DirectSQL-v3.28.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.29.0.apk MEELANO-Android-DirectSQL-v3.29.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.30.0.apk MEELANO-Android-DirectSQL-v3.30.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.31.0.apk MEELANO-Android-DirectSQL-v3.31.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.32.0.apk MEELANO-Android-DirectSQL-v3.32.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.33.0.apk MEELANO-Android-DirectSQL-v3.33.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.34.0.apk MEELANO-Android-DirectSQL-v3.34.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.35.0.apk MEELANO-Android-DirectSQL-v3.35.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.36.0.apk MEELANO-Android-DirectSQL-v3.36.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.37.0.apk MEELANO-Android-DirectSQL-v3.37.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.38.0.apk MEELANO-Android-DirectSQL-v3.38.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.39.0.apk MEELANO-Android-DirectSQL-v3.39.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.40.0.apk MEELANO-Android-DirectSQL-v3.40.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.41.0.apk MEELANO-Android-DirectSQL-v3.41.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.41.1.apk MEELANO-Android-DirectSQL-v3.41.1-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.42.0.apk MEELANO-Android-DirectSQL-v3.42.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.43.0.apk MEELANO-Android-DirectSQL-v3.43.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.43.1.apk MEELANO-Android-DirectSQL-v3.43.1-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.43.2.apk MEELANO-Android-DirectSQL-v3.43.2-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.43.3.apk MEELANO-Android-DirectSQL-v3.43.3-SHA256SUMS.txt android-build.log
+          cp artifacts/MEELANO-Android-DirectSQL-v3.43.4.apk MEELANO-Android-DirectSQL-v3.43.4.apk
+          cp artifacts/SHA256SUMS.txt MEELANO-Android-DirectSQL-v3.43.4-SHA256SUMS.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f MEELANO-Android-DirectSQL-v3.43.4.apk MEELANO-Android-DirectSQL-v3.43.4-SHA256SUMS.txt
+          git commit -m "Add direct SQL Android installable APK [skip ci]" || exit 0
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Upload direct SQL APK artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: MEELANO-DirectSQL-Android-v3.43.4-installable-apk
+          path: artifacts/
+          if-no-files-found: error
