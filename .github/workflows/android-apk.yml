@@ -18,18 +18,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Show Android and Gradle toolchain
+        working-directory: MEELANO-Android
         run: |
           java -version
-          gradle -v
+          chmod +x ./gradlew
+          ./gradlew --version
           echo "ANDROID_HOME=$ANDROID_HOME"
           if [ -d "$ANDROID_HOME/platforms" ]; then ls "$ANDROID_HOME/platforms" | tail -20; fi
 
@@ -51,7 +53,8 @@ jobs:
         working-directory: MEELANO-Android
         run: |
           set +e
-          gradle :app:assembleRelease :app:assembleDebug --stacktrace 2>&1 | tee ../android-build.log
+          chmod +x ./gradlew
+          ./gradlew :app:assembleRelease :app:assembleDebug --stacktrace 2>&1 | tee ../android-build.log
           exit ${PIPESTATUS[0]}
 
       - name: Commit build log on failure
@@ -70,8 +73,8 @@ jobs:
       - name: Collect APK files
         run: |
           mkdir -p artifacts
-          cp MEELANO-Android/app/build/outputs/apk/release/app-release.apk artifacts/MEELANO-Android-DirectSQL-v3.41.1.apk
-          cp MEELANO-Android/app/build/outputs/apk/debug/app-debug.apk artifacts/MEELANO-Android-DirectSQL-v3.41.1-debug.apk
+          cp MEELANO-Android/app/build/outputs/apk/release/app-release.apk artifacts/MEELANO-Android-DirectSQL-v3.42.0.apk
+          cp MEELANO-Android/app/build/outputs/apk/debug/app-debug.apk artifacts/MEELANO-Android-DirectSQL-v3.42.0-debug.apk
           sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
 
       - name: Commit installable direct SQL APK to this branch
@@ -120,12 +123,13 @@ jobs:
             MEELANO-Android-DirectSQL-v3.38.0.apk MEELANO-Android-DirectSQL-v3.38.0-SHA256SUMS.txt \
             MEELANO-Android-DirectSQL-v3.39.0.apk MEELANO-Android-DirectSQL-v3.39.0-SHA256SUMS.txt \
             MEELANO-Android-DirectSQL-v3.40.0.apk MEELANO-Android-DirectSQL-v3.40.0-SHA256SUMS.txt \
-            MEELANO-Android-DirectSQL-v3.41.0.apk MEELANO-Android-DirectSQL-v3.41.0-SHA256SUMS.txt android-build.log
-          cp artifacts/MEELANO-Android-DirectSQL-v3.41.1.apk MEELANO-Android-DirectSQL-v3.41.1.apk
-          cp artifacts/SHA256SUMS.txt MEELANO-Android-DirectSQL-v3.41.1-SHA256SUMS.txt
+            MEELANO-Android-DirectSQL-v3.41.0.apk MEELANO-Android-DirectSQL-v3.41.0-SHA256SUMS.txt \
+            MEELANO-Android-DirectSQL-v3.41.1.apk MEELANO-Android-DirectSQL-v3.41.1-SHA256SUMS.txt android-build.log
+          cp artifacts/MEELANO-Android-DirectSQL-v3.42.0.apk MEELANO-Android-DirectSQL-v3.42.0.apk
+          cp artifacts/SHA256SUMS.txt MEELANO-Android-DirectSQL-v3.42.0-SHA256SUMS.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f MEELANO-Android-DirectSQL-v3.41.1.apk MEELANO-Android-DirectSQL-v3.41.1-SHA256SUMS.txt
+          git add -f MEELANO-Android-DirectSQL-v3.42.0.apk MEELANO-Android-DirectSQL-v3.42.0-SHA256SUMS.txt
           git commit -m "Add direct SQL Android installable APK [skip ci]" || exit 0
           git push origin "HEAD:${GITHUB_REF_NAME}"
 

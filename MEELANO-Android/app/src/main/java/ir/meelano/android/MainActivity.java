@@ -1503,7 +1503,12 @@ public class MainActivity extends Activity {
             showLogin("ابتدا وارد شوید.");
             return;
         }
-        activePage = page;
+        String targetPage = (page == null || page.trim().isEmpty()) ? "dashboard" : page.trim();
+        if (!canOpenPage(targetPage)) {
+            targetPage = firstAllowedPage();
+            Toast.makeText(this, "فقط بخش‌های مجاز این حساب نمایش داده می‌شود.", Toast.LENGTH_SHORT).show();
+        }
+        activePage = targetPage;
         setConnectionStatus("connected");
         subtitle.setText(session.userName);
         stage.removeAllViews();
@@ -1544,11 +1549,6 @@ public class MainActivity extends Activity {
         LinearLayout row3 = navRow();
         LinearLayout row4 = navRow();
         LinearLayout row5 = navRow();
-        navStrip.addView(row1, new LinearLayout.LayoutParams(-1, 0, 1f));
-        navStrip.addView(row2, new LinearLayout.LayoutParams(-1, 0, 1f));
-        navStrip.addView(row3, new LinearLayout.LayoutParams(-1, 0, 1f));
-        navStrip.addView(row4, new LinearLayout.LayoutParams(-1, 0, 1f));
-        navStrip.addView(row5, new LinearLayout.LayoutParams(-1, 0, 1f));
         addNav(row1, "dashboard", "داشبورد", navGlyph("dashboard"));
         addNav(row1, "customers", "مشتریان", navGlyph("customers"));
         addNav(row1, "products", "کالا", navGlyph("products"));
@@ -1564,6 +1564,24 @@ public class MainActivity extends Activity {
         addNav(row5, "visitor_dashboard", "داشبورد ویزیتور", navGlyph("visitor_dashboard"));
         addNav(row5, "showcase", "ویترین", navGlyph("showcase"));
         addNav(row5, "cart", "سبد خرید", navGlyph("cart"));
+        addNavRowIfNotEmpty(row1);
+        addNavRowIfNotEmpty(row2);
+        addNavRowIfNotEmpty(row3);
+        addNavRowIfNotEmpty(row4);
+        addNavRowIfNotEmpty(row5);
+        if (navStrip.getChildCount() == 0) {
+            TextView empty = text("بخشی برای این حساب فعال نیست.", 11, MUTED, Typeface.BOLD);
+            empty.setGravity(Gravity.CENTER);
+            navStrip.addView(empty, new LinearLayout.LayoutParams(-1, dp(46)));
+        }
+    }
+
+    private void addNavRowIfNotEmpty(LinearLayout row) {
+        if (row != null && row.getChildCount() > 0) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(49));
+            lp.setMargins(0, dp(1), 0, dp(1));
+            navStrip.addView(row, lp);
+        }
     }
 
     private LinearLayout navRow() {
@@ -1576,7 +1594,7 @@ public class MainActivity extends Activity {
     private void addNav(LinearLayout parent, String key, String label, String icon) {
         boolean active = key.equals(activePage);
         boolean locked = !canOpenPage(key);
-        if (locked && !active) return;
+        if (locked) return;
         int accent = navAccent(key);
         LinearLayout tab = new LinearLayout(this);
         tab.setOrientation(LinearLayout.HORIZONTAL);
@@ -1584,20 +1602,20 @@ public class MainActivity extends Activity {
         tab.setPadding(dp(5), dp(4), dp(5), dp(4));
         tab.setClickable(true);
         tab.setFocusable(true);
-        tab.setAlpha(locked && !active ? 0.64f : 1f);
-        tab.setBackground(active ? luxuryButtonBg(accent, true, 19) : luxuryButtonBg(locked ? MUTED : accent, false, 19));
+        tab.setAlpha(1f);
+        tab.setBackground(active ? luxuryButtonBg(accent, true, 19) : luxuryButtonBg(accent, false, 19));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) tab.setElevation(dp(active ? 7 : 2));
         applyTouchFeedback(tab);
 
-        String visibleIcon = locked ? "🔒" : icon;
-        TextView badge = text(visibleIcon, visibleIcon != null && visibleIcon.length() > 1 ? 12.5f : 16, active ? onColorFor(accent) : (locked ? alpha(MUTED, 190) : accent), Typeface.BOLD);
+        String visibleIcon = icon;
+        TextView badge = text(visibleIcon, visibleIcon != null && visibleIcon.length() > 1 ? 12.5f : 16, active ? onColorFor(accent) : accent, Typeface.BOLD);
         badge.setGravity(Gravity.CENTER);
         badge.setSingleLine(true);
         badge.setShadowLayer(dp(active ? 3 : 1), 0, dp(1), alpha(Color.BLACK, active ? 145 : 55));
-        badge.setBackground(roundedStroke(active ? alpha(Color.WHITE, isLightTheme() ? 58 : 38) : alpha(locked ? MUTED : accent, 18), 13, active ? alpha(Color.WHITE, 105) : alpha(locked ? MUTED : accent, 70)));
+        badge.setBackground(roundedStroke(active ? alpha(Color.WHITE, isLightTheme() ? 58 : 38) : alpha(accent, 18), 13, active ? alpha(Color.WHITE, 105) : alpha(accent, 70)));
         tab.addView(badge, new LinearLayout.LayoutParams(dp(30), dp(30)));
 
-        TextView title = text(label, 10.2f, active ? onColorFor(accent) : (locked ? alpha(MUTED, 210) : TEXT), Typeface.BOLD);
+        TextView title = text(label, 10.2f, active ? onColorFor(accent) : TEXT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         title.setSingleLine(true);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1f); tp.setMargins(dp(4), 0, dp(4), 0);
@@ -1629,7 +1647,7 @@ public class MainActivity extends Activity {
     private boolean getRtlMode() { return prefs == null || prefs.getBoolean("rtl_mode", true); }
 
     private void renderActivePage() {
-        if (!canOpenPage(activePage)) { activePage = "dashboard"; if (!canOpenPage(activePage)) { content.removeAllViews(); addEmptyTo(content, "بخشی برای نمایش در دسترس نیست."); return; } }
+        if (!canOpenPage(activePage)) { activePage = firstAllowedPage(); buildNav(); if (!canOpenPage(activePage)) { content.removeAllViews(); addEmptyTo(content, "بخشی برای نمایش در دسترس نیست."); return; } }
         switch (activePage) {
             case "command": loadCommandCenter(); break;
             case "assistant": showAssistant(); break;
@@ -1845,7 +1863,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.41.1.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.42.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -2475,7 +2493,7 @@ public class MainActivity extends Activity {
             LinearLayout empty = new LinearLayout(this);
             empty.setOrientation(LinearLayout.VERTICAL);
             content.addView(empty, new LinearLayout.LayoutParams(-1, -2));
-            addEmptyTo(empty, currentVisitorScopeId() == null ? "برای این حساب هنوز ویزیتور/محدوده مشتری مشخص نشده است؛ مدیر باید نقش یا ویزیتور را تنظیم کند." : "برای مشتریان مرتبط با شما موردی در بدهکار، تسویه‌نشده یا بدون خرید پیدا نشد.");
+            addEmptyTo(empty, restrictCustomerData() && currentVisitorScopeId() == null ? "برای این حساب هنوز ویزیتور/محدوده مشتری مشخص نشده است؛ مدیر باید نقش یا ویزیتور را تنظیم کند." : "برای دسترسی‌های فعال این نقش داده‌ای برای نمایش پیدا نشد.");
         }
         updateHomeWidgetFromDashboard(today);
     }
@@ -2493,7 +2511,7 @@ public class MainActivity extends Activity {
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(9), 0, dp(7), 0);
         copy.addView(text(timeGreetingTitle() + " " + displayFirstName(), 16.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        String scope = currentVisitorScopeId() == null ? "محدوده مشتری هنوز به ویزیتور وصل نشده" : "نمای مشتریان ویزیتور شما";
+        String scope = restrictCustomerData() ? (currentVisitorScopeId() == null ? "محدوده مشتری هنوز به ویزیتور وصل نشده" : "نمای مشتریان ویزیتور شما") : "نمای داده‌های مجاز نقش بدون محدودیت ویزیتور";
         copy.addView(text("دسترسی: " + accessRoleLabel(currentAccessRole()) + " • " + scope + (cached ? " • داده ذخیره‌شده" : ""), 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         head.addView(circularDashboardAction("⟳", "بروزرسانی داشبورد", INFO, v -> loadDashboard(true)), new LinearLayout.LayoutParams(dp(38), dp(38)));
@@ -2515,18 +2533,19 @@ public class MainActivity extends Activity {
         LinearLayout c = card();
         c.setBackground(gradient(new int[]{alpha(GOLD, 22), alpha(INFO, 14), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 22));
         c.addView(text("دسترسی‌های فعال شما", 14.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        c.addView(text("سایر بخش‌ها برای این نقش به‌صورت قفل دیده می‌شوند و فقط مدیر می‌تواند آن‌ها را باز کند.", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("فقط بخش‌های مجاز همین نقش نمایش داده می‌شود؛ آیتم‌های بدون دسترسی از منو و میانبرها حذف شده‌اند.", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         addRoleShortcut(row, "customers", "مشتریان");
         addRoleShortcut(row, "products", "کالاها");
         addRoleShortcut(row, "attendance", "حضور من");
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
+        if (row.getChildCount() > 0) { LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp); }
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
 
     private void addRoleShortcut(LinearLayout row, String page, String label) {
-        Button b = canOpenPage(page) ? primaryButton(label) : secondaryButton("🔒 " + label);
+        if (!canOpenPage(page)) return;
+        Button b = primaryButton(label);
         b.setTextSize(9.5f);
         b.setOnClickListener(v -> showApp(page));
         row.addView(b, weightedButtonLp());
@@ -4309,11 +4328,18 @@ public class MainActivity extends Activity {
 
     private String resolveHeuristicAccessRole(String login, String display, Integer visitorId) {
         if (identityLooksAdmin(login, display)) return "admin";
-        if (identityLooksSenior(login, display)) return "senior";
         String n = normalizeIdentity((login == null ? "" : login) + " " + (display == null ? "" : display));
+        String compact = n.replace(" ", "").replace("_", "").replace("-", "");
+        if (compact.contains("حسابدارارشد") || compact.contains("senioraccountant")) return "senior_accountant";
+        if (n.contains("حسابدار") || n.contains("accountant")) return "accountant";
+        if (n.contains("انباردار") || n.contains("انبار") || n.contains("warehouse") || n.contains("storekeeper")) return "warehouse";
+        if (n.contains("مطالبات") || n.contains("وصول") || n.contains("collections") || n.contains("collector")) return "collections";
+        if (compact.contains("کارمندبخشفروش") || n.contains("sales employee") || n.contains("sales_employee")) return "sales_employee";
+        if (identityLooksSenior(login, display)) return "senior";
         if (n.contains("پخش") || n.contains("distribut")) return "distributor";
         if (n.contains("راننده") || n.contains("driver")) return "driver";
         if (n.contains("کارگر") || n.contains("worker")) return "worker";
+        if (n.contains("کارمند") || n.contains("employee")) return "employee";
         if (visitorId != null && visitorId > 0) return "visitor";
         return "user";
     }
@@ -4342,9 +4368,10 @@ public class MainActivity extends Activity {
         if (v.isEmpty()) return "";
         if (v.contains("admin") || v.contains("administrator") || v.contains("مدیرکل") || v.contains("مديرکل")) return "admin";
         if (v.contains("manager") || v.contains("مدیر") || v.contains("مدير") || v.contains("modir")) return "manager";
-        if (v.contains("senior") || v.contains("supervisor") || v.contains("ارشد")) return "senior";
-        if (v.contains("senior_accountant") || v.contains("حسابدار ارشد") || v.contains("حسابدارارشد") || v.contains("senior accountant")) return "senior_accountant";
+        String compact = v.replace(" ", "").replace("_", "").replace("-", "");
+        if (v.contains("senior_accountant") || compact.contains("senioraccountant") || v.contains("حسابدار ارشد") || compact.contains("حسابدارارشد") || v.contains("senior accountant")) return "senior_accountant";
         if (v.contains("accountant") || v.contains("حسابدار")) return "accountant";
+        if (v.contains("senior") || v.contains("supervisor") || v.contains("ارشد")) return "senior";
         if (v.contains("warehouse") || v.contains("انباردار") || v.contains("انبار")) return "warehouse";
         if (v.contains("collections") || v.contains("مطالبات") || v.contains("وصول")) return "collections";
         if (v.contains("sales_employee") || v.contains("کارمند بخش فروش") || v.contains("کارمندفروش") || v.contains("sales")) return "sales_employee";
@@ -4600,7 +4627,11 @@ public class MainActivity extends Activity {
     }
 
     private boolean restrictCustomerData() {
-        return !isFullAccessUser();
+        if (isFullAccessUser()) return false;
+        String role = currentAccessRole();
+        if ("visitor".equals(role) || "distributor".equals(role) || "driver".equals(role)) return true;
+        if (("senior".equals(role) || "sales_employee".equals(role)) && currentVisitorScopeId() != null && currentVisitorScopeId() > 0) return true;
+        return false;
     }
 
     private String customerScopeCondition(Set<String> cols, String alias, List<Object> params) {
@@ -4626,6 +4657,23 @@ public class MainActivity extends Activity {
     private boolean canOpenPage(String page) {
         if (page == null || page.trim().isEmpty() || "login".equals(page)) return true;
         return canUsePermission(pagePermissionKey(page));
+    }
+
+    private String firstAllowedPage() {
+        String[] preferred = {"dashboard", "visitor_dashboard", "showcase", "cart", "customers", "products", "attendance", "assistant", "chat", "reports", "command", "personnel", "taxpayers", "cameras", "alarm", "settings", "health"};
+        for (String p : preferred) if (canOpenPage(p)) return p;
+        return "dashboard";
+    }
+
+    private void redirectToAllowedPage(String requestedPage) {
+        String target = firstAllowedPage();
+        if (content != null && !canOpenPage(target)) {
+            content.removeAllViews();
+            addEmptyTo(content, "برای این حساب هیچ بخشی فعال نیست؛ مدیر باید دسترسی‌ها را تنظیم کند.");
+            return;
+        }
+        Toast.makeText(this, "این بخش در منوی این حساب نمایش داده نمی‌شود.", Toast.LENGTH_SHORT).show();
+        showApp(target);
     }
 
     private String sectionLabel(String page) {
@@ -4658,23 +4706,7 @@ public class MainActivity extends Activity {
     }
 
     private void renderLockedSection(String page) {
-        content.removeAllViews();
-        String label = sectionLabel(page);
-        addHero("بخش قفل‌شده", label + " برای نقش «" + accessRoleLabel(currentAccessRole()) + "» فعال نیست.");
-        LinearLayout c = card();
-        c.setGravity(Gravity.CENTER_HORIZONTAL);
-        c.setBackground(gradient(new int[]{alpha(DANGER, 26), alpha(GOLD, 18), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 28));
-        c.addView(report3dIcon("🔒", DANGER), new LinearLayout.LayoutParams(dp(62), dp(62)));
-        TextView title = text("دسترسی محدود", 17, TEXT, Typeface.BOLD); title.setGravity(Gravity.CENTER); c.addView(title, new LinearLayout.LayoutParams(-1, -2));
-        TextView body = text("این حساب با نام کاربری/رمز خودش وارد شده و فقط بخش‌های مجاز نقش خود را می‌بیند. مدیر اصلی یا نقش مدیر می‌تواند همه آیتم‌ها و تنظیمات مدیریتی را باز کند.", 11.1f, MUTED, Typeface.NORMAL);
-        body.setGravity(Gravity.CENTER); body.setLineSpacing(dp(2), 1.05f);
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, -2); bp.setMargins(0, dp(8), 0, dp(10)); c.addView(body, bp);
-        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button dash = primaryButton("داشبورد"); dash.setOnClickListener(v -> showApp("dashboard")); row.addView(dash, weightedButtonLp());
-        Button attendance = secondaryButton("حضور من"); attendance.setOnClickListener(v -> showApp("attendance")); row.addView(attendance, weightedButtonLp());
-        if (canOpenPage("customers")) { Button customers = secondaryButton("مشتریان"); customers.setOnClickListener(v -> showApp("customers")); row.addView(customers, weightedButtonLp()); }
-        c.addView(row, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+        redirectToAllowedPage(page);
     }
 
     private String sqlText(String v) {
@@ -5855,7 +5887,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.41.1.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.42.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -5867,7 +5899,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.41.1.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.42.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -7389,20 +7421,17 @@ public class MainActivity extends Activity {
         row.addView(dashboardMiniMetric("مشتری", formatNumber(sales == null ? 0 : sales.opt("customers")), "خریدار", SUCCESS), dashboardMiniLp());
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
         LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
-        Button showcase = themedActionButton("ورود به ویترین ✦", navAccent("showcase"), true); showcase.setOnClickListener(v -> showApp("showcase"));
-        Button cart = themedActionButton("سبد خرید " + formatNumber(visitorCartItems.length()), navAccent("cart"), false); cart.setOnClickListener(v -> showApp("cart"));
-        row2.addView(showcase, weightedButtonLp()); row2.addView(cart, weightedButtonLp());
-        LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(10), 0, 0); c.addView(row2, r2p);
+        if (canOpenPage("showcase")) { Button showcase = themedActionButton("ورود به ویترین ✦", navAccent("showcase"), true); showcase.setOnClickListener(v -> showApp("showcase")); row2.addView(showcase, weightedButtonLp()); }
+        if (canOpenPage("cart")) { Button cart = themedActionButton("سبد خرید " + formatNumber(visitorCartItems.length()), navAccent("cart"), false); cart.setOnClickListener(v -> showApp("cart")); row2.addView(cart, weightedButtonLp()); }
+        if (row2.getChildCount() > 0) { LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(10), 0, 0); c.addView(row2, r2p); }
         LinearLayout row3 = new LinearLayout(this); row3.setOrientation(LinearLayout.HORIZONTAL);
-        Button mine = secondaryButton("پیش‌فاکتورهای من"); mine.setOnClickListener(v -> loadMyPrefactors());
-        Button route = secondaryButton("مسیر بازدید امروز"); route.setOnClickListener(v -> loadVisitRoutePage(""));
-        row3.addView(mine, weightedButtonLp()); row3.addView(route, weightedButtonLp());
-        LinearLayout.LayoutParams r3p = new LinearLayout.LayoutParams(-1, -2); r3p.setMargins(0, dp(8), 0, 0); c.addView(row3, r3p);
+        if (canUsePermission("prefactor_list")) { Button mine = secondaryButton("پیش‌فاکتورهای من"); mine.setOnClickListener(v -> loadMyPrefactors()); row3.addView(mine, weightedButtonLp()); }
+        if (canUsePermission("visit_route")) { Button route = secondaryButton("مسیر بازدید امروز"); route.setOnClickListener(v -> loadVisitRoutePage("")); row3.addView(route, weightedButtonLp()); }
+        if (row3.getChildCount() > 0) { LinearLayout.LayoutParams r3p = new LinearLayout.LayoutParams(-1, -2); r3p.setMargins(0, dp(8), 0, 0); c.addView(row3, r3p); }
         LinearLayout row4 = new LinearLayout(this); row4.setOrientation(LinearLayout.HORIZONTAL);
-        Button report = secondaryButton("جمع‌بندی پایان روز"); report.setOnClickListener(v -> showEndOfDayReportDialog());
-        Button queue = offlineQueue().length() > 0 ? primaryButton("ارسال صف آفلاین") : secondaryButton("صف آفلاین خالی"); queue.setOnClickListener(v -> trySendOfflineQueue());
-        row4.addView(report, weightedButtonLp()); row4.addView(queue, weightedButtonLp());
-        LinearLayout.LayoutParams r4p = new LinearLayout.LayoutParams(-1, -2); r4p.setMargins(0, dp(8), 0, 0); c.addView(row4, r4p);
+        if (canUsePermission("day_report")) { Button report = secondaryButton("جمع‌بندی پایان روز"); report.setOnClickListener(v -> showEndOfDayReportDialog()); row4.addView(report, weightedButtonLp()); }
+        if (canUsePermission("offline_queue")) { Button queue = offlineQueue().length() > 0 ? primaryButton("ارسال صف آفلاین") : secondaryButton("صف آفلاین خالی"); queue.setOnClickListener(v -> trySendOfflineQueue()); row4.addView(queue, weightedButtonLp()); }
+        if (row4.getChildCount() > 0) { LinearLayout.LayoutParams r4p = new LinearLayout.LayoutParams(-1, -2); r4p.setMargins(0, dp(8), 0, 0); c.addView(row4, r4p); }
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
         addVisitorGoalsCard(data.optJSONArray("goals"));
         addDashboardInsightTable(data);
@@ -7453,8 +7482,10 @@ public class MainActivity extends Activity {
         }
         Button scan = secondaryButton("بارکد/کدخوان"); scan.setTextSize(9.0f); scan.setOnClickListener(v -> showBarcodeSearchDialog());
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(112), dp(39)); sp.setMargins(dp(3), 0, dp(3), dp(8)); row.addView(scan, sp);
-        Button cart = primaryButton("سبد: " + formatNumber(visitorCartItems.length())); cart.setTextSize(9.5f); cart.setOnClickListener(v -> showApp("cart"));
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(100), dp(39)); cp.setMargins(dp(3), 0, dp(3), dp(8)); row.addView(cart, cp);
+        if (canOpenPage("cart")) {
+            Button cart = primaryButton("سبد: " + formatNumber(visitorCartItems.length())); cart.setTextSize(9.5f); cart.setOnClickListener(v -> showApp("cart"));
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(100), dp(39)); cp.setMargins(dp(3), 0, dp(3), dp(8)); row.addView(cart, cp);
+        }
         scroll.addView(row, new FrameLayout.LayoutParams(-2, -2)); content.addView(scroll, new LinearLayout.LayoutParams(-1, -2));
     }
 
@@ -7505,10 +7536,10 @@ public class MainActivity extends Activity {
         desc.setMaxLines(3); c.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
         row.addView(showcaseMetric("کالاهای آماده", formatNumber(rows == null ? 0 : rows.length()), SUCCESS, false), showcaseCellLp(1f, 54));
-        row.addView(showcaseMetric("سبد", formatNumber(visitorCartItems.length()) + " قلم", navAccent("cart"), false), showcaseCellLp(1f, 54));
+        row.addView(showcaseMetric(canOpenPage("cart") ? "سبد" : "حالت", canOpenPage("cart") ? formatNumber(visitorCartItems.length()) + " قلم" : "نمایش کالا", canOpenPage("cart") ? navAccent("cart") : INFO, false), showcaseCellLp(1f, 54));
         row.addView(showcaseMetric("فیلتر", showcaseFilterLabel(filter), accent, false), showcaseCellLp(1f, 54));
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(8), 0, 0); c.addView(row, rp);
-        String suggestion = smartCartSuggestionText();
+        String suggestion = canOpenPage("cart") ? smartCartSuggestionText() : "";
         if (!suggestion.isEmpty()) {
             TextView s = text("پیشنهاد سبد: " + suggestion, 10.3f, alpha(TEXT, 220), Typeface.BOLD);
             s.setPadding(dp(8), dp(7), dp(8), dp(7));
@@ -7516,9 +7547,12 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2); sp.setMargins(0, dp(8), 0, 0); c.addView(s, sp);
         }
         LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
-        Button scan = themedActionButton("اسکن و افزودن", accent, false); scan.setTextSize(9.2f); scan.setOnClickListener(v -> showBarcodeSearchDialog());
-        Button cart = themedActionButton("رفتن به سبد", navAccent("cart"), true); cart.setTextSize(9.2f); cart.setOnClickListener(v -> showApp("cart"));
-        actions.addView(scan, showcaseButtonLp(1f)); actions.addView(cart, showcaseButtonLp(1f));
+        Button scan = themedActionButton(canOpenPage("cart") ? "اسکن و افزودن" : "اسکن/جستجو", accent, false); scan.setTextSize(9.2f); scan.setOnClickListener(v -> showBarcodeSearchDialog());
+        actions.addView(scan, showcaseButtonLp(1f));
+        if (canOpenPage("cart")) {
+            Button cart = themedActionButton("رفتن به سبد", navAccent("cart"), true); cart.setTextSize(9.2f); cart.setOnClickListener(v -> showApp("cart"));
+            actions.addView(cart, showcaseButtonLp(1f));
+        }
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); c.addView(actions, ap);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(10)); content.addView(c, cp);
     }
@@ -7551,6 +7585,7 @@ public class MainActivity extends Activity {
     }
 
     private void addShowcaseFloatingCartBar() {
+        if (!canOpenPage("cart")) return;
         LinearLayout c = card();
         c.setPadding(dp(10), dp(9), dp(10), dp(9));
         c.setBackground(themedSectionBg("cart", 22));
@@ -7618,32 +7653,37 @@ public class MainActivity extends Activity {
         extraRow.addView(showcaseMetric("وضعیت سبد", selected ? "انتخاب شده" : "انتخاب نشده", selected ? SUCCESS : MUTED, false), showcaseCellLp(1f, 56));
         LinearLayout.LayoutParams erp = new LinearLayout.LayoutParams(-1, -2); erp.setMargins(0, dp(7), 0, 0); c.addView(extraRow, erp);
 
-        EditText qty = input("تعداد/وزن", cartQtyFor(r.optString("کد", "")), false);
-        qty.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        LinearLayout qtyRow = new LinearLayout(this); qtyRow.setOrientation(LinearLayout.HORIZONTAL); qtyRow.setGravity(Gravity.CENTER_VERTICAL);
-        qtyRow.addView(qty, new LinearLayout.LayoutParams(0, dp(46), 1f));
-        Button detail = themedActionButton("نمایش", accent, false); detail.setTextSize(9.2f); detail.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
-        LinearLayout.LayoutParams dpLp = new LinearLayout.LayoutParams(dp(92), dp(46)); dpLp.setMargins(dp(6), 0, 0, 0); qtyRow.addView(detail, dpLp);
-        if (selected) {
-            Button remove = themedActionButton("حذف", DANGER, false); remove.setTextSize(9.0f); remove.setOnClickListener(v -> { removeCartItem(r.optString("کد", "")); loadShowcase(query, filter); });
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(82), dp(46)); rp.setMargins(dp(6), 0, 0, 0); qtyRow.addView(remove, rp);
-        }
-        LinearLayout.LayoutParams qrp = new LinearLayout.LayoutParams(-1, -2); qrp.setMargins(0, dp(11), 0, 0); c.addView(qtyRow, qrp);
+        if (canOpenPage("cart")) {
+            EditText qty = input("تعداد/وزن", cartQtyFor(r.optString("کد", "")), false);
+            qty.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            LinearLayout qtyRow = new LinearLayout(this); qtyRow.setOrientation(LinearLayout.HORIZONTAL); qtyRow.setGravity(Gravity.CENTER_VERTICAL);
+            qtyRow.addView(qty, new LinearLayout.LayoutParams(0, dp(46), 1f));
+            Button detail = themedActionButton("نمایش", accent, false); detail.setTextSize(9.2f); detail.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
+            LinearLayout.LayoutParams dpLp = new LinearLayout.LayoutParams(dp(92), dp(46)); dpLp.setMargins(dp(6), 0, 0, 0); qtyRow.addView(detail, dpLp);
+            if (selected) {
+                Button remove = themedActionButton("حذف", DANGER, false); remove.setTextSize(9.0f); remove.setOnClickListener(v -> { removeCartItem(r.optString("کد", "")); loadShowcase(query, filter); });
+                LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(82), dp(46)); rp.setMargins(dp(6), 0, 0, 0); qtyRow.addView(remove, rp);
+            }
+            LinearLayout.LayoutParams qrp = new LinearLayout.LayoutParams(-1, -2); qrp.setMargins(0, dp(11), 0, 0); c.addView(qtyRow, qrp);
 
-        LinearLayout action = new LinearLayout(this); action.setOrientation(LinearLayout.HORIZONTAL);
-        Button add = themedActionButton(selected ? "بروزرسانی با قیمت ۱" : "افزودن با قیمت ۱", navAccent("cart"), true);
-        add.setTextSize(9.4f);
-        boolean price1Ok = r.optDouble("قیمت_فروش", 0) > 0;
-        add.setEnabled(price1Ok); add.setAlpha(price1Ok ? 1f : 0.52f);
-        add.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "محصول با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
-        Button add2 = themedActionButton(r.optDouble("قیمت_فروش۲", 0) > 0 ? "افزودن با قیمت ۲" : "قیمت ۲ ثبت نشده", navAccent("showcase"), false);
-        add2.setTextSize(9.2f);
-        boolean price2Ok = r.optDouble("قیمت_فروش۲", 0) > 0;
-        add2.setEnabled(price2Ok); add2.setAlpha(price2Ok ? 1f : 0.52f);
-        add2.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "محصول با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
-        action.addView(add, showcaseButtonLp(1f));
-        action.addView(add2, showcaseButtonLp(1f));
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); c.addView(action, ap);
+            LinearLayout action = new LinearLayout(this); action.setOrientation(LinearLayout.HORIZONTAL);
+            Button add = themedActionButton(selected ? "بروزرسانی با قیمت ۱" : "افزودن با قیمت ۱", navAccent("cart"), true);
+            add.setTextSize(9.4f);
+            boolean price1Ok = r.optDouble("قیمت_فروش", 0) > 0;
+            add.setEnabled(price1Ok); add.setAlpha(price1Ok ? 1f : 0.52f);
+            add.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "محصول با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
+            Button add2 = themedActionButton(r.optDouble("قیمت_فروش۲", 0) > 0 ? "افزودن با قیمت ۲" : "قیمت ۲ ثبت نشده", navAccent("showcase"), false);
+            add2.setTextSize(9.2f);
+            boolean price2Ok = r.optDouble("قیمت_فروش۲", 0) > 0;
+            add2.setEnabled(price2Ok); add2.setAlpha(price2Ok ? 1f : 0.52f);
+            add2.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "محصول با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
+            action.addView(add, showcaseButtonLp(1f));
+            action.addView(add2, showcaseButtonLp(1f));
+            LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); c.addView(action, ap);
+        } else {
+            Button detail = themedActionButton("نمایش جزئیات", accent, false); detail.setTextSize(9.4f); detail.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
+            LinearLayout.LayoutParams dpOnly = new LinearLayout.LayoutParams(-1, dp(45)); dpOnly.setMargins(0, dp(10), 0, 0); c.addView(detail, dpOnly);
+        }
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(11)); parent.addView(c, lp);
     }
@@ -7715,28 +7755,35 @@ public class MainActivity extends Activity {
         info2.addView(showcaseMetric("گردش خالص", numberOrDash(r, "گردش_خالص"), INFO, false), showcaseCellLp(1f, 58));
         LinearLayout.LayoutParams i2p = new LinearLayout.LayoutParams(-1, -2); i2p.setMargins(0, dp(7), 0, 0); box.addView(info2, i2p);
 
-        EditText qty = input("تعداد/وزن برای افزودن به سبد", cartQtyFor(r.optString("کد", "")), false);
-        qty.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(-1, dp(48)); qlp.setMargins(0, dp(12), 0, 0); box.addView(qty, qlp);
+        final EditText[] qtyRef = new EditText[1];
+        final Button[] add1Ref = new Button[1];
+        final Button[] add2Ref = new Button[1];
+        final Button[] removeRef = new Button[1];
+        if (canOpenPage("cart")) {
+            EditText qty = input("تعداد/وزن برای افزودن به سبد", cartQtyFor(r.optString("کد", "")), false);
+            qtyRef[0] = qty;
+            qty.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+            LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(-1, dp(48)); qlp.setMargins(0, dp(12), 0, 0); box.addView(qty, qlp);
 
-        LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
-        Button add1 = themedActionButton("افزودن قیمت ۱", navAccent("cart"), true);
-        Button add2 = themedActionButton(r.optDouble("قیمت_فروش۲", 0) > 0 ? "افزودن قیمت ۲" : "قیمت ۲ ندارد", accent, false);
-        boolean p1 = r.optDouble("قیمت_فروش", 0) > 0, p2 = r.optDouble("قیمت_فروش۲", 0) > 0;
-        add1.setEnabled(p1); add1.setAlpha(p1 ? 1f : 0.52f); add2.setEnabled(p2); add2.setAlpha(p2 ? 1f : 0.52f);
-        actions.addView(add1, showcaseButtonLp(1f)); actions.addView(add2, showcaseButtonLp(1f));
-        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(-1, -2); alp.setMargins(0, dp(9), 0, 0); box.addView(actions, alp);
-        Button remove = themedActionButton("حذف از سبد", DANGER, false);
-        remove.setVisibility(cartFindIndex(r.optString("کد", "")) >= 0 ? View.VISIBLE : View.GONE);
-        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, dp(45)); rlp.setMargins(0, dp(6), 0, 0); box.addView(remove, rlp);
+            LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
+            Button add1 = themedActionButton("افزودن قیمت ۱", navAccent("cart"), true); add1Ref[0] = add1;
+            Button add2 = themedActionButton(r.optDouble("قیمت_فروش۲", 0) > 0 ? "افزودن قیمت ۲" : "قیمت ۲ ندارد", accent, false); add2Ref[0] = add2;
+            boolean p1 = r.optDouble("قیمت_فروش", 0) > 0, p2 = r.optDouble("قیمت_فروش۲", 0) > 0;
+            add1.setEnabled(p1); add1.setAlpha(p1 ? 1f : 0.52f); add2.setEnabled(p2); add2.setAlpha(p2 ? 1f : 0.52f);
+            actions.addView(add1, showcaseButtonLp(1f)); actions.addView(add2, showcaseButtonLp(1f));
+            LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(-1, -2); alp.setMargins(0, dp(9), 0, 0); box.addView(actions, alp);
+            Button remove = themedActionButton("حذف از سبد", DANGER, false); removeRef[0] = remove;
+            remove.setVisibility(cartFindIndex(r.optString("کد", "")) >= 0 ? View.VISIBLE : View.GONE);
+            LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, dp(45)); rlp.setMargins(0, dp(6), 0, 0); box.addView(remove, rlp);
+        }
         Button fixVisual = themedActionButton("اصلاح هوشمندی تصویر این کالا", accent, false);
         fixVisual.setTextSize(9.4f);
         LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(-1, dp(45)); flp.setMargins(0, dp(6), 0, 0); box.addView(fixVisual, flp);
 
         AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).create();
-        add1.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) loadShowcase(stringOr(query, ""), stringOr(filter, "all")); });
-        add2.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) loadShowcase(stringOr(query, ""), stringOr(filter, "all")); });
-        remove.setOnClickListener(v -> { removeCartItem(r.optString("کد", "")); Toast.makeText(this, "از سبد حذف شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) loadShowcase(stringOr(query, ""), stringOr(filter, "all")); });
+        if (add1Ref[0] != null) add1Ref[0].setOnClickListener(v -> { addOrUpdateCartItem(r, qtyRef[0].getText().toString(), 1); Toast.makeText(this, "با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) loadShowcase(stringOr(query, ""), stringOr(filter, "all")); });
+        if (add2Ref[0] != null) add2Ref[0].setOnClickListener(v -> { addOrUpdateCartItem(r, qtyRef[0].getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) loadShowcase(stringOr(query, ""), stringOr(filter, "all")); });
+        if (removeRef[0] != null) removeRef[0].setOnClickListener(v -> { removeCartItem(r.optString("کد", "")); Toast.makeText(this, "از سبد حذف شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) loadShowcase(stringOr(query, ""), stringOr(filter, "all")); });
         fixVisual.setOnClickListener(v -> { dlg.dismiss(); showProductVisualChooser(r, query, filter); });
         dlg.setOnShowListener(d -> styleMeelanoDialog(dlg, accent));
         dlg.show();
@@ -7823,7 +7870,7 @@ public class MainActivity extends Activity {
     private double cartTotal() { return cartNetBeforeTax() + cartTaxAmount(); }
 
     private void renderCartPage() {
-        if (!canUsePermission("cart")) { renderLockedSection("cart"); return; }
+        if (!canUsePermission("cart")) { redirectToAllowedPage("cart"); return; }
         content.removeAllViews();
         addHero("سبد خرید و پیش‌فاکتور", "انتخاب مشتری، مرور اقلام، توضیحات، امضا و ارسال پیش‌فاکتور");
         addManualRefreshPanel("cart", "بروزرسانی سبد", "اقلام فعلی: " + formatNumber(visitorCartItems.length()), () -> renderCartPage());
@@ -7838,10 +7885,10 @@ public class MainActivity extends Activity {
     private void addCartWorkflowButtons() {
         LinearLayout c = card(); c.setPadding(dp(10), dp(10), dp(10), dp(10)); c.setBackground(themedSectionBg("cart", 22));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button mine = secondaryButton("پیش‌فاکتورهای من"); mine.setTextSize(9.3f); mine.setOnClickListener(v -> loadMyPrefactors());
-        Button route = secondaryButton("مسیر بازدید"); route.setTextSize(9.3f); route.setOnClickListener(v -> loadVisitRoutePage(""));
-        Button barcode = secondaryButton("بارکد/کد"); barcode.setTextSize(9.3f); barcode.setOnClickListener(v -> showBarcodeSearchDialog());
-        row.addView(mine, weightedButtonLp()); row.addView(route, weightedButtonLp()); row.addView(barcode, weightedButtonLp());
+        if (canUsePermission("prefactor_list")) { Button mine = secondaryButton("پیش‌فاکتورهای من"); mine.setTextSize(9.3f); mine.setOnClickListener(v -> loadMyPrefactors()); row.addView(mine, weightedButtonLp()); }
+        if (canUsePermission("visit_route")) { Button route = secondaryButton("مسیر بازدید"); route.setTextSize(9.3f); route.setOnClickListener(v -> loadVisitRoutePage("")); row.addView(route, weightedButtonLp()); }
+        if (canOpenPage("showcase")) { Button barcode = secondaryButton("بارکد/کد"); barcode.setTextSize(9.3f); barcode.setOnClickListener(v -> showBarcodeSearchDialog()); row.addView(barcode, weightedButtonLp()); }
+        if (row.getChildCount() == 0) return;
         c.addView(row, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
@@ -7863,8 +7910,8 @@ public class MainActivity extends Activity {
         }
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
         Button pick = themedActionButton("👤 انتخاب/جستجوی مشتری", navAccent("cart"), true); pick.setOnClickListener(v -> { if (ensurePermission("customer_select", "انتخاب مشتری")) showCartCustomerPicker(""); });
-        Button showcase = themedActionButton("＋ افزودن محصول", navAccent("showcase"), false); showcase.setOnClickListener(v -> showApp("showcase"));
-        row.addView(pick, weightedButtonLp()); row.addView(showcase, weightedButtonLp());
+        row.addView(pick, weightedButtonLp());
+        if (canOpenPage("showcase")) { Button showcase = themedActionButton("＋ افزودن محصول", navAccent("showcase"), false); showcase.setOnClickListener(v -> showApp("showcase")); row.addView(showcase, weightedButtonLp()); }
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
@@ -7983,25 +8030,26 @@ public class MainActivity extends Activity {
         cartNotesInput = input("توضیحات مشتری یا اقلام انتخابی", visitorCartNotes, false); cartNotesInput.setSingleLine(false); cartNotesInput.setMinLines(3);
         LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, dp(88)); np.setMargins(0, dp(8), 0, dp(8)); c.addView(cartNotesInput, np);
         LinearLayout signRow = new LinearLayout(this); signRow.setOrientation(LinearLayout.HORIZONTAL);
-        Button sign = secondaryButton(visitorCartSignature.isEmpty() ? "ثبت امضای مشتری" : "امضا ثبت شد ✓"); sign.setOnClickListener(v -> { syncCartFormInputs(); if (ensurePermission("cart_signature", "امضای مشتری")) showSignatureDialog(); });
-        Button pdf = secondaryButton("PDF/اشتراک"); pdf.setOnClickListener(v -> { syncCartFormInputs(); generateCurrentCartPdfAndShare(false); });
-        signRow.addView(sign, weightedButtonLp()); signRow.addView(pdf, weightedButtonLp()); c.addView(signRow, new LinearLayout.LayoutParams(-1, -2));
+        if (canUsePermission("cart_signature")) { Button sign = secondaryButton(visitorCartSignature.isEmpty() ? "ثبت امضای مشتری" : "امضا ثبت شد ✓"); sign.setOnClickListener(v -> { syncCartFormInputs(); showSignatureDialog(); }); signRow.addView(sign, weightedButtonLp()); }
+        if (canUsePermission("cart_pdf")) { Button pdf = secondaryButton("PDF/اشتراک"); pdf.setOnClickListener(v -> { syncCartFormInputs(); generateCurrentCartPdfAndShare(false); }); signRow.addView(pdf, weightedButtonLp()); }
+        if (signRow.getChildCount() > 0) c.addView(signRow, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button draft = secondaryButton("ذخیره پیش‌نویس"); draft.setOnClickListener(v -> { syncCartFormInputs(); if (ensurePermission("cart_draft", "پیش‌نویس")) saveCartDraftOnly(); });
-        Button send = primaryButton("پیش‌نمایش و ارسال"); send.setOnClickListener(v -> { syncCartFormInputs(); if (ensurePermission("cart_submit", "ارسال پیش‌فاکتور")) showPrefactorPreviewDialog(); });
-        row.addView(draft, weightedButtonLp()); row.addView(send, weightedButtonLp()); LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(9), 0, 0); c.addView(row, rp);
-        Button restore = secondaryButton("پیش‌نویس‌ها و بازیابی"); restore.setOnClickListener(v -> restoreCartDraft()); LinearLayout.LayoutParams rp2 = new LinearLayout.LayoutParams(-1, dp(44)); rp2.setMargins(0, dp(8), 0, 0); c.addView(restore, rp2);
+        if (canUsePermission("cart_draft")) { Button draft = secondaryButton("ذخیره پیش‌نویس"); draft.setOnClickListener(v -> { syncCartFormInputs(); saveCartDraftOnly(); }); row.addView(draft, weightedButtonLp()); }
+        if (canUsePermission("cart_submit")) { Button send = primaryButton("پیش‌نمایش و ارسال"); send.setOnClickListener(v -> { syncCartFormInputs(); showPrefactorPreviewDialog(); }); row.addView(send, weightedButtonLp()); }
+        if (row.getChildCount() > 0) { LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(9), 0, 0); c.addView(row, rp); }
+        if (canUsePermission("cart_draft")) { Button restore = secondaryButton("پیش‌نویس‌ها و بازیابی"); restore.setOnClickListener(v -> restoreCartDraft()); LinearLayout.LayoutParams rp2 = new LinearLayout.LayoutParams(-1, dp(44)); rp2.setMargins(0, dp(8), 0, 0); c.addView(restore, rp2); }
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
 
     private void addCartDraftsAndOfflineCard() {
+        if (!canUsePermission("cart_draft") && !canUsePermission("offline_queue")) return;
         LinearLayout c = card(); c.setBackground(themedSectionBg("cart", 24));
         c.addView(text("پیش‌نویس‌ها و صف ارسال", 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         c.addView(text("پیش‌نویس‌های چندتایی و سفارش‌های ارسال‌نشده در گوشی نگهداری می‌شوند تا در اتصال بعدی ارسال شوند.", 10.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        Button drafts = secondaryButton("پیش‌نویس‌ها: " + formatNumber(localDrafts().length())); drafts.setOnClickListener(v -> showSavedDraftsDialog());
-        Button queue = offlineQueue().length() > 0 ? primaryButton("ارسال صف: " + formatNumber(offlineQueue().length())) : secondaryButton("صف خالی"); queue.setOnClickListener(v -> trySendOfflineQueue());
-        row.addView(drafts, weightedButtonLp()); row.addView(queue, weightedButtonLp()); LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(9), 0, 0); c.addView(row, rp);
+        if (canUsePermission("cart_draft")) { Button drafts = secondaryButton("پیش‌نویس‌ها: " + formatNumber(localDrafts().length())); drafts.setOnClickListener(v -> showSavedDraftsDialog()); row.addView(drafts, weightedButtonLp()); }
+        if (canUsePermission("offline_queue")) { Button queue = offlineQueue().length() > 0 ? primaryButton("ارسال صف: " + formatNumber(offlineQueue().length())) : secondaryButton("صف خالی"); queue.setOnClickListener(v -> trySendOfflineQueue()); row.addView(queue, weightedButtonLp()); }
+        if (row.getChildCount() > 0) { LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(9), 0, 0); c.addView(row, rp); }
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
 
@@ -8153,6 +8201,7 @@ public class MainActivity extends Activity {
     }
 
     private void trySendOfflineQueue() {
+        if (!canUsePermission("offline_queue")) { Toast.makeText(this, "این گزینه برای این حساب نمایش داده نمی‌شود.", Toast.LENGTH_SHORT).show(); return; }
         JSONArray q = offlineQueue();
         if (q.length() == 0) { Toast.makeText(this, "صف ارسال آفلاین خالی است.", Toast.LENGTH_SHORT).show(); return; }
         runDb(() -> {
@@ -8300,7 +8349,7 @@ public class MainActivity extends Activity {
     private String prefactorScopeWhere(String alias, List<Object> params) {
         String pfx = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
         String role = session == null ? "" : canonicalAccessRole(session.accessRole);
-        if ("admin".equals(role) || "manager".equals(role) || "senior_accountant".equals(role)) return "";
+        if ("admin".equals(role) || "manager".equals(role) || "senior_accountant".equals(role) || "accountant".equals(role) || "collections".equals(role)) return "";
         List<String> parts = new ArrayList<>();
         String user = currentAccountName();
         if (user != null && !user.trim().isEmpty()) { parts.add("LTRIM(RTRIM(" + pfx + "visitor_username))=?"); params.add(user.trim()); }
@@ -8310,7 +8359,7 @@ public class MainActivity extends Activity {
     }
 
     private void loadMyPrefactors() {
-        if (!canUsePermission("cart")) { renderLockedSection("cart"); return; }
+        if (!canUsePermission("prefactor_list")) { redirectToAllowedPage("prefactor_list"); return; }
         content.removeAllViews(); addHero("پیش‌فاکتورهای من", "پیگیری، ویرایش پیش‌نویس، ارسال مجدد، PDF و وضعیت تایید");
         addManualRefreshPanel("cart", "بروزرسانی پیش‌فاکتورها", "نمایش آخرین سفارش‌های ویزیتور", () -> loadMyPrefactors());
         LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list, new LinearLayout.LayoutParams(-1, -2)); addLoading(list, "در حال دریافت پیش‌فاکتورها…");
@@ -8370,7 +8419,7 @@ public class MainActivity extends Activity {
         AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("ساخت PDF",null).create(); dlg.setOnShowListener(x->{ styleMeelanoDialog(dlg,navAccent("cart")); Button ok=dlg.getButton(AlertDialog.BUTTON_POSITIVE); if(ok!=null) ok.setOnClickListener(v->{ generatePrefactorPdf(d,"Meelano-Prefactor-"+d.optLong("id")+".pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(d), null); }); }); dlg.show();
     }
 
-    private void generateCurrentCartPdfAndShare(boolean shareOnly){ JSONObject snap=currentCartSnapshot(finalCartStatus()); generatePrefactorPdf(snap,"Meelano-Prefactor-Draft-v3.41.1.pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(snap), null); }
+    private void generateCurrentCartPdfAndShare(boolean shareOnly){ JSONObject snap=currentCartSnapshot(finalCartStatus()); generatePrefactorPdf(snap,"Meelano-Prefactor-Draft-v3.42.pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(snap), null); }
 
     private String prefactorShareText(JSONObject d){
         StringBuilder b=new StringBuilder(); b.append("پیش‌فاکتور MEELANO\n"); b.append("مشتری: ").append(d.optString("customerName","")).append('\n'); b.append("مبلغ نهایی: ").append(money(d.optDouble("grandTotal",0))).append('\n'); JSONArray items=d.optJSONArray("items"); for(int i=0;items!=null&&i<items.length();i++){ JSONObject it=items.optJSONObject(i); if(it!=null)b.append("- ").append(it.optString("name","")).append(" × ").append(formatNumber(it.optDouble("qty",0))).append(" = ").append(money(cartItemNet(it))).append('\n'); } b.append("توضیحات: ").append(d.optString("notes","")); return b.toString();
@@ -8381,6 +8430,7 @@ public class MainActivity extends Activity {
     }
 
     private void loadVisitRoutePage(String search){
+        if (!canUsePermission("visit_route")) { redirectToAllowedPage("visit_route"); return; }
         content.removeAllViews(); addHero("مسیر بازدید امروز","مشتریان قابل پیگیری، شروع سریع پیش‌فاکتور و ثبت نتیجه بازدید"); addSearchBox("جستجوی مشتری مسیر…", search, q -> loadVisitRoutePage(q)); LinearLayout list=new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list,new LinearLayout.LayoutParams(-1,-2)); addLoading(list,"در حال آماده‌سازی مسیر…");
         runDb(() -> queryCartCustomers(search), new DbCallback(){ @Override public void ok(String body){ try{ renderVisitRoute(new JSONArray(body), search); }catch(Exception e){ showPageError("مسیر بازدید",e,()->loadVisitRoutePage(search)); }} @Override public void fail(Exception e){ showPageError("مسیر بازدید",e,()->loadVisitRoutePage(search)); }});
     }
@@ -8399,6 +8449,7 @@ public class MainActivity extends Activity {
     }
 
     private void showEndOfDayReportDialog(){
+        if (!canUsePermission("day_report")) { Toast.makeText(this, "گزارش پایان روز برای این حساب فعال نیست.", Toast.LENGTH_SHORT).show(); return; }
         runDb(this::queryEndOfDayReportSql,new DbCallback(){ @Override public void ok(String body){ showEndOfDayReportText(body); } @Override public void fail(Exception e){ showEndOfDayReportText("جمع‌بندی آفلاین\nپیش‌نویس محلی: "+formatNumber(localDrafts().length())+"\nصف ارسال: "+formatNumber(offlineQueue().length())+"\n"+readableError(e)); }});
     }
 
@@ -8518,18 +8569,38 @@ public class MainActivity extends Activity {
         String a = alias == null || alias.trim().isEmpty() ? "h" : alias.trim();
         String where = innerWhere == null || innerWhere.trim().isEmpty() ? "" : innerWhere.trim();
         if (numberCol == null || numberCol.trim().isEmpty()) return "dbo.[" + table + "] " + a + (where.isEmpty() ? "" : " " + where.replace("x.", a + "."));
-        return "(SELECT * FROM (SELECT x.*, ROW_NUMBER() OVER(PARTITION BY TRY_CONVERT(nvarchar(120),x.[" + numberCol + "]) ORDER BY " + factorLatestOrder(cols, "x") + ") AS _meelano_rn FROM dbo.[" + table + "] x " + where + ") mx WHERE mx._meelano_rn=1) " + a;
+        String numberExpr = "NULLIF(LTRIM(RTRIM(TRY_CONVERT(nvarchar(120),x.[" + numberCol + "]))),N'')";
+        String rowExpr = factorUniqueRowExpr(cols, "x");
+        String partition = "COALESCE(" + numberExpr + "," + rowExpr + ")";
+        return "(SELECT * FROM (SELECT x.*, ROW_NUMBER() OVER(PARTITION BY " + partition + " ORDER BY " + factorLatestOrder(cols, "x") + ") AS _meelano_rn FROM dbo.[" + table + "] x " + where + ") mx WHERE mx._meelano_rn=1) " + a;
+    }
+
+    private String factorUniqueRowExpr(Set<String> cols, String alias) {
+        String prefix = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
+        for (String candidate : new String[]{"rdf", "RDF", "id", "ID", "serial", "Serial", "row_id", "RowID", "autoid", "AutoID", "radif", "Radif"}) {
+            String col = resolveFlexible(cols, candidate);
+            if (col != null) return "N'__row__' + COALESCE(TRY_CONVERT(nvarchar(120)," + prefix + "[" + col + "]),CONVERT(nvarchar(36),NEWID()))";
+        }
+        return "N'__row__' + CONVERT(nvarchar(36),NEWID())";
+    }
+
+    private String falseLikeCondition(String field) {
+        String norm = "UPPER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(40)," + field + "))))";
+        return "(" + norm + " IS NULL OR " + norm + " IN (N'',N'0',N'F',N'FALSE',N'N',N'NO',N'خیر',N'خير',N'نه') OR TRY_CONVERT(int," + field + ")=0)";
     }
 
     private String softDeleteCondition(Set<String> cols, String alias) {
         String prefix = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
         List<String> parts = new ArrayList<>();
         String del = resolveFlexible(cols, "deleted", "Deleted", "is_deleted", "IsDeleted", "isDelete", "delete_flag", "deleted_flag", "حذف", "حذف_شده");
-        if (del != null) parts.add("ISNULL(TRY_CONVERT(int," + prefix + "[" + del + "]),0)=0");
+        if (del != null) parts.add(falseLikeCondition(prefix + "[" + del + "]"));
         String cancel = resolveFlexible(cols, "cancel", "Cancel", "canceled", "cancelled", "is_cancel", "is_canceled", "void", "Void", "باطل", "ابطال");
-        if (cancel != null) parts.add("ISNULL(TRY_CONVERT(int," + prefix + "[" + cancel + "]),0)=0");
+        if (cancel != null) parts.add(falseLikeCondition(prefix + "[" + cancel + "]"));
         String status = resolveFlexible(cols, "status", "Status", "satus", "Satus", "state", "State");
-        if (status != null) parts.add("UPPER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(50)," + prefix + "[" + status + "])))) NOT IN (N'DELETED',N'DELETE',N'CANCEL',N'CANCELLED',N'VOID',N'باطل',N'حذف')");
+        if (status != null) {
+            String norm = "UPPER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(50)," + prefix + "[" + status + "]))))";
+            parts.add("(" + norm + " IS NULL OR " + norm + "=N'' OR " + norm + " NOT IN (N'DELETED',N'DELETE',N'CANCEL',N'CANCELLED',N'VOID',N'باطل',N'حذف',N'حذف شده',N'لغو',N'لغوشده'))");
+        }
         return parts.isEmpty() ? "" : "(" + join(parts, " AND ") + ")";
     }
 
@@ -9571,7 +9642,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.41.1.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.42.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -11869,7 +11940,7 @@ public class MainActivity extends Activity {
     }
 
     private void loadAccessManagement() {
-        if (!isFullAccessUser()) { renderLockedSection("management"); return; }
+        if (!isFullAccessUser()) { redirectToAllowedPage("management"); return; }
         content.removeAllViews();
         addHero("مدیریت دسترسی کاربران", "تعریف نقش و مجوز برای کاربران آتیران، ویزیتورها، ماموران پخش، رانندگان و کارگران");
         addManualRefreshPanel("management", "بروزرسانی مدیریت کاربران", "نقش‌ها و مجوزها پس از ورود بعدی هر کاربر اعمال می‌شود", () -> loadAccessManagement());
@@ -12242,7 +12313,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.41.1\nاین نسخه ویترین، گزارش فاکتورها و دسترسی‌ها را ارتقا می‌دهد: تصویر هوشمند قابل اصلاح، کش تصویر برای حذف لگ، موجودی و مانده دقیق‌تر، حذف تکرار فاکتورهای ویرایش‌شده از گزارش روز/پرونده مشتری/پرسنل، پنهان‌سازی بخش‌های بدون دسترسی و لوگوی جدید Meelano مطابق طرح ارسالی.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.42.0\nاین نسخه نتیجه بازبینی سراسری کد است: دسترسی‌های بدون مجوز کاملاً از منو و میانبرها حذف می‌شوند، نقش‌های جدید دقیق‌تر تشخیص داده می‌شوند، فیلتر ردیف‌های حذف/باطل و حذف تکرار فاکتور مقاوم‌تر شده، دکمه‌های سبد برای نقش‌های بدون مجوز پنهان شده و فرایند build پایدارتر شده است.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);

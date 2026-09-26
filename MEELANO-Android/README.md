@@ -2,9 +2,9 @@
 
 این پروژه نسخه **اندروید واقعی و قابل نصب** برای Meelano است که برای تست شخصی با **اتصال مستقیم به SQL Server** آماده شده است.
 
-## ویژگی‌های نسخه 3.41.1-direct-sql-user-logo
+## ویژگی‌های نسخه 3.42.0-direct-sql-audit-polish
 
-### تغییرات مهم 3.41.1
+### تغییرات مهم 3.42.0
 
 
 - جایگزینی لوگوی برنامه با طرح ارسالی کاربر: نشان M سه‌بعدی آبی/طلایی، حلقه طلایی، ماه و آسمان شب؛ خروجی در همه densityهای Android و foreground adaptive icon اعمال شد.
@@ -377,5 +377,5 @@ app/build/outputs/apk/release/app-release.apk
 نام فایل تحویلی این نسخه:
 
 ```text
-MEELANO-Android-DirectSQL-v3.41.1.apk
+MEELANO-Android-DirectSQL-v3.42.0.apk
 ```
