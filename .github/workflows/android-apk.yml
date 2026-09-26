@@ -134,7 +134,7 @@ jobs:
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Upload direct SQL APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: MEELANO-DirectSQL-Android-installable-apk
           path: artifacts/
