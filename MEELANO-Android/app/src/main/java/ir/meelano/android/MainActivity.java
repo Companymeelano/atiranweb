@@ -7821,16 +7821,16 @@ public class MainActivity extends Activity {
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(0, 0, dp(4), 0);
-        TextView name = text(r.optString("نام", "محصول"), 16.2f, TEXT, Typeface.BOLD);
+        TextView name = text(safeDisplayText(r.opt("نام"), "محصول"), 16.2f, TEXT, Typeface.BOLD);
         name.setMaxLines(2);
         copy.addView(name, new LinearLayout.LayoutParams(-1, -2));
-        TextView code = text("کد: " + r.optString("کد", "—") + "   •   بارکد: " + r.optString("بارکد", "—"), 10.6f, MUTED, Typeface.NORMAL);
+        TextView code = text("کد: " + safeDisplayText(r.opt("کد"), "—") + "   •   بارکد: " + safeDisplayText(r.opt("بارکد"), "—"), 10.6f, MUTED, Typeface.NORMAL);
         code.setMaxLines(2);
         copy.addView(code, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout chips = new LinearLayout(this); chips.setOrientation(LinearLayout.HORIZONTAL); chips.setGravity(Gravity.CENTER_VERTICAL);
         TextView badge = text(vp.badge, 9.6f, onColorFor(accent), Typeface.BOLD); badge.setGravity(Gravity.CENTER); badge.setPadding(dp(8), dp(3), dp(8), dp(3)); badge.setBackground(rounded(alpha(accent, 230), 14));
         chips.addView(badge, new LinearLayout.LayoutParams(-2, -2));
-        TextView group = text("  " + stringOr(r.optString("گروه", ""), vp.title), 10.2f, accent, Typeface.BOLD); group.setSingleLine(false); group.setMaxLines(2);
+        TextView group = text("  " + safeDisplayText(r.opt("گروه"), vp.title), 10.2f, accent, Typeface.BOLD); group.setSingleLine(false); group.setMaxLines(2);
         chips.addView(group, new LinearLayout.LayoutParams(0, -2, 1f));
         LinearLayout.LayoutParams chp = new LinearLayout.LayoutParams(-1, -2); chp.setMargins(0, dp(5), 0, 0); copy.addView(chips, chp);
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -7975,9 +7975,9 @@ public class MainActivity extends Activity {
         ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setPadding(dp(6), dp(6), dp(6), dp(6)); img.setBackground(roundedStroke(alpha(accent, 36), 26, alpha(accent, 120))); applyProductImage(img, r);
         LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp(132), dp(132)); ilp.setMargins(0, 0, dp(12), 0); hero.addView(img, ilp);
         LinearLayout title = new LinearLayout(this); title.setOrientation(LinearLayout.VERTICAL);
-        TextView name = text(r.optString("نام", "محصول"), 17.2f, TEXT, Typeface.BOLD); name.setMaxLines(3); title.addView(name, new LinearLayout.LayoutParams(-1, -2));
-        title.addView(text(vp.title + " • " + stringOr(r.optString("گروه", ""), "بدون گروه"), 11.2f, accent, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        title.addView(text("کد: " + r.optString("کد", "—") + "\nبارکد: " + r.optString("بارکد", "—"), 10.6f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        TextView name = text(safeDisplayText(r.opt("نام"), "محصول"), 17.2f, TEXT, Typeface.BOLD); name.setMaxLines(3); title.addView(name, new LinearLayout.LayoutParams(-1, -2));
+        title.addView(text(vp.title + " • " + safeDisplayText(r.opt("گروه"), "بدون گروه"), 11.2f, accent, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        title.addView(text("کد: " + safeDisplayText(r.opt("کد"), "—") + "\nبارکد: " + safeDisplayText(r.opt("بارکد"), "—"), 10.6f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         hero.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
         box.addView(hero, new LinearLayout.LayoutParams(-1, -2));
 
@@ -8073,7 +8073,7 @@ public class MainActivity extends Activity {
         double qty = parseNumber(qtyText, 1);
         if (qty <= 0) qty = 1;
         try {
-            String code = product.optString("کد", "");
+            String code = safeDisplayText(product.opt("کد"), "");
             int ix = cartFindIndex(code);
             JSONObject old = ix >= 0 ? visitorCartItems.optJSONObject(ix) : null;
             double price1 = product.optDouble("قیمت_فروش", 0);
@@ -8081,7 +8081,7 @@ public class MainActivity extends Activity {
             int tier = priceTier == 2 && price2 > 0 ? 2 : 1;
             double price = tier == 2 ? price2 : price1;
             JSONObject item = new JSONObject();
-            item.put("code", code); item.put("name", product.optString("نام", "محصول")); item.put("unit", product.optString("واحد", "")); item.put("qty", qty);
+            item.put("code", code); item.put("name", safeDisplayText(product.opt("نام"), "محصول")); item.put("unit", safeDisplayText(product.opt("واحد"), "")); item.put("qty", qty);
             item.put("price", price); item.put("price1", price1); item.put("price2", price2); item.put("priceTier", String.valueOf(tier));
             item.put("stock", product.optDouble("موجودی", 0)); item.put("pack", product.optDouble("تعداد_در_بسته", 1)); item.put("image", product.optString("تصویر", ""));
             item.put("lineDiscount", old == null ? 0 : old.optDouble("lineDiscount", 0)); item.put("note", old == null ? "" : old.optString("note", "")); item.put("amount", cartItemNet(item));
@@ -8592,7 +8592,7 @@ public class MainActivity extends Activity {
         Set<String> cols = columns(c, "inventory"); String shka = resolveFlexible(cols, "shka", "SHKA", "KalaID", "ProductID", "StuffID", "id", "ID", "کد"); if (shka == null) { out.put("warnings", warnings); return out; }
         String stock = resolveFlexible(cols, "Mojoodi", "mojoodi", "mojudi", "mojody", "mojood", "mojvah", "MojVah", "mojkol", "MojKol", "MojoodiKol", "tedad_mojood", "TedadMojood", "Stock", "StockQty", "StockCount", "Qty", "quantity", "inventorycount", "inventory_count", "Remain", "Remaining", "remain_qty", "mande", "Mandeh", "موجودی", "مانده_کالا", "tedad_mande", "TedadMande", "tedad_kol", "TedadKol", "balance_qty", "onhand", "OnHand");
         String price1 = resolveFlexible(cols, "FinalSalePrice", "SalePrice", "Sale_Price", "SellPrice", "Sell_Price", "Price", "price", "forosh1", "forush1", "foroosh1", "Foroosh1", "gheymat_forosh", "gheymat", "gheymat1", "nerkh", "nerkh1", "Nerkh1", "fi", "fi1", "Fee", "Fee1", "price1", "Price1", "price_1", "sale1", "sale_price1", "قیمت_فروش1", "قیمت_فروش", "قیمت فروش 1", "قیمت۱", "قیمت1", "نرخ1", "فی1");
-        String price2 = resolveFlexible(cols, "FinalSalePrice2", "SalePrice2", "Sale_Price2", "SellPrice2", "Sell_Price2", "Price2", "price2", "forosh2", "forush2", "foroosh2", "Foroosh2", "gheymat_forosh2", "gheymat2", "nerkh2", "Nerkh2", "fi2", "Fee2", "price_2", "sale2", "sale_price2", "قیمت_فروش2", "قیمت_فروش۲", "قیمت فروش 2", "قیمت۲", "قیمت2", "نرخ2", "فی2");
+        String price2 = resolveSalePrice2Column(cols);
         String sql = "SELECT " + sqlNumberExpr("i", stock, "decimal(19,3)") + "," + sqlNumberExpr("i", price1, "decimal(19,2)") + "," + sqlNumberExpr("i", price2, "decimal(19,2)") + " FROM dbo.inventory i WHERE TRY_CONVERT(nvarchar(100),i.["+shka+"])=?";
         for (int i=0; items!=null && i<items.length(); i++) {
             JSONObject it=items.optJSONObject(i); if (it==null) continue;
@@ -8907,26 +8907,78 @@ public class MainActivity extends Activity {
         return type.contains("binary") || "image".equals(type) || type.contains("varbinary");
     }
 
+    private String resolveSalePrice2Column(Set<String> cols) {
+        String exact = resolveFlexible(cols,
+                "FinalSalePrice2", "FinalSellPrice2", "FinalForosh2", "FinalForoosh2", "SalePrice2", "SalePrice02", "Sale_Price2", "Sale_Price_2",
+                "SellPrice2", "Sell_Price2", "Sell_Price_2", "Sell2Price", "Sale2Price", "SalesPrice2", "Sales_Price2", "Price2", "price2", "Price02",
+                "forosh2", "forush2", "frosh2", "foroosh2", "Foroosh2", "Forosh2", "FiForosh2", "Fi_Forosh2", "NerkhForosh2", "Nerkh_Forosh2",
+                "gheymat_forosh2", "gheymat_foroosh2", "gheymat2", "gheymat_2", "nerkh2", "Nerkh2", "nerkh_2", "fi2", "Fee2", "fee_2",
+                "price_2", "sale2", "sale_price2", "sale_price_2", "retail2", "retail_price2", "consumer_price2",
+                "قیمت_فروش2", "قیمت_فروش۲", "قیمت فروش 2", "قیمت فروش۲", "قیمت۲", "قیمت2", "نرخ2", "نرخ۲", "فی2", "فی۲", "فروش2", "فروش۲", "قیمت_دوم", "نرخ_دوم");
+        if (exact != null) return exact;
+        if (cols == null) return null;
+        for (String col : cols) {
+            if (col == null) continue;
+            String n = normalizeDigits(normalizeColumnName(col));
+            if (n.isEmpty()) continue;
+            boolean second = n.contains("2") || n.contains("02") || n.contains("two") || n.contains("second") || n.contains("دوم") || n.contains("دو");
+            if (!second) continue;
+            if (containsAny(n, "buy", "purchase", "cost", "kharid", "kharid", "خرید", "تمام", "بها", "costprice")) continue;
+            if (containsAny(n, "sale", "sell", "sales", "retail", "price", "forosh", "forush", "foroosh", "frosh", "gheymat", "nerkh", "fee", "fi", "فروش", "قیمت", "قيمت", "نرخ", "فی")) return col;
+        }
+        return null;
+    }
+
+    private boolean containsAny(String value, String... tokens) {
+        if (value == null || tokens == null) return false;
+        for (String token : tokens) if (token != null && !token.isEmpty() && value.contains(token)) return true;
+        return false;
+    }
+
+    private String sqlCleanTextExpr(String expr) {
+        if (expr == null || expr.trim().isEmpty()) return "CAST(NULL AS nvarchar(80))";
+        String trimmed = "LTRIM(RTRIM(" + expr + "))";
+        String upper = "UPPER(" + trimmed + ")";
+        return "CASE WHEN " + expr + " IS NULL OR " + upper + " IN (N'',N'NULL',N'(NULL)',N'DBNULL',N'NONE',N'NAN') THEN NULL ELSE " + trimmed + " END";
+    }
+
+    private boolean isNullishText(String value) {
+        if (value == null) return true;
+        String v = normalizeDigits(value).trim();
+        if (v.isEmpty()) return true;
+        String l = v.toLowerCase(Locale.US);
+        return "null".equals(l) || "(null)".equals(l) || "dbnull".equals(l) || "none".equals(l) || "nan".equals(l);
+    }
+
+    private String safeDisplayText(Object value, String fallback) {
+        if (value == null || JSONObject.NULL.equals(value)) return fallback;
+        String v = String.valueOf(value).trim();
+        return isNullishText(v) ? fallback : v;
+    }
+
     private String moneyOrDash(JSONObject r, String key) {
         if (r == null || !r.has(key) || r.isNull(key)) return "—";
         Object v = r.opt(key);
-        if (v == null || JSONObject.NULL.equals(v) || String.valueOf(v).trim().isEmpty()) return "—";
+        if (v == null || JSONObject.NULL.equals(v) || isNullishText(String.valueOf(v))) return "—";
         return money(v);
     }
 
     private String numberOrDash(JSONObject r, String key) {
         if (r == null || !r.has(key) || r.isNull(key)) return "—";
         Object v = r.opt(key);
-        if (v == null || JSONObject.NULL.equals(v) || String.valueOf(v).trim().isEmpty()) return "—";
+        if (v == null || JSONObject.NULL.equals(v) || isNullishText(String.valueOf(v))) return "—";
         return formatNumber(v);
     }
 
     private String unitOrDash(JSONObject r) {
-        return stringOr(r == null ? "" : r.optString("واحد", ""), "—");
+        return safeDisplayText(r == null ? null : r.opt("واحد"), "—");
     }
 
     private String stockWithUnit(JSONObject r) {
-        return numberOrDash(r, "موجودی") + ("—".equals(unitOrDash(r)) ? "" : " " + unitOrDash(r));
+        String stock = numberOrDash(r, "موجودی");
+        if ("—".equals(stock)) return "—";
+        String unit = unitOrDash(r);
+        return stock + ("—".equals(unit) ? "" : " " + unit);
     }
 
     private String queryProducts(String search, String filter) throws Exception {
@@ -8943,7 +8995,7 @@ public class MainActivity extends Activity {
             String name = resolveFlexible(cols, "naka", "Name", "KalaName", "ProductName", "StuffName", "نام", "نام_کالا", "نامکالا", "title");
             String code = resolveFlexible(cols, "StuffCode", "Code", "Barcode", "BarCode", "KalaCode", "ProductCode", "ItemCode", "کد_کالا", "بارکد");
             String price = resolveFlexible(cols, "FinalSalePrice", "SalePrice", "Sale_Price", "SellPrice", "Sell_Price", "Price", "price", "forosh1", "forush1", "foroosh1", "Foroosh1", "gheymat_forosh", "gheymat", "gheymat1", "nerkh", "nerkh1", "Nerkh1", "fi", "fi1", "Fee", "Fee1", "price1", "Price1", "price_1", "sale1", "sale_price1", "قیمت_فروش1", "قیمت_فروش", "قیمت فروش 1", "قیمت۱", "قیمت1", "نرخ1", "فی1");
-            String price2 = resolveFlexible(cols, "FinalSalePrice2", "SalePrice2", "Sale_Price2", "SellPrice2", "Sell_Price2", "Price2", "price2", "forosh2", "forush2", "foroosh2", "Foroosh2", "gheymat_forosh2", "gheymat2", "nerkh2", "Nerkh2", "fi2", "Fee2", "price_2", "sale2", "sale_price2", "قیمت_فروش2", "قیمت_فروش۲", "قیمت فروش 2", "قیمت۲", "قیمت2", "نرخ2", "فی2");
+            String price2 = resolveSalePrice2Column(cols);
             String buyPrice = resolveFlexible(cols, "pure_buy_price", "BuyPrice", "buy_price", "LastBuyPrice", "PurchasePrice", "Cost", "cost_price", "قیمت_خرید", "بهای_خرید");
             String stock = resolveFlexible(cols, "Mojoodi", "mojoodi", "mojudi", "mojody", "mojood", "mojvah", "MojVah", "mojkol", "MojKol", "MojoodiKol", "tedad_mojood", "TedadMojood", "Stock", "StockQty", "StockCount", "Qty", "quantity", "inventorycount", "inventory_count", "Remain", "Remaining", "remain_qty", "mande", "Mandeh", " موجودی", "موجودی", "مانده_کالا", "tedad_mande", "TedadMande", "tedad_kol", "TedadKol", "balance_qty", "onhand", "OnHand");
             String unitText = resolveFlexible(cols, "unit", "Unit", "UnitName", "unit_name", "vahed_name", "vahedname", "navahed", "NameVahed", "UnitTitle", "واحد", "واحد_شمارش", "نام_واحد", "واحد شمارش");
@@ -8973,10 +9025,11 @@ public class MainActivity extends Activity {
             select.add(sqlNumberExpr("i", buyPrice, "decimal(19,2)") + " AS بهای_خرید");
             String movementStockExpr = "(ISNULL(ba.buy_qty,0)-ISNULL(sa.sale_qty,0))";
             String stockExpr = stock == null ? movementStockExpr : "COALESCE(" + sqlNumberExpr("i", stock, "decimal(19,3)") + "," + movementStockExpr + ")";
-            String unitFallback = unitText != null ? "TRY_CONVERT(nvarchar(80),i.[" + unitText + "])" : (unitRef != null ? "TRY_CONVERT(nvarchar(80),i.[" + unitRef + "])" : "CAST(NULL AS nvarchar(80))");
-            String unitExpr = unitRef != null && unitKey != null && unitName != null ? "COALESCE(TRY_CONVERT(nvarchar(80),u.[" + unitName + "])," + unitFallback + ")" : unitFallback;
+            String unitFallbackRaw = unitText != null ? "TRY_CONVERT(nvarchar(80),i.[" + unitText + "])" : (unitRef != null ? "TRY_CONVERT(nvarchar(80),i.[" + unitRef + "])" : "CAST(NULL AS nvarchar(80))");
+            String unitFallback = sqlCleanTextExpr(unitFallbackRaw);
+            String unitExpr = unitRef != null && unitKey != null && unitName != null ? "COALESCE(" + sqlCleanTextExpr("TRY_CONVERT(nvarchar(80),u.[" + unitName + "])") + "," + unitFallback + ")" : unitFallback;
             select.add("ISNULL(" + stockExpr + ",0) AS موجودی");
-            select.add(unitExpr + " AS واحد");
+            select.add("COALESCE(" + unitExpr + ",N'') AS واحد");
             select.add(packCount == null ? "CAST(1 AS decimal(19,3)) AS تعداد_در_بسته" : "ISNULL(" + sqlNumberExpr("i", packCount, "decimal(19,3)") + ",1) AS تعداد_در_بسته");
             select.add(imageBinary && imageCol != null ? "master.dbo.fn_varbintohexstr(i.[" + imageCol + "]) AS تصویر" : (!imageText ? "CAST(NULL AS nvarchar(max)) AS تصویر" : "TRY_CONVERT(nvarchar(max),i.[" + imageCol + "]) AS تصویر"));
             select.add(groupName != null && groupKey != null && groupId != null ? "TRY_CONVERT(nvarchar(250),g.[" + groupName + "]) AS گروه" : "CAST(NULL AS nvarchar(250)) AS گروه");
@@ -9043,14 +9096,14 @@ public class MainActivity extends Activity {
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(10), 0, dp(10), 0);
-        copy.addView(text(r.optString("نام", "بدون نام"), 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        copy.addView(text("کد: " + r.optString("کد", "-") + "   |   بارکد: " + r.optString("بارکد", "-"), 11.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
-        copy.addView(text("گروه: " + r.optString("گروه", "-") + "   |   " + (hasProductImage(r) ? "تصویر محصول متصل" : "تصویر پیش‌فرض"), 10.8f, accent, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(safeDisplayText(r.opt("نام"), "بدون نام"), 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text("کد: " + safeDisplayText(r.opt("کد"), "-") + "   |   بارکد: " + safeDisplayText(r.opt("بارکد"), "-"), 11.5f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text("گروه: " + safeDisplayText(r.opt("گروه"), "-") + "   |   " + (hasProductImage(r) ? "تصویر محصول متصل" : "تصویر پیش‌فرض"), 10.8f, accent, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         c.addView(head, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout metrics = new LinearLayout(this);
         metrics.setOrientation(LinearLayout.HORIZONTAL);
-        metrics.addView(metric("موجودی", formatNumber(r.opt("موجودی")) + " " + r.optString("واحد", "")), new LinearLayout.LayoutParams(0, -2, 1f));
+        metrics.addView(metric("موجودی", stockWithUnit(r)), new LinearLayout.LayoutParams(0, -2, 1f));
         metrics.addView(metric("فروش", money(r.opt("مبلغ_فروش"))), new LinearLayout.LayoutParams(0, -2, 1f));
         metrics.addView(metric("خرید", money(r.opt("مبلغ_خرید"))), new LinearLayout.LayoutParams(0, -2, 1f));
         LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2);
@@ -12642,7 +12695,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android v3.43.1\nاین نسخه آیکن برنامه را با لوگوی سفید چرمی و ترکیب هوشمند M/A جایگزین می‌کند و ناحیه لمس آیکن‌های بالای برنامه را برای گوشی‌هایی مثل Galaxy S24 بزرگ‌تر و قابل‌کلیک‌تر می‌سازد.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android v3.43.2\nاین نسخه فراخوانی قیمت فروش ۲ در ویترین را منعطف‌تر می‌کند و نمایش مقدارهای Null در موجودی و واحد شمارش را با متن‌های تمیز و امن جایگزین می‌سازد.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -12806,7 +12859,7 @@ public class MainActivity extends Activity {
     }
 
     private String stringOr(String value, String fallback) {
-        return value == null || value.trim().isEmpty() ? fallback : value;
+        return isNullishText(value) ? fallback : value;
     }
 
     private String firstNonEmpty(String a, String b) {
@@ -12814,7 +12867,7 @@ public class MainActivity extends Activity {
     }
 
     private String formatNumber(Object value) {
-        if (value == null || JSONObject.NULL.equals(value)) return "۰";
+        if (value == null || JSONObject.NULL.equals(value) || isNullishText(String.valueOf(value))) return "۰";
         try {
             if (value instanceof Number) return numberFormat.format(((Number) value).doubleValue());
             return numberFormat.format(Double.parseDouble(String.valueOf(value)));
