@@ -1843,7 +1843,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.39.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.40.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -5831,7 +5831,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.39.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.40.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -5843,7 +5843,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.39.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.40.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -7437,34 +7437,179 @@ public class MainActivity extends Activity {
 
     private void addShowcaseProductCard(LinearLayout parent, JSONObject r, int index, String query, String filter) {
         if (r == null) return;
-        int accent = index % 3 == 0 ? navAccent("showcase") : (index % 3 == 1 ? SUCCESS : GOLD);
-        LinearLayout c = card(); c.setBackground(themedSectionBg("showcase", 28));
-        LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setPadding(dp(5), dp(5), dp(5), dp(5)); img.setBackground(roundedStroke(alpha(accent, 40), 18, alpha(accent, 95))); applyProductImage(img, r);
-        head.addView(img, new LinearLayout.LayoutParams(dp(74), dp(74)));
-        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(10), 0, dp(8), 0);
-        copy.addView(text(r.optString("نام", "محصول"), 15.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        copy.addView(text("کد " + r.optString("کد", "—") + " • " + r.optString("گروه", "بدون گروه"), 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        ProductVisualProfile vp = productVisualProfile(r);
+        int accent = vp.accent;
+        boolean selected = cartFindIndex(r.optString("کد", "")) >= 0;
+        LinearLayout c = card();
+        c.setPadding(dp(11), dp(11), dp(11), dp(11));
+        c.setBackground(gradient(new int[]{SURFACE, alpha(accent, isLightTheme() ? 34 : 54), SURFACE_2}, GradientDrawable.Orientation.TL_BR, 28));
+
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        head.setClickable(true);
+        head.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
+        ImageView img = new ImageView(this);
+        img.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        img.setPadding(dp(5), dp(5), dp(5), dp(5));
+        img.setBackground(roundedStroke(alpha(accent, isLightTheme() ? 34 : 58), 24, alpha(accent, 112)));
+        applyProductImage(img, r);
+        img.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(96), dp(96)); ip.setMargins(0, 0, dp(10), 0); head.addView(img, ip);
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(0, 0, dp(4), 0);
+        TextView name = text(r.optString("نام", "محصول"), 16.2f, TEXT, Typeface.BOLD);
+        name.setMaxLines(2);
+        copy.addView(name, new LinearLayout.LayoutParams(-1, -2));
+        TextView code = text("کد: " + r.optString("کد", "—") + "   •   بارکد: " + r.optString("بارکد", "—"), 10.6f, MUTED, Typeface.NORMAL);
+        code.setMaxLines(2);
+        copy.addView(code, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout chips = new LinearLayout(this); chips.setOrientation(LinearLayout.HORIZONTAL); chips.setGravity(Gravity.CENTER_VERTICAL);
+        TextView badge = text(vp.badge, 9.6f, onColorFor(accent), Typeface.BOLD); badge.setGravity(Gravity.CENTER); badge.setPadding(dp(8), dp(3), dp(8), dp(3)); badge.setBackground(rounded(alpha(accent, 230), 14));
+        chips.addView(badge, new LinearLayout.LayoutParams(-2, -2));
+        TextView group = text("  " + stringOr(r.optString("گروه", ""), vp.title), 10.2f, accent, Typeface.BOLD); group.setSingleLine(false); group.setMaxLines(2);
+        chips.addView(group, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout.LayoutParams chp = new LinearLayout.LayoutParams(-1, -2); chp.setMargins(0, dp(5), 0, 0); copy.addView(chips, chp);
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         c.addView(head, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout metrics = new LinearLayout(this); metrics.setOrientation(LinearLayout.HORIZONTAL);
-        metrics.addView(customerMiniMetric("موجودی", formatNumber(r.opt("موجودی")) + " " + r.optString("واحد", ""), SUCCESS), weightedMiniLp());
-        metrics.addView(customerMiniMetric("در بسته", formatNumber(r.opt("تعداد_در_بسته")), INFO), weightedMiniLp());
-        metrics.addView(customerMiniMetric("قیمت ۱", money(r.opt("قیمت_فروش")), GOLD), weightedMiniLp());
-        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.setMargins(0, dp(9), 0, 0); c.addView(metrics, mp);
-        LinearLayout metrics2 = new LinearLayout(this); metrics2.setOrientation(LinearLayout.HORIZONTAL);
-        metrics2.addView(customerMiniMetric("قیمت ۲", money(r.opt("قیمت_فروش۲")), WARNING), weightedMiniLp());
-        metrics2.addView(customerMiniMetric("واحد", stringOr(r.optString("واحد", ""), "—"), INFO), weightedMiniLp());
-        metrics2.addView(customerMiniMetric("سبد", cartFindIndex(r.optString("کد", "")) >= 0 ? "انتخاب شده" : "—", cartFindIndex(r.optString("کد", "")) >= 0 ? SUCCESS : MUTED), weightedMiniLp());
-        LinearLayout.LayoutParams m2p = new LinearLayout.LayoutParams(-1, -2); m2p.setMargins(0, dp(6), 0, 0); c.addView(metrics2, m2p);
+
+        LinearLayout priceRow = new LinearLayout(this); priceRow.setOrientation(LinearLayout.HORIZONTAL);
+        priceRow.addView(showcaseMetric("قیمت فروش ۱", moneyOrDash(r, "قیمت_فروش"), GOLD, true), showcaseCellLp(1f, 64));
+        priceRow.addView(showcaseMetric("قیمت فروش ۲", moneyOrDash(r, "قیمت_فروش۲"), WARNING, true), showcaseCellLp(1f, 64));
+        LinearLayout.LayoutParams prp = new LinearLayout.LayoutParams(-1, -2); prp.setMargins(0, dp(11), 0, 0); c.addView(priceRow, prp);
+
+        LinearLayout stockRow = new LinearLayout(this); stockRow.setOrientation(LinearLayout.HORIZONTAL);
+        stockRow.addView(showcaseMetric("موجودی", stockWithUnit(r), r.optDouble("موجودی", 0) > 0 ? SUCCESS : DANGER, false), showcaseCellLp(1.25f, 58));
+        stockRow.addView(showcaseMetric("واحد شمارش", unitOrDash(r), INFO, false), showcaseCellLp(1f, 58));
+        stockRow.addView(showcaseMetric("تعداد در بسته", numberOrDash(r, "تعداد_در_بسته"), navAccent("showcase"), false), showcaseCellLp(1f, 58));
+        LinearLayout.LayoutParams srp = new LinearLayout.LayoutParams(-1, -2); srp.setMargins(0, dp(7), 0, 0); c.addView(stockRow, srp);
+
+        LinearLayout extraRow = new LinearLayout(this); extraRow.setOrientation(LinearLayout.HORIZONTAL);
+        extraRow.addView(showcaseMetric("فروش", compactMoney(r.opt("مبلغ_فروش")), SUCCESS, false), showcaseCellLp(1f, 56));
+        extraRow.addView(showcaseMetric("خرید", compactMoney(r.opt("مبلغ_خرید")), INFO, false), showcaseCellLp(1f, 56));
+        extraRow.addView(showcaseMetric("وضعیت سبد", selected ? "انتخاب شده" : "انتخاب نشده", selected ? SUCCESS : MUTED, false), showcaseCellLp(1f, 56));
+        LinearLayout.LayoutParams erp = new LinearLayout.LayoutParams(-1, -2); erp.setMargins(0, dp(7), 0, 0); c.addView(extraRow, erp);
+
+        EditText qty = input("تعداد/وزن", cartQtyFor(r.optString("کد", "")), false);
+        qty.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        LinearLayout qtyRow = new LinearLayout(this); qtyRow.setOrientation(LinearLayout.HORIZONTAL); qtyRow.setGravity(Gravity.CENTER_VERTICAL);
+        qtyRow.addView(qty, new LinearLayout.LayoutParams(0, dp(46), 1f));
+        Button detail = themedActionButton("نمایش", accent, false); detail.setTextSize(9.2f); detail.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
+        LinearLayout.LayoutParams dpLp = new LinearLayout.LayoutParams(dp(92), dp(46)); dpLp.setMargins(dp(6), 0, 0, 0); qtyRow.addView(detail, dpLp);
+        if (selected) {
+            Button remove = themedActionButton("حذف", DANGER, false); remove.setTextSize(9.0f); remove.setOnClickListener(v -> { removeCartItem(r.optString("کد", "")); loadShowcase(query, filter); });
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(82), dp(46)); rp.setMargins(dp(6), 0, 0, 0); qtyRow.addView(remove, rp);
+        }
+        LinearLayout.LayoutParams qrp = new LinearLayout.LayoutParams(-1, -2); qrp.setMargins(0, dp(11), 0, 0); c.addView(qtyRow, qrp);
+
         LinearLayout action = new LinearLayout(this); action.setOrientation(LinearLayout.HORIZONTAL);
-        EditText qty = input("تعداد/وزن", cartQtyFor(r.optString("کد", "")), false); qty.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        Button add = themedActionButton(cartFindIndex(r.optString("کد", "")) >= 0 ? "✦ بروزرسانی سبد" : "＋ افزودن قیمت ۱", navAccent("cart"), true); add.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "سبد بروزرسانی شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
-        Button add2 = themedActionButton("＋ افزودن قیمت ۲", navAccent("showcase"), false); add2.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
-        Button remove = themedActionButton("حذف", DANGER, false); remove.setTextSize(8.7f); remove.setOnClickListener(v -> { removeCartItem(r.optString("کد", "")); loadShowcase(query, filter); });
-        action.addView(qty, new LinearLayout.LayoutParams(0, dp(44), 1f)); action.addView(add, weightedButtonLp()); action.addView(add2, weightedButtonLp()); if (cartFindIndex(r.optString("کد", "")) >= 0) action.addView(remove, weightedButtonLp());
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(10), 0, 0); c.addView(action, ap);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(10)); parent.addView(c, lp);
+        Button add = themedActionButton(selected ? "بروزرسانی با قیمت ۱" : "افزودن با قیمت ۱", navAccent("cart"), true);
+        add.setTextSize(9.4f);
+        boolean price1Ok = r.optDouble("قیمت_فروش", 0) > 0;
+        add.setEnabled(price1Ok); add.setAlpha(price1Ok ? 1f : 0.52f);
+        add.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "محصول با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
+        Button add2 = themedActionButton(r.optDouble("قیمت_فروش۲", 0) > 0 ? "افزودن با قیمت ۲" : "قیمت ۲ ثبت نشده", navAccent("showcase"), false);
+        add2.setTextSize(9.2f);
+        boolean price2Ok = r.optDouble("قیمت_فروش۲", 0) > 0;
+        add2.setEnabled(price2Ok); add2.setAlpha(price2Ok ? 1f : 0.52f);
+        add2.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "محصول با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); loadShowcase(query, filter); });
+        action.addView(add, showcaseButtonLp(1f));
+        action.addView(add2, showcaseButtonLp(1f));
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); c.addView(action, ap);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(11)); parent.addView(c, lp);
+    }
+
+    private LinearLayout.LayoutParams showcaseCellLp(float weight, int heightDp) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(heightDp), weight);
+        lp.setMargins(dp(3), 0, dp(3), 0);
+        return lp;
+    }
+
+    private LinearLayout.LayoutParams showcaseButtonLp(float weight) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(48), weight);
+        lp.setMargins(dp(3), 0, dp(3), 0);
+        return lp;
+    }
+
+    private LinearLayout showcaseMetric(String label, String value, int accent, boolean important) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER);
+        box.setPadding(dp(5), dp(5), dp(5), dp(5));
+        box.setBackground(gradient(new int[]{alpha(accent, isLightTheme() ? 18 : 34), alpha(SURFACE_2, 240)}, GradientDrawable.Orientation.TOP_BOTTOM, 16));
+        TextView l = text(label, important ? 9.8f : 9.1f, alpha(MUTED, 235), Typeface.BOLD);
+        l.setGravity(Gravity.CENTER);
+        String vText = stringOr(value, "—");
+        float size = important ? (vText.length() > 18 ? 10.2f : 11.5f) : (vText.length() > 16 ? 9.3f : 10.2f);
+        TextView v = text(vText, size, important ? accent : TEXT, Typeface.BOLD);
+        v.setGravity(Gravity.CENTER); v.setSingleLine(false); v.setMaxLines(2);
+        box.addView(l, new LinearLayout.LayoutParams(-1, -2));
+        box.addView(v, new LinearLayout.LayoutParams(-1, -2));
+        return box;
+    }
+
+    private void showShowcaseProductDialog(JSONObject r, String query, String filter) {
+        showProductDetailDialog(r, query, filter);
+    }
+
+    private void showProductDetailDialog(JSONObject r, String query, String filter) {
+        if (r == null) return;
+        ProductVisualProfile vp = productVisualProfile(r);
+        int accent = vp.accent;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(12), dp(10), dp(12), dp(8));
+        LinearLayout hero = new LinearLayout(this); hero.setOrientation(LinearLayout.HORIZONTAL); hero.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setPadding(dp(6), dp(6), dp(6), dp(6)); img.setBackground(roundedStroke(alpha(accent, 36), 26, alpha(accent, 120))); applyProductImage(img, r);
+        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp(132), dp(132)); ilp.setMargins(0, 0, dp(12), 0); hero.addView(img, ilp);
+        LinearLayout title = new LinearLayout(this); title.setOrientation(LinearLayout.VERTICAL);
+        TextView name = text(r.optString("نام", "محصول"), 17.2f, TEXT, Typeface.BOLD); name.setMaxLines(3); title.addView(name, new LinearLayout.LayoutParams(-1, -2));
+        title.addView(text(vp.title + " • " + stringOr(r.optString("گروه", ""), "بدون گروه"), 11.2f, accent, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        title.addView(text("کد: " + r.optString("کد", "—") + "\nبارکد: " + r.optString("بارکد", "—"), 10.6f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        hero.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
+        box.addView(hero, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout prices = new LinearLayout(this); prices.setOrientation(LinearLayout.HORIZONTAL);
+        prices.addView(showcaseMetric("قیمت ۱", moneyOrDash(r, "قیمت_فروش"), GOLD, true), showcaseCellLp(1f, 66));
+        prices.addView(showcaseMetric("قیمت ۲", moneyOrDash(r, "قیمت_فروش۲"), WARNING, true), showcaseCellLp(1f, 66));
+        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, -2); pp.setMargins(0, dp(12), 0, 0); box.addView(prices, pp);
+
+        LinearLayout info1 = new LinearLayout(this); info1.setOrientation(LinearLayout.HORIZONTAL);
+        info1.addView(showcaseMetric("موجودی", stockWithUnit(r), r.optDouble("موجودی", 0) > 0 ? SUCCESS : DANGER, false), showcaseCellLp(1.2f, 60));
+        info1.addView(showcaseMetric("واحد", unitOrDash(r), INFO, false), showcaseCellLp(1f, 60));
+        info1.addView(showcaseMetric("در بسته", numberOrDash(r, "تعداد_در_بسته"), accent, false), showcaseCellLp(1f, 60));
+        LinearLayout.LayoutParams i1p = new LinearLayout.LayoutParams(-1, -2); i1p.setMargins(0, dp(7), 0, 0); box.addView(info1, i1p);
+
+        LinearLayout info2 = new LinearLayout(this); info2.setOrientation(LinearLayout.HORIZONTAL);
+        info2.addView(showcaseMetric("تعداد فروش", numberOrDash(r, "تعداد_فروش"), SUCCESS, false), showcaseCellLp(1f, 58));
+        info2.addView(showcaseMetric("مبلغ فروش", compactMoney(r.opt("مبلغ_فروش")), GOLD, false), showcaseCellLp(1f, 58));
+        info2.addView(showcaseMetric("گردش خالص", numberOrDash(r, "گردش_خالص"), INFO, false), showcaseCellLp(1f, 58));
+        LinearLayout.LayoutParams i2p = new LinearLayout.LayoutParams(-1, -2); i2p.setMargins(0, dp(7), 0, 0); box.addView(info2, i2p);
+
+        EditText qty = input("تعداد/وزن برای افزودن به سبد", cartQtyFor(r.optString("کد", "")), false);
+        qty.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(-1, dp(48)); qlp.setMargins(0, dp(12), 0, 0); box.addView(qty, qlp);
+
+        LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button add1 = themedActionButton("افزودن قیمت ۱", navAccent("cart"), true);
+        Button add2 = themedActionButton(r.optDouble("قیمت_فروش۲", 0) > 0 ? "افزودن قیمت ۲" : "قیمت ۲ ندارد", accent, false);
+        boolean p1 = r.optDouble("قیمت_فروش", 0) > 0, p2 = r.optDouble("قیمت_فروش۲", 0) > 0;
+        add1.setEnabled(p1); add1.setAlpha(p1 ? 1f : 0.52f); add2.setEnabled(p2); add2.setAlpha(p2 ? 1f : 0.52f);
+        actions.addView(add1, showcaseButtonLp(1f)); actions.addView(add2, showcaseButtonLp(1f));
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(-1, -2); alp.setMargins(0, dp(9), 0, 0); box.addView(actions, alp);
+        Button remove = themedActionButton("حذف از سبد", DANGER, false);
+        remove.setVisibility(cartFindIndex(r.optString("کد", "")) >= 0 ? View.VISIBLE : View.GONE);
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, dp(45)); rlp.setMargins(0, dp(6), 0, 0); box.addView(remove, rlp);
+
+        AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).create();
+        add1.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) loadShowcase(stringOr(query, ""), stringOr(filter, "all")); });
+        add2.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) loadShowcase(stringOr(query, ""), stringOr(filter, "all")); });
+        remove.setOnClickListener(v -> { removeCartItem(r.optString("کد", "")); Toast.makeText(this, "از سبد حذف شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) loadShowcase(stringOr(query, ""), stringOr(filter, "all")); });
+        dlg.setOnShowListener(d -> styleMeelanoDialog(dlg, accent));
+        dlg.show();
     }
 
     private int cartFindIndex(String code) {
@@ -7947,10 +8092,10 @@ public class MainActivity extends Activity {
     private JSONObject checkCartSnapshotAgainstInventory(Connection c, JSONArray items, boolean strict) throws Exception {
         JSONObject out = new JSONObject(); JSONArray warnings = new JSONArray(); boolean blocked = false;
         Set<String> cols = columns(c, "inventory"); String shka = resolveFlexible(cols, "shka", "SHKA", "KalaID", "ProductID", "StuffID", "id", "ID", "کد"); if (shka == null) { out.put("warnings", warnings); return out; }
-        String stock = resolveFlexible(cols, "Mojoodi", "mojoodi", "mojudi", "mojody", "mojood", "Stock", "StockQty", "StockCount", "Qty", "quantity", "inventorycount", "inventory_count", "Remain", "Remaining", "mande", "Mandeh", "موجودی", "مانده_کالا", "tedad_mande", "TedadMande", "tedad_kol", "TedadKol");
-        String price1 = resolveFlexible(cols, "FinalSalePrice", "SalePrice", "Sale_Price", "SellPrice", "Price", "price", "forosh1", "forush1", "gheymat_forosh", "gheymat", "price1", "Price1", "قیمت_فروش1", "قیمت_فروش", "قیمت فروش 1");
-        String price2 = resolveFlexible(cols, "FinalSalePrice2", "SalePrice2", "Sale_Price2", "SellPrice2", "Price2", "forosh2", "forush2", "price_2", "قیمت_فروش2", "قیمت_فروش۲", "gheymat2", "قیمت فروش 2");
-        String sql = "SELECT " + (stock == null ? "CAST(NULL AS decimal(19,3))" : "TRY_CONVERT(decimal(19,3),["+stock+"])") + "," + (price1 == null ? "CAST(NULL AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),["+price1+"])") + "," + (price2 == null ? "CAST(NULL AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),["+price2+"])") + " FROM dbo.inventory WHERE TRY_CONVERT(nvarchar(100),["+shka+"])=?";
+        String stock = resolveFlexible(cols, "Mojoodi", "mojoodi", "mojudi", "mojody", "mojood", "mojvah", "MojVah", "mojkol", "MojKol", "MojoodiKol", "tedad_mojood", "TedadMojood", "Stock", "StockQty", "StockCount", "Qty", "quantity", "inventorycount", "inventory_count", "Remain", "Remaining", "remain_qty", "mande", "Mandeh", "موجودی", "مانده_کالا", "tedad_mande", "TedadMande", "tedad_kol", "TedadKol", "balance_qty", "onhand", "OnHand");
+        String price1 = resolveFlexible(cols, "FinalSalePrice", "SalePrice", "Sale_Price", "SellPrice", "Sell_Price", "Price", "price", "forosh1", "forush1", "foroosh1", "Foroosh1", "gheymat_forosh", "gheymat", "gheymat1", "nerkh", "nerkh1", "Nerkh1", "fi", "fi1", "Fee", "Fee1", "price1", "Price1", "price_1", "sale1", "sale_price1", "قیمت_فروش1", "قیمت_فروش", "قیمت فروش 1", "قیمت۱", "قیمت1", "نرخ1", "فی1");
+        String price2 = resolveFlexible(cols, "FinalSalePrice2", "SalePrice2", "Sale_Price2", "SellPrice2", "Sell_Price2", "Price2", "price2", "forosh2", "forush2", "foroosh2", "Foroosh2", "gheymat_forosh2", "gheymat2", "nerkh2", "Nerkh2", "fi2", "Fee2", "price_2", "sale2", "sale_price2", "قیمت_فروش2", "قیمت_فروش۲", "قیمت فروش 2", "قیمت۲", "قیمت2", "نرخ2", "فی2");
+        String sql = "SELECT " + sqlNumberExpr("i", stock, "decimal(19,3)") + "," + sqlNumberExpr("i", price1, "decimal(19,2)") + "," + sqlNumberExpr("i", price2, "decimal(19,2)") + " FROM dbo.inventory i WHERE TRY_CONVERT(nvarchar(100),i.["+shka+"])=?";
         for (int i=0; items!=null && i<items.length(); i++) {
             JSONObject it=items.optJSONObject(i); if (it==null) continue;
             try (PreparedStatement ps=c.prepareStatement(sql)) { ps.setString(1,it.optString("code","")); try(ResultSet r=ps.executeQuery()) { if(!r.next()){ warnings.put("کالا پیدا نشد: "+it.optString("name","")); blocked=true; continue; } double st=r.getDouble(1); double p1=r.getDouble(2); double p2=r.getDouble(3); if(stock!=null && st<it.optDouble("qty",0)){ warnings.put("موجودی کافی نیست: "+it.optString("name","")+" / موجودی "+formatNumber(st)); blocked=true; } double dbPrice="2".equals(it.optString("priceTier","1"))&&p2>0?p2:p1; if(dbPrice>0 && Math.abs(dbPrice-it.optDouble("price",0))>1){ warnings.put("قیمت کالا تغییر کرده: "+it.optString("name","")); if(strict) blocked=true; } } }
@@ -8072,7 +8217,7 @@ public class MainActivity extends Activity {
         AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("ساخت PDF",null).create(); dlg.setOnShowListener(x->{ styleMeelanoDialog(dlg,navAccent("cart")); Button ok=dlg.getButton(AlertDialog.BUTTON_POSITIVE); if(ok!=null) ok.setOnClickListener(v->{ generatePrefactorPdf(d,"Meelano-Prefactor-"+d.optLong("id")+".pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(d), null); }); }); dlg.show();
     }
 
-    private void generateCurrentCartPdfAndShare(boolean shareOnly){ JSONObject snap=currentCartSnapshot(finalCartStatus()); generatePrefactorPdf(snap,"Meelano-Prefactor-Draft-v3.39.pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(snap), null); }
+    private void generateCurrentCartPdfAndShare(boolean shareOnly){ JSONObject snap=currentCartSnapshot(finalCartStatus()); generatePrefactorPdf(snap,"Meelano-Prefactor-Draft-v3.40.pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(snap), null); }
 
     private String prefactorShareText(JSONObject d){
         StringBuilder b=new StringBuilder(); b.append("پیش‌فاکتور MEELANO\n"); b.append("مشتری: ").append(d.optString("customerName","")).append('\n'); b.append("مبلغ نهایی: ").append(money(d.optDouble("grandTotal",0))).append('\n'); JSONArray items=d.optJSONArray("items"); for(int i=0;items!=null&&i<items.length();i++){ JSONObject it=items.optJSONObject(i); if(it!=null)b.append("- ").append(it.optString("name","")).append(" × ").append(formatNumber(it.optDouble("qty",0))).append(" = ").append(money(cartItemNet(it))).append('\n'); } b.append("توضیحات: ").append(d.optString("notes","")); return b.toString();
@@ -8179,6 +8324,52 @@ public class MainActivity extends Activity {
         content.addView(box, new LinearLayout.LayoutParams(-1, -2));
     }
 
+    private String sqlNumberExpr(String alias, String col, String type) {
+        if (col == null || col.trim().isEmpty()) return "CAST(NULL AS " + type + ")";
+        String ref = alias + ".[" + col + "]";
+        String raw = "TRY_CONVERT(nvarchar(120)," + ref + ")";
+        String norm = "LTRIM(RTRIM(" + raw + "))";
+        String[][] repl = {
+                {"NCHAR(160)", "N''"}, {"N' '", "N''"}, {"N','", "N''"}, {"N'،'", "N''"}, {"N'٬'", "N''"},
+                {"N'٫'", "N'.'"}, {"N'ریال'", "N''"}, {"N'تومان'", "N''"},
+                {"N'۰'", "N'0'"}, {"N'۱'", "N'1'"}, {"N'۲'", "N'2'"}, {"N'۳'", "N'3'"}, {"N'۴'", "N'4'"},
+                {"N'۵'", "N'5'"}, {"N'۶'", "N'6'"}, {"N'۷'", "N'7'"}, {"N'۸'", "N'8'"}, {"N'۹'", "N'9'"},
+                {"N'٠'", "N'0'"}, {"N'١'", "N'1'"}, {"N'٢'", "N'2'"}, {"N'٣'", "N'3'"}, {"N'٤'", "N'4'"},
+                {"N'٥'", "N'5'"}, {"N'٦'", "N'6'"}, {"N'٧'", "N'7'"}, {"N'٨'", "N'8'"}, {"N'٩'", "N'9'"}
+        };
+        for (String[] r : repl) norm = "REPLACE(" + norm + "," + r[0] + "," + r[1] + ")";
+        return "COALESCE(TRY_CONVERT(" + type + "," + ref + "),TRY_CONVERT(" + type + "," + norm + "))";
+    }
+
+    private boolean isBinaryColumn(Map<String, String> types, String col) {
+        if (types == null || col == null) return false;
+        String type = types.get(col.toLowerCase(Locale.US));
+        if (type == null) return false;
+        return type.contains("binary") || "image".equals(type) || type.contains("varbinary");
+    }
+
+    private String moneyOrDash(JSONObject r, String key) {
+        if (r == null || !r.has(key) || r.isNull(key)) return "—";
+        Object v = r.opt(key);
+        if (v == null || JSONObject.NULL.equals(v) || String.valueOf(v).trim().isEmpty()) return "—";
+        return money(v);
+    }
+
+    private String numberOrDash(JSONObject r, String key) {
+        if (r == null || !r.has(key) || r.isNull(key)) return "—";
+        Object v = r.opt(key);
+        if (v == null || JSONObject.NULL.equals(v) || String.valueOf(v).trim().isEmpty()) return "—";
+        return formatNumber(v);
+    }
+
+    private String unitOrDash(JSONObject r) {
+        return stringOr(r == null ? "" : r.optString("واحد", ""), "—");
+    }
+
+    private String stockWithUnit(JSONObject r) {
+        return numberOrDash(r, "موجودی") + ("—".equals(unitOrDash(r)) ? "" : " " + unitOrDash(r));
+    }
+
     private String queryProducts(String search, String filter) throws Exception {
         try (Connection c = openConnection()) {
             Set<String> cols = columns(c, "inventory");
@@ -8186,20 +8377,22 @@ public class MainActivity extends Activity {
             Set<String> saleCols = columns(c, "subsailfact");
             Set<String> buyCols = columns(c, "subbuyfact");
             Set<String> groupCols = columns(c, "kagroup");
-            Set<String> unitCols = columns(c, "UNITS");
+            String unitTable = resolveTableName(c, "UNITS", "units", "unit", "vahed", "VAHED", "kavahed", "tbl_units", "tblUnits");
+            Set<String> unitCols = unitTable == null ? new HashSet<>() : columns(c, unitTable);
             String shka = resolveFlexible(cols, "shka", "SHKA", "KalaID", "ProductID", "StuffID", "id", "ID", "کد");
             if (shka == null) throw new DbException("ستون کالا یافت نشد.");
             String name = resolveFlexible(cols, "naka", "Name", "KalaName", "ProductName", "StuffName", "نام", "نام_کالا", "نامکالا", "title");
             String code = resolveFlexible(cols, "StuffCode", "Code", "Barcode", "BarCode", "KalaCode", "ProductCode", "ItemCode", "کد_کالا", "بارکد");
-            String price = resolveFlexible(cols, "FinalSalePrice", "SalePrice", "Sale_Price", "SellPrice", "Price", "price", "forosh1", "forush1", "gheymat_forosh", "gheymat", "price1", "Price1", "قیمت_فروش1", "قیمت_فروش", "قیمت فروش 1");
-            String price2 = resolveFlexible(cols, "FinalSalePrice2", "SalePrice2", "Sale_Price2", "SellPrice2", "Price2", "forosh2", "forush2", "price_2", "قیمت_فروش2", "قیمت_فروش۲", "gheymat2", "قیمت فروش 2");
+            String price = resolveFlexible(cols, "FinalSalePrice", "SalePrice", "Sale_Price", "SellPrice", "Sell_Price", "Price", "price", "forosh1", "forush1", "foroosh1", "Foroosh1", "gheymat_forosh", "gheymat", "gheymat1", "nerkh", "nerkh1", "Nerkh1", "fi", "fi1", "Fee", "Fee1", "price1", "Price1", "price_1", "sale1", "sale_price1", "قیمت_فروش1", "قیمت_فروش", "قیمت فروش 1", "قیمت۱", "قیمت1", "نرخ1", "فی1");
+            String price2 = resolveFlexible(cols, "FinalSalePrice2", "SalePrice2", "Sale_Price2", "SellPrice2", "Sell_Price2", "Price2", "price2", "forosh2", "forush2", "foroosh2", "Foroosh2", "gheymat_forosh2", "gheymat2", "nerkh2", "Nerkh2", "fi2", "Fee2", "price_2", "sale2", "sale_price2", "قیمت_فروش2", "قیمت_فروش۲", "قیمت فروش 2", "قیمت۲", "قیمت2", "نرخ2", "فی2");
             String buyPrice = resolveFlexible(cols, "pure_buy_price", "BuyPrice", "buy_price", "LastBuyPrice", "PurchasePrice", "Cost", "cost_price", "قیمت_خرید", "بهای_خرید");
-            String stock = resolveFlexible(cols, "Mojoodi", "mojoodi", "mojudi", "mojody", "mojood", "Stock", "StockQty", "StockCount", "Qty", "quantity", "inventorycount", "inventory_count", "Remain", "Remaining", "mande", "Mandeh", " موجودی", "موجودی", "مانده_کالا", "tedad_mande", "TedadMande", "tedad_kol", "TedadKol");
-            String unitText = resolveFlexible(cols, "unit", "Unit", "UnitName", "unit_name", "vahed_name", "vahedname", "navahed", "NameVahed", "واحد", "واحد_شمارش", "نام_واحد");
-            String unitRef = resolveFlexible(cols, "unit_rdf", "unitid", "unit_id", "UnitID", "vahed", "Vahed", "vahed_rdf", "shva", "SHVA", "u_rdf");
+            String stock = resolveFlexible(cols, "Mojoodi", "mojoodi", "mojudi", "mojody", "mojood", "mojvah", "MojVah", "mojkol", "MojKol", "MojoodiKol", "tedad_mojood", "TedadMojood", "Stock", "StockQty", "StockCount", "Qty", "quantity", "inventorycount", "inventory_count", "Remain", "Remaining", "remain_qty", "mande", "Mandeh", " موجودی", "موجودی", "مانده_کالا", "tedad_mande", "TedadMande", "tedad_kol", "TedadKol", "balance_qty", "onhand", "OnHand");
+            String unitText = resolveFlexible(cols, "unit", "Unit", "UnitName", "unit_name", "vahed_name", "vahedname", "navahed", "NameVahed", "UnitTitle", "واحد", "واحد_شمارش", "نام_واحد", "واحد شمارش");
+            String unitRef = resolveFlexible(cols, "unit_rdf", "unitid", "unit_id", "UnitID", "vahed", "Vahed", "vahed_rdf", "shva", "SHVA", "u_rdf", "UnitCode", "unit_code");
             String packCount = resolveFlexible(cols, "mohvah", "moh_vah", "tedad_baste", "TedadDarBaste", "TedadBaste", "pack_qty", "packCount", "package_qty", "box_qty", "carton_qty", "TedadDarCarton", "tedad_karton", "in_box", "تعداد_در_بسته", "تعداددر بسته", "تعداد_کارتن");
-            String imageCol = resolveFlexible(cols, "pic", "aks", "image", "Image", "ProductImage", "product_image", "image_base64", "picture", "Picture", "photo", "Photo", "tasvir", "تصویر", "عکس", "file", "FileName", "img");
+            String imageCol = resolveFlexible(cols, "pic", "aks", "image", "Image", "ProductImage", "product_image", "image_base64", "picture", "Picture", "photo", "Photo", "tasvir", "تصویر", "عکس", "file", "FileName", "img", "photo_bin", "image_bin");
             boolean imageText = isTextColumn(invTypes, imageCol);
+            boolean imageBinary = isBinaryColumn(invTypes, imageCol);
             String groupId = resolveFlexible(cols, "group_rdf", "GroupID", "group_id", "VarietyID", "variety_rdf", "category_id", "cat_id");
             String groupKey = resolveFlexible(groupCols, "group_rdf", "ID", "GroupID", "rdf", "code", "group_id");
             String groupName = resolveFlexible(groupCols, "group_name", "name", "Name", "GroupName", "nagr", "gname", "title", "نام");
@@ -8216,16 +8409,16 @@ public class MainActivity extends Activity {
             select.add("i.[" + shka + "] AS کد");
             select.add(name == null ? "CAST(NULL AS nvarchar(250)) AS نام" : "TRY_CONVERT(nvarchar(250),i.[" + name + "]) AS نام");
             select.add(code == null ? "CAST(NULL AS nvarchar(100)) AS بارکد" : "TRY_CONVERT(nvarchar(100),i.[" + code + "]) AS بارکد");
-            select.add(price == null ? "CAST(0 AS decimal(19,2)) AS قیمت_فروش" : "TRY_CONVERT(decimal(19,2),i.[" + price + "]) AS قیمت_فروش");
-            select.add(price2 == null ? "CAST(0 AS decimal(19,2)) AS قیمت_فروش۲" : "TRY_CONVERT(decimal(19,2),i.[" + price2 + "]) AS قیمت_فروش۲");
-            select.add(buyPrice == null ? "CAST(0 AS decimal(19,2)) AS بهای_خرید" : "TRY_CONVERT(decimal(19,2),i.[" + buyPrice + "]) AS بهای_خرید");
-            String stockExpr = stock == null ? "(ISNULL(ba.buy_qty,0)-ISNULL(sa.sale_qty,0))" : "TRY_CONVERT(decimal(19,3),i.[" + stock + "])";
+            select.add(sqlNumberExpr("i", price, "decimal(19,2)") + " AS قیمت_فروش");
+            select.add(sqlNumberExpr("i", price2, "decimal(19,2)") + " AS قیمت_فروش۲");
+            select.add(sqlNumberExpr("i", buyPrice, "decimal(19,2)") + " AS بهای_خرید");
+            String stockExpr = stock == null ? "(ISNULL(ba.buy_qty,0)-ISNULL(sa.sale_qty,0))" : sqlNumberExpr("i", stock, "decimal(19,3)");
             String unitFallback = unitText != null ? "TRY_CONVERT(nvarchar(80),i.[" + unitText + "])" : (unitRef != null ? "TRY_CONVERT(nvarchar(80),i.[" + unitRef + "])" : "CAST(NULL AS nvarchar(80))");
             String unitExpr = unitRef != null && unitKey != null && unitName != null ? "COALESCE(TRY_CONVERT(nvarchar(80),u.[" + unitName + "])," + unitFallback + ")" : unitFallback;
             select.add("ISNULL(" + stockExpr + ",0) AS موجودی");
             select.add(unitExpr + " AS واحد");
-            select.add(packCount == null ? "CAST(1 AS decimal(19,3)) AS تعداد_در_بسته" : "ISNULL(TRY_CONVERT(decimal(19,3),i.[" + packCount + "]),1) AS تعداد_در_بسته");
-            select.add(!imageText ? "CAST(NULL AS nvarchar(max)) AS تصویر" : "TRY_CONVERT(nvarchar(max),i.[" + imageCol + "]) AS تصویر");
+            select.add(packCount == null ? "CAST(1 AS decimal(19,3)) AS تعداد_در_بسته" : "ISNULL(" + sqlNumberExpr("i", packCount, "decimal(19,3)") + ",1) AS تعداد_در_بسته");
+            select.add(imageBinary && imageCol != null ? "master.dbo.fn_varbintohexstr(i.[" + imageCol + "]) AS تصویر" : (!imageText ? "CAST(NULL AS nvarchar(max)) AS تصویر" : "TRY_CONVERT(nvarchar(max),i.[" + imageCol + "]) AS تصویر"));
             select.add(groupName != null && groupKey != null && groupId != null ? "TRY_CONVERT(nvarchar(250),g.[" + groupName + "]) AS گروه" : "CAST(NULL AS nvarchar(250)) AS گروه");
             select.add("ISNULL(sa.sale_qty,0) AS تعداد_فروش");
             select.add("ISNULL(sa.sale_amount,0) AS مبلغ_فروش");
@@ -8239,7 +8432,7 @@ public class MainActivity extends Activity {
             String buyApply = buyKey != null ? "OUTER APPLY (SELECT " +
                     (buyQty == null ? "CAST(0 AS decimal(19,3))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,3),b.[" + buyQty + "])),0)") + " buy_qty, " +
                     (buyAmount == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,2),b.[" + buyAmount + "])),0)") + " buy_amount FROM dbo.subbuyfact b WHERE TRY_CONVERT(nvarchar(100),b.[" + buyKey + "])=TRY_CONVERT(nvarchar(100),i.[" + shka + "])" + activeAnd(buyCols, "b") + ") ba " : "OUTER APPLY (SELECT CAST(0 AS decimal(19,3)) buy_qty, CAST(0 AS decimal(19,2)) buy_amount) ba ";
-            String unitJoin = unitRef != null && unitKey != null && unitName != null ? "LEFT JOIN dbo.UNITS u ON TRY_CONVERT(nvarchar(100),u.[" + unitKey + "])=TRY_CONVERT(nvarchar(100),i.[" + unitRef + "]) " : "";
+            String unitJoin = unitTable != null && unitRef != null && unitKey != null && unitName != null ? "LEFT JOIN dbo.[" + unitTable + "] u ON TRY_CONVERT(nvarchar(100),u.[" + unitKey + "])=TRY_CONVERT(nvarchar(100),i.[" + unitRef + "]) " : "";
             String groupJoin = groupName != null && groupKey != null && groupId != null ? "LEFT JOIN dbo.kagroup g ON TRY_CONVERT(nvarchar(100),g.[" + groupKey + "])=TRY_CONVERT(nvarchar(100),i.[" + groupId + "]) " : "";
 
             List<String> where = new ArrayList<>();
@@ -8251,13 +8444,13 @@ public class MainActivity extends Activity {
                 }
                 where.add("(" + join(parts, " OR ") + ")");
             }
-            String stockWhereExpr = stock == null ? "(ISNULL(ba.buy_qty,0)-ISNULL(sa.sale_qty,0))" : "ISNULL(TRY_CONVERT(decimal(19,3),i.[" + stock + "]),0)";
+            String stockWhereExpr = stock == null ? "(ISNULL(ba.buy_qty,0)-ISNULL(sa.sale_qty,0))" : "ISNULL(" + sqlNumberExpr("i", stock, "decimal(19,3)") + ",0)";
             if ("stock".equals(filter)) where.add(stockWhereExpr + ">0");
             if ("low".equals(filter)) where.add(stockWhereExpr + "<=0");
             if ("idle".equals(filter)) where.add("ISNULL(sa.sale_qty,0)=0 AND ISNULL(ba.buy_qty,0)=0");
-            if ("priced".equals(filter) && price != null) where.add("ISNULL(TRY_CONVERT(decimal(19,2),i.[" + price + "]),0)>0");
-            if ("image".equals(filter) && imageText && imageCol != null) where.add("LEN(LTRIM(RTRIM(TRY_CONVERT(nvarchar(max),i.[" + imageCol + "]))))>20");
-            if ("package".equals(filter) && packCount != null) where.add("ISNULL(TRY_CONVERT(decimal(19,3),i.[" + packCount + "]),0)>1");
+            if ("priced".equals(filter) && price != null) where.add("ISNULL(" + sqlNumberExpr("i", price, "decimal(19,2)") + ",0)>0");
+            if ("image".equals(filter) && imageCol != null) where.add(imageBinary ? "DATALENGTH(i.[" + imageCol + "])>20" : "LEN(LTRIM(RTRIM(TRY_CONVERT(nvarchar(max),i.[" + imageCol + "]))))>20");
+            if ("package".equals(filter) && packCount != null) where.add("ISNULL(" + sqlNumberExpr("i", packCount, "decimal(19,3)") + ",0)>1");
             String order = "top".equals(filter) ? " ORDER BY مبلغ_فروش DESC, نام" : ("low".equals(filter) ? " ORDER BY موجودی ASC, نام" : " ORDER BY نام, کد");
             String sql = "SELECT TOP (160) " + join(select, ",") + " FROM dbo.[inventory] i " + unitJoin + groupJoin + saleApply + buyApply +
                     (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + order;
@@ -8314,6 +8507,16 @@ public class MainActivity extends Activity {
         parent.addView(c, lp);
     }
 
+    private static class ProductVisualProfile {
+        final String type;
+        final String title;
+        final String badge;
+        final int accent;
+        ProductVisualProfile(String type, String title, String badge, int accent) {
+            this.type = type; this.title = title; this.badge = badge; this.accent = accent;
+        }
+    }
+
     private boolean hasProductImage(JSONObject r) {
         String raw = r == null ? "" : r.optString("تصویر", "");
         if (raw == null) return false;
@@ -8350,8 +8553,7 @@ public class MainActivity extends Activity {
     private byte[] hexToBytes(String hex) {
         if (hex == null) return new byte[0];
         String h = hex.trim();
-        int len = h.length();
-        if (len % 2 == 1) h = "0" + h;
+        if (h.length() % 2 == 1) h = "0" + h;
         byte[] out = new byte[h.length() / 2];
         for (int i = 0; i < out.length; i++) {
             int pos = i * 2;
@@ -8363,34 +8565,218 @@ public class MainActivity extends Activity {
 
     private Bitmap smartProductBitmap(JSONObject r) {
         try {
-            int w = 320, h = 320;
+            int w = 360, h = 360;
             Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
             Canvas canvas = new Canvas(bmp);
             Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
             String name = r == null ? "محصول" : stringOr(r.optString("نام", ""), "محصول");
             String group = r == null ? "" : r.optString("گروه", "");
-            int accent = smartProductAccent(name + " " + group);
-            int accent2 = mix(accent, GOLD_2, 0.34f);
-            int dark = mix(accent, Color.BLACK, isLightTheme() ? 0.18f : 0.38f);
+            ProductVisualProfile vp = productVisualProfile(name, group);
+            int accent = vp.accent;
+            int base = mix(SURFACE, accent, isLightTheme() ? 0.10f : 0.24f);
+            int glow = mix(accent, Color.WHITE, isLightTheme() ? 0.58f : 0.26f);
             p.setStyle(Paint.Style.FILL);
-            p.setColor(mix(accent, Color.WHITE, isLightTheme() ? 0.70f : 0.22f));
-            canvas.drawRoundRect(new RectF(0, 0, w, h), dp(30), dp(30), p);
-            p.setColor(alpha(accent2, 185)); canvas.drawCircle(w - 44, 52, 72, p);
-            p.setColor(alpha(Color.WHITE, isLightTheme() ? 130 : 40)); canvas.drawCircle(58, 66, 46, p);
-            p.setColor(alpha(dark, 190)); canvas.drawRoundRect(new RectF(54, 74, 266, 266), dp(28), dp(28), p);
-            p.setColor(alpha(mix(accent, Color.WHITE, 0.42f), 245)); canvas.drawRoundRect(new RectF(72, 52, 244, 244), dp(26), dp(26), p);
-            p.setColor(alpha(Color.WHITE, isLightTheme() ? 190 : 96)); canvas.drawRoundRect(new RectF(92, 84, 224, 196), dp(20), dp(20), p);
-            p.setColor(alpha(accent, 230)); canvas.drawRoundRect(new RectF(96, 154, 220, 218), dp(18), dp(18), p);
-            String glyph = productGlyph(name + " " + group);
-            p.setTextAlign(Paint.Align.CENTER); p.setTypeface(Typeface.DEFAULT_BOLD); p.setTextSize(dp(48)); p.setColor(onColorFor(accent));
-            canvas.drawText(glyph, w / 2f, 142, p);
-            p.setTextSize(dp(18)); p.setColor(Color.WHITE); canvas.drawText(shortProductTitle(name, 15), w / 2f, 193, p);
-            p.setTextSize(dp(12)); p.setColor(alpha(Color.WHITE, 232)); canvas.drawText(shortProductTitle(stringOr(group, "MEELANO"), 18), w / 2f, 214, p);
-            p.setTextSize(dp(10)); p.setColor(alpha(dark, 200)); canvas.drawText("تصویر هوشمند کالا", w / 2f, 285, p);
-            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(2)); p.setColor(alpha(Color.WHITE, isLightTheme() ? 160 : 95));
-            canvas.drawRoundRect(new RectF(8, 8, w - 8, h - 8), dp(28), dp(28), p);
+            p.setColor(base); canvas.drawRoundRect(new RectF(0, 0, w, h), 34f, 34f, p);
+            p.setColor(alpha(glow, isLightTheme() ? 132 : 82)); canvas.drawCircle(300, 58, 96, p);
+            p.setColor(alpha(navAccent("showcase"), isLightTheme() ? 48 : 58)); canvas.drawCircle(54, 306, 86, p);
+            p.setColor(alpha(Color.WHITE, isLightTheme() ? 156 : 28)); canvas.drawRoundRect(new RectF(18, 18, 342, 342), 30f, 30f, p);
+            p.setColor(alpha(mix(accent, Color.BLACK, 0.16f), isLightTheme() ? 28 : 92)); canvas.drawOval(new RectF(88, 270, 272, 310), p);
+            drawProductIllustration(canvas, p, vp, name, group);
+            p.setTextAlign(Paint.Align.CENTER); p.setTypeface(Typeface.DEFAULT_BOLD);
+            p.setTextSize(22f); p.setColor(TEXT); canvas.drawText(shortProductTitle(name, 19), w / 2f, 322f, p);
+            p.setTextSize(14f); p.setColor(alpha(MUTED, 230)); canvas.drawText(vp.title, w / 2f, 342f, p);
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(2.2f); p.setColor(alpha(accent, isLightTheme() ? 120 : 150));
+            canvas.drawRoundRect(new RectF(8, 8, w - 8, h - 8), 32f, 32f, p);
             return bmp;
         } catch (Exception ignored) { return null; }
+    }
+
+    private ProductVisualProfile productVisualProfile(JSONObject r) {
+        if (r == null) return productVisualProfile("", "");
+        return productVisualProfile(r.optString("نام", ""), r.optString("گروه", ""));
+    }
+
+    private ProductVisualProfile productVisualProfile(String name, String group) {
+        String t = productKeyText((name == null ? "" : name) + " " + (group == null ? "" : group));
+        int themeMixRatio = isLightTheme() ? 14 : 22;
+        if (productHas(t, "دستمال", "حوله", "کاغذ توالت", "نوار بهداشتی", "پوشک")) return visual("tissue", "بهداشتی سلولزی", "دستمال", Color.rgb(92, 170, 210), themeMixRatio);
+        if (productHas(t, "شیر کاکائو", "شیرکاکائو", "شیر موز", "شیرموز")) return visual("milk_carton", "نوشیدنی لبنی", "شیر", Color.rgb(75, 164, 240), themeMixRatio);
+        if (productHas(t, "شیرینی", "شیرین عسل", "کلوچه", "کیک", "بیسکویت", "بیسکوییت", "ویفر", "کوکی", "کاکائو", "شکلات", "آبنبات", "ابنبات")) return visual("sweet_box", "شیرینی و شکلات", "شیرینی", Color.rgb(181, 96, 210), themeMixRatio);
+        if (productHas(t, "ماست", "خامه", "کشک", "بستنی", "دسر")) return visual("dairy_cup", "لبنیات کاسه‌ای", "لبنی", Color.rgb(84, 165, 238), themeMixRatio);
+        if (productHas(t, "پنیر")) return visual("cheese", "پنیر", "لبنی", Color.rgb(246, 188, 74), themeMixRatio);
+        if (productHas(t, "دوغ", "کفیر")) return visual("drink_bottle", "دوغ و نوشیدنی لبنی", "دوغ", Color.rgb(76, 177, 226), themeMixRatio);
+        if ((productHas(t, "شیر") && !productHas(t, "شیرینی", "شیرین", "شیره")) || productHas(t, "لبن", "کره")) return visual("milk_carton", "لبنیات", "شیر", Color.rgb(75, 164, 240), themeMixRatio);
+        if (productHas(t, "آبمیوه", "ابمیوه", "نکتار", "رانی", "سن ایچ", "سان ایچ")) return visual("juice_carton", "آبمیوه", "آبمیوه", Color.rgb(245, 145, 65), themeMixRatio);
+        if (productHas(t, "نوشابه", "دلستر", "مالت", "ماالشعیر", "انرژی زا", "نوشیدنی", "پپسی", "کوکا", "فانتا", "اسپرایت", "زمزم", "هایپ")) return visual("drink_bottle", "نوشیدنی", "بطری", Color.rgb(46, 184, 210), themeMixRatio);
+        if (productHas(t, "آب معدنی", "اب معدنی", "آب ", " اب ", "water")) return visual("water_bottle", "آب", "آب", Color.rgb(55, 180, 238), themeMixRatio);
+        if (productHas(t, "چای", "تی بگ", "تی‌بگ", "دمنوش")) return visual("tea_box", "چای و دمنوش", "چای", Color.rgb(144, 92, 48), themeMixRatio);
+        if (productHas(t, "قهوه", "نسکافه", "کافی", "کاپوچینو", "اسپرسو")) return visual("coffee_pack", "قهوه", "قهوه", Color.rgb(119, 75, 48), themeMixRatio);
+        if (productHas(t, "برنج")) return visual("rice_bag", "برنج", "برنج", Color.rgb(219, 178, 90), themeMixRatio);
+        if (productHas(t, "حبوبات", "لوبیا", "عدس", "نخود", "لپه", "ماش", "گندم", "جو ", "ذرت")) return visual("beans_bag", "حبوبات و غلات", "حبوبات", Color.rgb(196, 135, 70), themeMixRatio);
+        if (productHas(t, "ماکارونی", "پاستا", "رشته", "ورمیشل", "نودل")) return visual("pasta_pack", "ماکارونی و رشته", "پاستا", Color.rgb(229, 169, 58), themeMixRatio);
+        if (productHas(t, "آرد", "ارد", "شکر", "قند", "نمک", "پودر قند")) return visual("staple_bag", "کالاهای پایه", "اصلی", Color.rgb(134, 147, 166), themeMixRatio);
+        if (productHas(t, "روغن", "زیتون", "کنجد", "سرخ کردنی", "مایع خوراکی")) return visual("oil_bottle", "روغن", "روغن", Color.rgb(237, 178, 49), themeMixRatio);
+        if (productHas(t, "رب", "سس", "مایونز", "کچاپ", "خردل")) return visual(productHas(t, "سس", "مایونز", "کچاپ", "خردل") ? "sauce_bottle" : "can", "چاشنی و سس", "سس", Color.rgb(226, 72, 74), themeMixRatio);
+        if (productHas(t, "کنسرو", "کمپوت", "تن ماهی", "تون ماهی", "تن ", "کنسروی")) return visual("can", "کنسرو", "قوطی", Color.rgb(220, 82, 84), themeMixRatio);
+        if (productHas(t, "ترشی", "خیارشور", "زیتون شور", "مربا", "عسل", "شیره")) return visual("jar", "شیشه و جار", "جار", Color.rgb(232, 156, 65), themeMixRatio);
+        if (productHas(t, "ادویه", "زردچوبه", "فلفل", "دارچین", "زعفران", "کاری", "سماق", "آویشن")) return visual("spice_jar", "ادویه", "ادویه", Color.rgb(214, 112, 52), themeMixRatio);
+        if (productHas(t, "چیپس", "پفک", "اسنک", "کرانچی", "پاپ کورن", "پاپ‌کورن", "تخمه")) return visual("snack_pouch", "تنقلات", "اسنک", Color.rgb(240, 145, 54), themeMixRatio);
+        if (productHas(t, "آجیل", "اجیل", "خشکبار", "خرما", "کشمش", "پسته", "بادام", "گردو", "فندق", "بادام زمینی")) return visual("nuts_bag", "خشکبار", "خشکبار", Color.rgb(161, 101, 62), themeMixRatio);
+        if (productHas(t, "تخم مرغ", "تخم‌مرغ", "تخم")) return visual("egg_tray", "تخم‌مرغ", "تخم‌مرغ", Color.rgb(209, 184, 124), themeMixRatio);
+        if (productHas(t, "گوشت", "مرغ", "ماهی", "میگو", "سوسیس", "کالباس", "ژامبون")) return visual("meat_tray", "پروتئینی", "پروتئین", Color.rgb(218, 82, 100), themeMixRatio);
+        if (productHas(t, "شامپو", "نرم کننده", "خمیر دندان", "مسواک", "کرم", "لوسیون", "مام", "اسپری")) return visual("care_bottle", "آرایشی بهداشتی", "بهداشت", Color.rgb(111, 100, 226), themeMixRatio);
+        if (productHas(t, "صابون", "مایع دست", "مایع ظرف", "مایع لباس", "شوینده", "پودر لباس", "وایتکس", "جرمگیر", "پاک کننده", "پاک‌کننده", "سفید کننده")) return visual(productHas(t, "پودر") ? "detergent_box" : "detergent_bottle", "شوینده", "شوینده", Color.rgb(66, 193, 155), themeMixRatio);
+        return visual("generic_box", "کالای عمومی", "کالا", Color.rgb(126, 87, 255), themeMixRatio);
+    }
+
+    private ProductVisualProfile visual(String type, String title, String badge, int baseAccent, int themeMixPercent) {
+        int accent = mix(baseAccent, navAccent("showcase"), themeMixPercent / 100f);
+        return new ProductVisualProfile(type, title, badge, accent);
+    }
+
+    private void drawProductIllustration(Canvas canvas, Paint p, ProductVisualProfile vp, String name, String group) {
+        int a = vp.accent;
+        int dark = mix(a, Color.BLACK, isLightTheme() ? 0.20f : 0.36f);
+        int light = mix(a, Color.WHITE, isLightTheme() ? 0.58f : 0.34f);
+        String type = vp.type == null ? "generic_box" : vp.type;
+        p.setStyle(Paint.Style.FILL);
+        switch (type) {
+            case "milk_carton": case "juice_carton": case "tea_box": case "sweet_box": case "pasta_pack": case "detergent_box": case "generic_box":
+                drawBoxProduct(canvas, p, new RectF(96, 76, 264, 266), a, light, dark, vp.badge, shortProductTitle(name, 11));
+                break;
+            case "water_bottle": case "drink_bottle": case "oil_bottle": case "sauce_bottle": case "care_bottle": case "detergent_bottle":
+                drawBottleProduct(canvas, p, new RectF(116, 58, 244, 272), a, light, dark, vp.badge, type);
+                break;
+            case "can":
+                drawCanProduct(canvas, p, new RectF(108, 82, 252, 264), a, light, dark, vp.badge);
+                break;
+            case "rice_bag": case "beans_bag": case "staple_bag": case "snack_pouch": case "nuts_bag": case "coffee_pack":
+                drawBagProduct(canvas, p, new RectF(86, 80, 274, 270), a, light, dark, vp.badge, type);
+                break;
+            case "jar": case "spice_jar":
+                drawJarProduct(canvas, p, new RectF(108, 76, 252, 268), a, light, dark, vp.badge);
+                break;
+            case "dairy_cup":
+                drawCupProduct(canvas, p, new RectF(96, 96, 264, 266), a, light, dark, vp.badge);
+                break;
+            case "cheese":
+                drawCheeseProduct(canvas, p, new RectF(86, 112, 274, 252), a, light, dark, vp.badge);
+                break;
+            case "egg_tray":
+                drawEggTrayProduct(canvas, p, new RectF(80, 128, 280, 258), a, light, dark);
+                break;
+            case "meat_tray":
+                drawTrayProduct(canvas, p, new RectF(72, 112, 288, 258), a, light, dark, vp.badge);
+                break;
+            case "tissue":
+                drawTissueProduct(canvas, p, new RectF(72, 112, 288, 254), a, light, dark, vp.badge);
+                break;
+            default:
+                drawBoxProduct(canvas, p, new RectF(96, 76, 264, 266), a, light, dark, vp.badge, shortProductTitle(name, 11));
+        }
+    }
+
+    private void drawBoxProduct(Canvas c, Paint p, RectF r, int accent, int light, int dark, String badge, String label) {
+        p.setColor(alpha(dark, 54)); c.drawRoundRect(new RectF(r.left + 12, r.top + 14, r.right + 12, r.bottom + 18), 22f, 22f, p);
+        p.setColor(light); c.drawRoundRect(r, 24f, 24f, p);
+        p.setColor(accent); c.drawRoundRect(new RectF(r.left + 18, r.top + 54, r.right - 18, r.bottom - 36), 18f, 18f, p);
+        p.setColor(alpha(Color.WHITE, 210)); c.drawRoundRect(new RectF(r.left + 28, r.top + 18, r.right - 28, r.top + 50), 14f, 14f, p);
+        drawCenteredText(c, p, badge, (r.left + r.right) / 2f, r.top + 42, 16f, dark, true);
+        drawCenteredText(c, p, label, (r.left + r.right) / 2f, r.top + 125, 18f, onColorFor(accent), true);
+        p.setColor(alpha(Color.WHITE, 92)); c.drawRoundRect(new RectF(r.left + 28, r.bottom - 28, r.right - 28, r.bottom - 14), 7f, 7f, p);
+    }
+
+    private void drawBottleProduct(Canvas c, Paint p, RectF r, int accent, int light, int dark, String badge, String type) {
+        p.setColor(alpha(dark, 56)); c.drawRoundRect(new RectF(r.left + 10, r.top + 16, r.right + 10, r.bottom + 16), 48f, 48f, p);
+        p.setColor(light); c.drawRoundRect(new RectF(r.left + 40, r.top, r.right - 40, r.top + 46), 18f, 18f, p);
+        p.setColor(dark); c.drawRoundRect(new RectF(r.left + 34, r.top - 8, r.right - 34, r.top + 14), 8f, 8f, p);
+        p.setColor(light); c.drawRoundRect(new RectF(r.left, r.top + 34, r.right, r.bottom), 46f, 46f, p);
+        int labelColor = type != null && type.contains("oil") ? Color.rgb(246, 189, 62) : accent;
+        p.setColor(labelColor); c.drawRoundRect(new RectF(r.left + 16, r.top + 94, r.right - 16, r.top + 168), 22f, 22f, p);
+        p.setColor(alpha(Color.WHITE, 100)); c.drawRoundRect(new RectF(r.left + 20, r.top + 46, r.left + 46, r.bottom - 20), 12f, 12f, p);
+        drawCenteredText(c, p, badge, (r.left + r.right) / 2f, r.top + 140, 18f, onColorFor(labelColor), true);
+    }
+
+    private void drawCanProduct(Canvas c, Paint p, RectF r, int accent, int light, int dark, String badge) {
+        p.setColor(alpha(dark, 52)); c.drawRoundRect(new RectF(r.left + 10, r.top + 14, r.right + 10, r.bottom + 18), 28f, 28f, p);
+        p.setColor(light); c.drawRoundRect(r, 28f, 28f, p);
+        p.setColor(alpha(Color.WHITE, 180)); c.drawOval(new RectF(r.left, r.top - 8, r.right, r.top + 28), p);
+        p.setColor(accent); c.drawRoundRect(new RectF(r.left + 12, r.top + 62, r.right - 12, r.bottom - 44), 20f, 20f, p);
+        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(4f); p.setColor(alpha(dark, 100)); c.drawOval(new RectF(r.left + 22, r.top + 4, r.right - 22, r.top + 20), p); p.setStyle(Paint.Style.FILL);
+        drawCenteredText(c, p, badge, (r.left + r.right) / 2f, r.top + 126, 19f, onColorFor(accent), true);
+    }
+
+    private void drawBagProduct(Canvas c, Paint p, RectF r, int accent, int light, int dark, String badge, String type) {
+        Path bag = new Path();
+        bag.moveTo(r.left + 34, r.top + 6); bag.lineTo(r.right - 34, r.top + 6); bag.quadTo(r.right - 2, r.top + 42, r.right - 8, r.bottom - 18); bag.quadTo((r.left + r.right) / 2f, r.bottom + 18, r.left + 8, r.bottom - 18); bag.quadTo(r.left + 2, r.top + 42, r.left + 34, r.top + 6); bag.close();
+        p.setColor(alpha(dark, 48)); c.save(); c.translate(10, 14); c.drawPath(bag, p); c.restore();
+        p.setColor(light); c.drawPath(bag, p);
+        p.setColor(accent); c.drawRoundRect(new RectF(r.left + 30, r.top + 72, r.right - 30, r.bottom - 34), 26f, 26f, p);
+        if (type != null && (type.contains("beans") || type.contains("nuts") || type.contains("rice"))) {
+            p.setColor(alpha(Color.WHITE, 170));
+            for (int i = 0; i < 15; i++) c.drawCircle(r.left + 52 + (i % 5) * 22, r.top + 104 + (i / 5) * 22, 5f, p);
+        }
+        drawCenteredText(c, p, badge, (r.left + r.right) / 2f, r.top + 151, 19f, onColorFor(accent), true);
+    }
+
+    private void drawJarProduct(Canvas c, Paint p, RectF r, int accent, int light, int dark, String badge) {
+        p.setColor(dark); c.drawRoundRect(new RectF(r.left + 34, r.top, r.right - 34, r.top + 24), 8f, 8f, p);
+        p.setColor(alpha(dark, 50)); c.drawRoundRect(new RectF(r.left + 10, r.top + 50, r.right + 10, r.bottom + 14), 32f, 32f, p);
+        p.setColor(light); c.drawRoundRect(new RectF(r.left, r.top + 30, r.right, r.bottom), 34f, 34f, p);
+        p.setColor(accent); c.drawRoundRect(new RectF(r.left + 18, r.top + 86, r.right - 18, r.top + 152), 22f, 22f, p);
+        p.setColor(alpha(Color.WHITE, 95)); c.drawRoundRect(new RectF(r.left + 22, r.top + 44, r.left + 50, r.bottom - 20), 14f, 14f, p);
+        drawCenteredText(c, p, badge, (r.left + r.right) / 2f, r.top + 128, 18f, onColorFor(accent), true);
+    }
+
+    private void drawCupProduct(Canvas c, Paint p, RectF r, int accent, int light, int dark, String badge) {
+        p.setColor(alpha(dark, 50)); c.drawOval(new RectF(r.left + 10, r.top + 12, r.right + 10, r.top + 46), p);
+        p.setColor(light); c.drawOval(new RectF(r.left, r.top, r.right, r.top + 38), p);
+        Path cup = new Path(); cup.moveTo(r.left + 18, r.top + 22); cup.lineTo(r.right - 18, r.top + 22); cup.lineTo(r.right - 42, r.bottom); cup.lineTo(r.left + 42, r.bottom); cup.close();
+        p.setColor(light); c.drawPath(cup, p);
+        p.setColor(accent); c.drawRoundRect(new RectF(r.left + 38, r.top + 76, r.right - 38, r.top + 138), 20f, 20f, p);
+        drawCenteredText(c, p, badge, (r.left + r.right) / 2f, r.top + 116, 18f, onColorFor(accent), true);
+    }
+
+    private void drawCheeseProduct(Canvas c, Paint p, RectF r, int accent, int light, int dark, String badge) {
+        Path tri = new Path(); tri.moveTo(r.left, r.bottom); tri.lineTo(r.right, r.bottom - 28); tri.lineTo(r.left + 58, r.top); tri.close();
+        p.setColor(alpha(dark, 50)); c.save(); c.translate(12, 14); c.drawPath(tri, p); c.restore();
+        p.setColor(light); c.drawPath(tri, p);
+        p.setColor(accent); c.drawRoundRect(new RectF(r.left + 72, r.top + 46, r.right - 28, r.bottom - 34), 22f, 22f, p);
+        p.setColor(alpha(Color.WHITE, 170)); c.drawCircle(r.left + 78, r.bottom - 42, 9f, p); c.drawCircle(r.left + 132, r.bottom - 70, 7f, p); c.drawCircle(r.left + 164, r.bottom - 38, 5f, p);
+        drawCenteredText(c, p, badge, (r.left + r.right) / 2f + 20, r.top + 92, 18f, onColorFor(accent), true);
+    }
+
+    private void drawEggTrayProduct(Canvas c, Paint p, RectF r, int accent, int light, int dark) {
+        p.setColor(alpha(dark, 48)); c.drawRoundRect(new RectF(r.left + 10, r.top + 14, r.right + 10, r.bottom + 14), 26f, 26f, p);
+        p.setColor(mix(light, Color.WHITE, 0.35f)); c.drawRoundRect(r, 26f, 26f, p);
+        p.setColor(Color.rgb(248, 239, 212));
+        for (int row = 0; row < 2; row++) for (int col = 0; col < 4; col++) c.drawOval(new RectF(r.left + 24 + col * 42, r.top + 18 + row * 45, r.left + 54 + col * 42, r.top + 56 + row * 45), p);
+        drawCenteredText(c, p, "تخم‌مرغ", (r.left + r.right) / 2f, r.bottom - 16, 16f, dark, true);
+    }
+
+    private void drawTrayProduct(Canvas c, Paint p, RectF r, int accent, int light, int dark, String badge) {
+        p.setColor(alpha(dark, 50)); c.drawRoundRect(new RectF(r.left + 10, r.top + 14, r.right + 10, r.bottom + 14), 28f, 28f, p);
+        p.setColor(mix(light, Color.WHITE, 0.18f)); c.drawRoundRect(r, 28f, 28f, p);
+        p.setColor(alpha(accent, 210)); c.drawRoundRect(new RectF(r.left + 18, r.top + 18, r.right - 18, r.bottom - 18), 22f, 22f, p);
+        p.setColor(alpha(Color.WHITE, 110)); c.drawLine(r.left + 36, r.top + 26, r.right - 36, r.bottom - 30, p); c.drawLine(r.left + 62, r.top + 22, r.right - 22, r.bottom - 64, p);
+        drawCenteredText(c, p, badge, (r.left + r.right) / 2f, r.top + 84, 19f, onColorFor(accent), true);
+    }
+
+    private void drawTissueProduct(Canvas c, Paint p, RectF r, int accent, int light, int dark, String badge) {
+        p.setColor(alpha(dark, 44)); c.drawRoundRect(new RectF(r.left + 10, r.top + 14, r.right + 10, r.bottom + 14), 28f, 28f, p);
+        p.setColor(light); c.drawRoundRect(r, 28f, 28f, p);
+        p.setColor(accent); c.drawRoundRect(new RectF(r.left + 22, r.top + 30, r.right - 22, r.bottom - 30), 20f, 20f, p);
+        p.setColor(alpha(Color.WHITE, 210)); c.drawRoundRect(new RectF(r.left + 72, r.top + 10, r.right - 72, r.top + 68), 18f, 18f, p);
+        drawCenteredText(c, p, badge, (r.left + r.right) / 2f, r.bottom - 52, 18f, onColorFor(accent), true);
+    }
+
+    private void drawCenteredText(Canvas c, Paint p, String text, float x, float y, float size, int color, boolean bold) {
+        p.setStyle(Paint.Style.FILL);
+        p.setTextAlign(Paint.Align.CENTER);
+        p.setTypeface(bold ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+        p.setTextSize(size);
+        p.setColor(color);
+        c.drawText(text == null ? "" : text, x, y, p);
     }
 
     private String shortProductTitle(String text, int max) {
@@ -8400,66 +8786,37 @@ public class MainActivity extends Activity {
     }
 
     private int smartProductAccent(String value) {
-        String t = productKeyText(value);
-        if (productHas(t, "شیر", "لبن", "ماست", "دوغ", "پنیر", "خامه", "کشک", "کره")) return Color.rgb(88, 171, 245);
-        if (productHas(t, "آب", "اب ", "نوشابه", "دلستر", "نکتار", "آبمیوه", "ابمیوه", "شربت", "نوشیدنی")) return Color.rgb(43, 184, 210);
-        if (productHas(t, "چای", "قهوه", "نسکافه", "کاپوچینو", "دمنوش")) return Color.rgb(156, 93, 50);
-        if (productHas(t, "برنج", "حبوبات", "لوبیا", "عدس", "نخود", "لپه", "گندم", "جو")) return Color.rgb(222, 178, 88);
-        if (productHas(t, "روغن", "کنجد", "زیتون")) return Color.rgb(238, 180, 58);
-        if (productHas(t, "رب", "سس", "کنسرو", "تن", "تون", "کمپوت")) return Color.rgb(231, 82, 83);
-        if (productHas(t, "چیپس", "پفک", "اسنک", "کرانچی", "پاپ کورن")) return Color.rgb(243, 149, 57);
-        if (productHas(t, "بیسک", "کیک", "کلوچه", "ویفر", "شکلات", "آبنبات", "ابنبات", "شیرینی")) return Color.rgb(182, 109, 212);
-        if (productHas(t, "شامپو", "صابون", "مایع", "پودر", "شوینده", "دستمال", "وایتکس", "جرمگیر")) return Color.rgb(77, 194, 158);
-        if (productHas(t, "گوشت", "مرغ", "ماهی", "سوسیس", "کالباس", "تن ماهی")) return Color.rgb(220, 86, 103);
-        if (productHas(t, "خرما", "کشمش", "آجیل", "اجیل", "خشکبار", "پسته", "بادام", "گردو")) return Color.rgb(165, 104, 64);
-        if (productHas(t, "قند", "شکر", "نمک", "آرد", "ارد")) return Color.rgb(116, 132, 159);
-        int[] palette = {SUCCESS, INFO, WARNING, GOLD, Color.rgb(126, 87, 255), Color.rgb(236, 72, 153)};
-        return palette[(t.hashCode() & 0x7fffffff) % palette.length];
+        return productVisualProfile(value, "").accent;
     }
 
     private String productGlyph(String value) {
-        String t = productKeyText(value);
-        if (productHas(t, "شیر", "لبن", "ماست", "دوغ", "پنیر", "خامه", "کشک", "کره")) return "🥛";
-        if (productHas(t, "آب", "اب ", "نوشابه", "دلستر", "آبمیوه", "ابمیوه", "نکتار", "شربت")) return "🍾";
-        if (productHas(t, "چای", "قهوه", "نسکافه", "کاپوچینو", "دمنوش")) return "☕";
-        if (productHas(t, "برنج", "حبوبات", "لوبیا", "عدس", "نخود", "لپه", "گندم")) return "◍";
-        if (productHas(t, "روغن", "زیتون", "کنجد")) return "🧴";
-        if (productHas(t, "رب", "سس", "کنسرو", "تن", "تون", "کمپوت")) return "🥫";
-        if (productHas(t, "چیپس", "پفک", "اسنک", "کرانچی")) return "▰";
-        if (productHas(t, "بیسک", "کیک", "کلوچه", "ویفر", "شکلات")) return "🍪";
-        if (productHas(t, "شامپو", "صابون", "مایع", "پودر", "شوینده", "دستمال")) return "✦";
-        if (productHas(t, "گوشت", "مرغ", "ماهی", "سوسیس", "کالباس")) return "◆";
-        if (productHas(t, "تخم")) return "🥚";
-        if (productHas(t, "عسل", "مربا")) return "◉";
         return initials(value);
     }
 
     private String productKeyText(String value) {
-        return (value == null ? "" : value).toLowerCase(Locale.US).replace('ي','ی').replace('ك','ک').replace('أ','ا').replace('إ','ا').replace('آ','آ');
+        String t = value == null ? "" : value.toLowerCase(Locale.US);
+        t = t.replace('ي','ی').replace('ك','ک').replace('أ','ا').replace('إ','ا').replace('ؤ','و').replace('ۀ','ه').replace('ة','ه');
+        t = t.replace('\u200c', ' ').replace('\u200f', ' ').replace('\u200e', ' ');
+        t = t.replaceAll("[\\p{Punct}\\[\\]{}()\\-_/\\\\|]+", " ");
+        t = t.replace('‌', ' ');
+        return (" " + t.replaceAll("\\s+", " ").trim() + " ");
     }
 
     private boolean productHas(String text, String... keys) {
         if (text == null || keys == null) return false;
-        for (String k : keys) if (k != null && !k.isEmpty() && text.contains(k.toLowerCase(Locale.US).replace('ي','ی').replace('ك','ک'))) return true;
+        String hay = productKeyText(text);
+        for (String k : keys) {
+            if (k == null || k.trim().isEmpty()) continue;
+            String key = productKeyText(k).trim();
+            if (key.isEmpty()) continue;
+            if (hay.contains(" " + key + " ")) return true;
+            if (key.length() > 2 && hay.contains(key)) return true;
+        }
         return false;
     }
 
     private void showProductDialog(JSONObject r) {
-        String message = "کد کالا: " + r.optString("کد", "-") + "\n"
-                + "بارکد/کد جانبی: " + r.optString("بارکد", "-") + "\n"
-                + "گروه: " + r.optString("گروه", "-") + "\n"
-                + "واحد: " + r.optString("واحد", "-") + "\n"
-                + "موجودی فعلی: " + formatNumber(r.opt("موجودی")) + "\n"
-                + "قیمت فروش ۱: " + money(r.opt("قیمت_فروش")) + "\n"
-                + "قیمت فروش ۲: " + money(r.opt("قیمت_فروش۲")) + "\n"
-                + "تعداد در بسته: " + formatNumber(r.opt("تعداد_در_بسته")) + "\n"
-                + "بهای خرید: " + money(r.opt("بهای_خرید")) + "\n"
-                + "تعداد فروش: " + formatNumber(r.opt("تعداد_فروش")) + "\n"
-                + "مبلغ فروش: " + money(r.opt("مبلغ_فروش")) + "\n"
-                + "تعداد خرید: " + formatNumber(r.opt("تعداد_خرید")) + "\n"
-                + "مبلغ خرید: " + money(r.opt("مبلغ_خرید")) + "\n"
-                + "گردش خالص: " + formatNumber(r.opt("گردش_خالص"));
-        new AlertDialog.Builder(this).setTitle(r.optString("نام", "جزئیات کالا")).setMessage(message).setPositiveButton("بستن", null).show();
+        showProductDetailDialog(r, null, null);
     }
 
 
@@ -8973,7 +9330,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.39.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.40.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -11638,10 +11995,24 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.39.0\nاین نسخه ویترین را با تصویر هوشمند اختصاصی برای هر کالا بر اساس نام و گروه محصول تکمیل می‌کند و فراخوانی موجودی، واحد شمارش، تعداد در بسته، قیمت‌ها و سایر اطلاعات کارت کالا را با تشخیص انعطاف‌پذیر ستون‌های SQL دقیق‌تر می‌سازد.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.40.0\nاین نسخه ویترین را هوشمندتر می‌کند: تصویرهای برداری اختصاصی و دقیق‌تر بر اساس نام کالا بدون بهم‌ریختگی اندازه، جدول قیمت/موجودی/واحد خواناتر، دکمه‌های افزودن به سبد بزرگ‌تر و هماهنگ‌تر با تم، و تشخیص گسترده‌تر ستون‌های قیمت و موجودی در SQL.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
+    }
+
+    private String resolveTableName(Connection c, String... candidates) throws Exception {
+        if (candidates == null) return null;
+        try (PreparedStatement ps = c.prepareStatement("SELECT TOP 1 t.name FROM sys.tables t JOIN sys.schemas s ON s.schema_id=t.schema_id WHERE s.name=N'dbo' AND LOWER(t.name)=LOWER(?)")) {
+            for (String candidate : candidates) {
+                if (candidate == null || candidate.trim().isEmpty()) continue;
+                ps.setString(1, candidate.trim());
+                try (ResultSet r = ps.executeQuery()) {
+                    if (r.next()) return r.getString(1);
+                }
+            }
+        }
+        return null;
     }
 
     private Set<String> columns(Connection c, String table) throws Exception {
