@@ -1843,7 +1843,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.38.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.39.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -5831,7 +5831,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.38.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.39.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -5843,7 +5843,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.38.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.39.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -7946,10 +7946,10 @@ public class MainActivity extends Activity {
 
     private JSONObject checkCartSnapshotAgainstInventory(Connection c, JSONArray items, boolean strict) throws Exception {
         JSONObject out = new JSONObject(); JSONArray warnings = new JSONArray(); boolean blocked = false;
-        Set<String> cols = columns(c, "inventory"); String shka = resolve(cols, "shka", "SHKA"); if (shka == null) { out.put("warnings", warnings); return out; }
-        String stock = resolve(cols, "Mojoodi", "mojoodi", "Stock", "Qty", "tedad", "Tedad", "inventorycount");
-        String price1 = resolveFlexible(cols, "FinalSalePrice", "SalePrice", "Price", "forosh1", "price1", "Price1", "قیمت_فروش1");
-        String price2 = resolveFlexible(cols, "FinalSalePrice2", "SalePrice2", "Price2", "forosh2", "price_2", "قیمت_فروش2", "gheymat2");
+        Set<String> cols = columns(c, "inventory"); String shka = resolveFlexible(cols, "shka", "SHKA", "KalaID", "ProductID", "StuffID", "id", "ID", "کد"); if (shka == null) { out.put("warnings", warnings); return out; }
+        String stock = resolveFlexible(cols, "Mojoodi", "mojoodi", "mojudi", "mojody", "mojood", "Stock", "StockQty", "StockCount", "Qty", "quantity", "inventorycount", "inventory_count", "Remain", "Remaining", "mande", "Mandeh", "موجودی", "مانده_کالا", "tedad_mande", "TedadMande", "tedad_kol", "TedadKol");
+        String price1 = resolveFlexible(cols, "FinalSalePrice", "SalePrice", "Sale_Price", "SellPrice", "Price", "price", "forosh1", "forush1", "gheymat_forosh", "gheymat", "price1", "Price1", "قیمت_فروش1", "قیمت_فروش", "قیمت فروش 1");
+        String price2 = resolveFlexible(cols, "FinalSalePrice2", "SalePrice2", "Sale_Price2", "SellPrice2", "Price2", "forosh2", "forush2", "price_2", "قیمت_فروش2", "قیمت_فروش۲", "gheymat2", "قیمت فروش 2");
         String sql = "SELECT " + (stock == null ? "CAST(NULL AS decimal(19,3))" : "TRY_CONVERT(decimal(19,3),["+stock+"])") + "," + (price1 == null ? "CAST(NULL AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),["+price1+"])") + "," + (price2 == null ? "CAST(NULL AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),["+price2+"])") + " FROM dbo.inventory WHERE TRY_CONVERT(nvarchar(100),["+shka+"])=?";
         for (int i=0; items!=null && i<items.length(); i++) {
             JSONObject it=items.optJSONObject(i); if (it==null) continue;
@@ -8072,7 +8072,7 @@ public class MainActivity extends Activity {
         AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("ساخت PDF",null).create(); dlg.setOnShowListener(x->{ styleMeelanoDialog(dlg,navAccent("cart")); Button ok=dlg.getButton(AlertDialog.BUTTON_POSITIVE); if(ok!=null) ok.setOnClickListener(v->{ generatePrefactorPdf(d,"Meelano-Prefactor-"+d.optLong("id")+".pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(d), null); }); }); dlg.show();
     }
 
-    private void generateCurrentCartPdfAndShare(boolean shareOnly){ JSONObject snap=currentCartSnapshot(finalCartStatus()); generatePrefactorPdf(snap,"Meelano-Prefactor-Draft-v3.37.pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(snap), null); }
+    private void generateCurrentCartPdfAndShare(boolean shareOnly){ JSONObject snap=currentCartSnapshot(finalCartStatus()); generatePrefactorPdf(snap,"Meelano-Prefactor-Draft-v3.39.pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(snap), null); }
 
     private String prefactorShareText(JSONObject d){
         StringBuilder b=new StringBuilder(); b.append("پیش‌فاکتور MEELANO\n"); b.append("مشتری: ").append(d.optString("customerName","")).append('\n'); b.append("مبلغ نهایی: ").append(money(d.optDouble("grandTotal",0))).append('\n'); JSONArray items=d.optJSONArray("items"); for(int i=0;items!=null&&i<items.length();i++){ JSONObject it=items.optJSONObject(i); if(it!=null)b.append("- ").append(it.optString("name","")).append(" × ").append(formatNumber(it.optDouble("qty",0))).append(" = ").append(money(cartItemNet(it))).append('\n'); } b.append("توضیحات: ").append(d.optString("notes","")); return b.toString();
@@ -8186,27 +8186,31 @@ public class MainActivity extends Activity {
             Set<String> saleCols = columns(c, "subsailfact");
             Set<String> buyCols = columns(c, "subbuyfact");
             Set<String> groupCols = columns(c, "kagroup");
-            String shka = resolve(cols, "shka", "SHKA");
+            Set<String> unitCols = columns(c, "UNITS");
+            String shka = resolveFlexible(cols, "shka", "SHKA", "KalaID", "ProductID", "StuffID", "id", "ID", "کد");
             if (shka == null) throw new DbException("ستون کالا یافت نشد.");
-            String name = resolve(cols, "naka", "Name", "KalaName");
-            String code = resolve(cols, "StuffCode", "Code", "Barcode", "KalaCode");
-            String price = resolveFlexible(cols, "FinalSalePrice", "SalePrice", "Price", "forosh1", "price1", "Price1", "قیمت_فروش1");
-            String price2 = resolveFlexible(cols, "FinalSalePrice2", "SalePrice2", "Price2", "forosh2", "price_2", "قیمت_فروش2", "gheymat2");
-            String buyPrice = resolve(cols, "pure_buy_price", "BuyPrice", "buy_price", "LastBuyPrice");
-            String stock = resolve(cols, "Mojoodi", "mojoodi", "Stock", "Qty", "tedad", "Tedad", "inventorycount");
-            String unit = resolve(cols, "unit", "Unit", "vahed", "UnitName");
-            String packCount = resolveFlexible(cols, "mohvah", "tedad_baste", "TedadDarBaste", "pack_qty", "packCount", "package_qty", "تعداد_در_بسته");
-            String imageCol = resolve(cols, "pic", "aks", "image", "Image", "picture", "Picture", "photo", "Photo", "tasvir", "file", "FileName", "img");
+            String name = resolveFlexible(cols, "naka", "Name", "KalaName", "ProductName", "StuffName", "نام", "نام_کالا", "نامکالا", "title");
+            String code = resolveFlexible(cols, "StuffCode", "Code", "Barcode", "BarCode", "KalaCode", "ProductCode", "ItemCode", "کد_کالا", "بارکد");
+            String price = resolveFlexible(cols, "FinalSalePrice", "SalePrice", "Sale_Price", "SellPrice", "Price", "price", "forosh1", "forush1", "gheymat_forosh", "gheymat", "price1", "Price1", "قیمت_فروش1", "قیمت_فروش", "قیمت فروش 1");
+            String price2 = resolveFlexible(cols, "FinalSalePrice2", "SalePrice2", "Sale_Price2", "SellPrice2", "Price2", "forosh2", "forush2", "price_2", "قیمت_فروش2", "قیمت_فروش۲", "gheymat2", "قیمت فروش 2");
+            String buyPrice = resolveFlexible(cols, "pure_buy_price", "BuyPrice", "buy_price", "LastBuyPrice", "PurchasePrice", "Cost", "cost_price", "قیمت_خرید", "بهای_خرید");
+            String stock = resolveFlexible(cols, "Mojoodi", "mojoodi", "mojudi", "mojody", "mojood", "Stock", "StockQty", "StockCount", "Qty", "quantity", "inventorycount", "inventory_count", "Remain", "Remaining", "mande", "Mandeh", " موجودی", "موجودی", "مانده_کالا", "tedad_mande", "TedadMande", "tedad_kol", "TedadKol");
+            String unitText = resolveFlexible(cols, "unit", "Unit", "UnitName", "unit_name", "vahed_name", "vahedname", "navahed", "NameVahed", "واحد", "واحد_شمارش", "نام_واحد");
+            String unitRef = resolveFlexible(cols, "unit_rdf", "unitid", "unit_id", "UnitID", "vahed", "Vahed", "vahed_rdf", "shva", "SHVA", "u_rdf");
+            String packCount = resolveFlexible(cols, "mohvah", "moh_vah", "tedad_baste", "TedadDarBaste", "TedadBaste", "pack_qty", "packCount", "package_qty", "box_qty", "carton_qty", "TedadDarCarton", "tedad_karton", "in_box", "تعداد_در_بسته", "تعداددر بسته", "تعداد_کارتن");
+            String imageCol = resolveFlexible(cols, "pic", "aks", "image", "Image", "ProductImage", "product_image", "image_base64", "picture", "Picture", "photo", "Photo", "tasvir", "تصویر", "عکس", "file", "FileName", "img");
             boolean imageText = isTextColumn(invTypes, imageCol);
-            String groupId = resolve(cols, "group_rdf", "GroupID", "VarietyID", "variety_rdf");
-            String groupKey = resolve(groupCols, "group_rdf", "ID", "GroupID", "rdf", "code");
-            String groupName = resolve(groupCols, "group_name", "name", "Name", "GroupName", "nagr", "gname");
-            String saleKey = resolve(saleCols, "SHKA", "shka", "StuffCode", "KalaID", "ProductID");
-            String saleAmount = resolve(saleCols, "LINESUM", "all", "mablagh", "Total", "TotalPrice", "amount");
-            String saleQty = resolve(saleCols, "tedad", "Tedad", "TEDVAH", "qty", "quantity");
-            String buyKey = resolve(buyCols, "shka", "SHKA", "StuffCode", "KalaID", "ProductID");
-            String buyAmount = resolve(buyCols, "tamam_joz", "LINESUM", "all", "mablagh", "Total", "amount");
-            String buyQty = resolve(buyCols, "tedad", "Tedad", "TEDVAH", "qty", "quantity");
+            String groupId = resolveFlexible(cols, "group_rdf", "GroupID", "group_id", "VarietyID", "variety_rdf", "category_id", "cat_id");
+            String groupKey = resolveFlexible(groupCols, "group_rdf", "ID", "GroupID", "rdf", "code", "group_id");
+            String groupName = resolveFlexible(groupCols, "group_name", "name", "Name", "GroupName", "nagr", "gname", "title", "نام");
+            String unitKey = resolveFlexible(unitCols, "unit_rdf", "ID", "id", "rdf", "code", "shva", "SHVA", "UnitID");
+            String unitName = resolveFlexible(unitCols, "unit_name", "name", "Name", "UnitName", "vahed", "navahed", "title", "نام", "واحد");
+            String saleKey = resolveFlexible(saleCols, "SHKA", "shka", "StuffCode", "KalaID", "ProductID", "product_code", "کد_کالا");
+            String saleAmount = resolveFlexible(saleCols, "LINESUM", "LineSum", "all", "mablagh", "Total", "TotalPrice", "amount", "price", "مبلغ");
+            String saleQty = resolveFlexible(saleCols, "tedad", "Tedad", "TEDVAH", "qty", "quantity", "Qty", "تعداد", "meghdar");
+            String buyKey = resolveFlexible(buyCols, "shka", "SHKA", "StuffCode", "KalaID", "ProductID", "product_code", "کد_کالا");
+            String buyAmount = resolveFlexible(buyCols, "tamam_joz", "LINESUM", "LineSum", "all", "mablagh", "Total", "amount", "price", "مبلغ");
+            String buyQty = resolveFlexible(buyCols, "tedad", "Tedad", "TEDVAH", "qty", "quantity", "Qty", "تعداد", "meghdar");
 
             List<String> select = new ArrayList<>();
             select.add("i.[" + shka + "] AS کد");
@@ -8215,9 +8219,12 @@ public class MainActivity extends Activity {
             select.add(price == null ? "CAST(0 AS decimal(19,2)) AS قیمت_فروش" : "TRY_CONVERT(decimal(19,2),i.[" + price + "]) AS قیمت_فروش");
             select.add(price2 == null ? "CAST(0 AS decimal(19,2)) AS قیمت_فروش۲" : "TRY_CONVERT(decimal(19,2),i.[" + price2 + "]) AS قیمت_فروش۲");
             select.add(buyPrice == null ? "CAST(0 AS decimal(19,2)) AS بهای_خرید" : "TRY_CONVERT(decimal(19,2),i.[" + buyPrice + "]) AS بهای_خرید");
-            select.add(stock == null ? "CAST(0 AS decimal(19,3)) AS موجودی" : "TRY_CONVERT(decimal(19,3),i.[" + stock + "]) AS موجودی");
-            select.add(unit == null ? "CAST(NULL AS nvarchar(80)) AS واحد" : "TRY_CONVERT(nvarchar(80),i.[" + unit + "]) AS واحد");
-            select.add(packCount == null ? "CAST(1 AS decimal(19,3)) AS تعداد_در_بسته" : "TRY_CONVERT(decimal(19,3),i.[" + packCount + "]) AS تعداد_در_بسته");
+            String stockExpr = stock == null ? "(ISNULL(ba.buy_qty,0)-ISNULL(sa.sale_qty,0))" : "TRY_CONVERT(decimal(19,3),i.[" + stock + "])";
+            String unitFallback = unitText != null ? "TRY_CONVERT(nvarchar(80),i.[" + unitText + "])" : (unitRef != null ? "TRY_CONVERT(nvarchar(80),i.[" + unitRef + "])" : "CAST(NULL AS nvarchar(80))");
+            String unitExpr = unitRef != null && unitKey != null && unitName != null ? "COALESCE(TRY_CONVERT(nvarchar(80),u.[" + unitName + "])," + unitFallback + ")" : unitFallback;
+            select.add("ISNULL(" + stockExpr + ",0) AS موجودی");
+            select.add(unitExpr + " AS واحد");
+            select.add(packCount == null ? "CAST(1 AS decimal(19,3)) AS تعداد_در_بسته" : "ISNULL(TRY_CONVERT(decimal(19,3),i.[" + packCount + "]),1) AS تعداد_در_بسته");
             select.add(!imageText ? "CAST(NULL AS nvarchar(max)) AS تصویر" : "TRY_CONVERT(nvarchar(max),i.[" + imageCol + "]) AS تصویر");
             select.add(groupName != null && groupKey != null && groupId != null ? "TRY_CONVERT(nvarchar(250),g.[" + groupName + "]) AS گروه" : "CAST(NULL AS nvarchar(250)) AS گروه");
             select.add("ISNULL(sa.sale_qty,0) AS تعداد_فروش");
@@ -8232,6 +8239,7 @@ public class MainActivity extends Activity {
             String buyApply = buyKey != null ? "OUTER APPLY (SELECT " +
                     (buyQty == null ? "CAST(0 AS decimal(19,3))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,3),b.[" + buyQty + "])),0)") + " buy_qty, " +
                     (buyAmount == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,2),b.[" + buyAmount + "])),0)") + " buy_amount FROM dbo.subbuyfact b WHERE TRY_CONVERT(nvarchar(100),b.[" + buyKey + "])=TRY_CONVERT(nvarchar(100),i.[" + shka + "])" + activeAnd(buyCols, "b") + ") ba " : "OUTER APPLY (SELECT CAST(0 AS decimal(19,3)) buy_qty, CAST(0 AS decimal(19,2)) buy_amount) ba ";
+            String unitJoin = unitRef != null && unitKey != null && unitName != null ? "LEFT JOIN dbo.UNITS u ON TRY_CONVERT(nvarchar(100),u.[" + unitKey + "])=TRY_CONVERT(nvarchar(100),i.[" + unitRef + "]) " : "";
             String groupJoin = groupName != null && groupKey != null && groupId != null ? "LEFT JOIN dbo.kagroup g ON TRY_CONVERT(nvarchar(100),g.[" + groupKey + "])=TRY_CONVERT(nvarchar(100),i.[" + groupId + "]) " : "";
 
             List<String> where = new ArrayList<>();
@@ -8243,14 +8251,15 @@ public class MainActivity extends Activity {
                 }
                 where.add("(" + join(parts, " OR ") + ")");
             }
-            if ("stock".equals(filter)) where.add("ISNULL(TRY_CONVERT(decimal(19,3),i.[" + (stock == null ? shka : stock) + "]),0)>0");
-            if ("low".equals(filter) && stock != null) where.add("ISNULL(TRY_CONVERT(decimal(19,3),i.[" + stock + "]),0)<=0");
+            String stockWhereExpr = stock == null ? "(ISNULL(ba.buy_qty,0)-ISNULL(sa.sale_qty,0))" : "ISNULL(TRY_CONVERT(decimal(19,3),i.[" + stock + "]),0)";
+            if ("stock".equals(filter)) where.add(stockWhereExpr + ">0");
+            if ("low".equals(filter)) where.add(stockWhereExpr + "<=0");
             if ("idle".equals(filter)) where.add("ISNULL(sa.sale_qty,0)=0 AND ISNULL(ba.buy_qty,0)=0");
             if ("priced".equals(filter) && price != null) where.add("ISNULL(TRY_CONVERT(decimal(19,2),i.[" + price + "]),0)>0");
             if ("image".equals(filter) && imageText && imageCol != null) where.add("LEN(LTRIM(RTRIM(TRY_CONVERT(nvarchar(max),i.[" + imageCol + "]))))>20");
             if ("package".equals(filter) && packCount != null) where.add("ISNULL(TRY_CONVERT(decimal(19,3),i.[" + packCount + "]),0)>1");
-            String order = "top".equals(filter) ? " ORDER BY مبلغ_فروش DESC, نام" : ("low".equals(filter) && stock != null ? " ORDER BY موجودی ASC, نام" : " ORDER BY نام, کد");
-            String sql = "SELECT TOP (160) " + join(select, ",") + " FROM dbo.[inventory] i " + groupJoin + saleApply + buyApply +
+            String order = "top".equals(filter) ? " ORDER BY مبلغ_فروش DESC, نام" : ("low".equals(filter) ? " ORDER BY موجودی ASC, نام" : " ORDER BY نام, کد");
+            String sql = "SELECT TOP (160) " + join(select, ",") + " FROM dbo.[inventory] i " + unitJoin + groupJoin + saleApply + buyApply +
                     (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + order;
             try (PreparedStatement ps = c.prepareStatement(sql)) {
                 setParams(ps, params);
@@ -8307,22 +8316,132 @@ public class MainActivity extends Activity {
 
     private boolean hasProductImage(JSONObject r) {
         String raw = r == null ? "" : r.optString("تصویر", "");
-        return raw != null && !raw.trim().isEmpty() && !"null".equalsIgnoreCase(raw.trim());
+        if (raw == null) return false;
+        raw = raw.trim();
+        if (raw.isEmpty() || "null".equalsIgnoreCase(raw)) return false;
+        if (looksLikeExternalImageReference(raw)) return false;
+        return raw.length() > 80 || raw.startsWith("data:image") || raw.startsWith("0x");
+    }
+
+    private boolean looksLikeExternalImageReference(String raw) {
+        if (raw == null) return false;
+        String v = raw.trim().toLowerCase(Locale.US);
+        return v.startsWith("http://") || v.startsWith("https://") || v.startsWith("file:") || v.startsWith("content:") || v.contains("\\") || v.endsWith(".jpg") || v.endsWith(".jpeg") || v.endsWith(".png") || v.endsWith(".webp") || v.endsWith(".gif") || (v.contains("/") && v.length() < 160);
     }
 
     private void applyProductImage(ImageView img, JSONObject r) {
         if (img == null) return;
-        img.setImageResource(ir.meelano.android.R.drawable.icon_products);
+        Bitmap smart = smartProductBitmap(r);
+        if (smart != null) img.setImageBitmap(smart); else img.setImageResource(ir.meelano.android.R.drawable.icon_products);
         if (!hasProductImage(r)) return;
         String raw = r.optString("تصویر", "").trim();
         int comma = raw.indexOf(',');
         if (raw.startsWith("data:image") && comma > 0) raw = raw.substring(comma + 1);
-        if (raw.length() < 80 || raw.contains("\\") || raw.contains("/")) return;
         try {
-            byte[] bytes = Base64.decode(raw, Base64.DEFAULT);
+            byte[] bytes;
+            String clean = raw.replace(" ", "").replace("\n", "").replace("\r", "").trim();
+            if (clean.startsWith("0x") && clean.length() > 10) bytes = hexToBytes(clean.substring(2));
+            else bytes = Base64.decode(clean, Base64.DEFAULT);
             Bitmap bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
             if (bmp != null) img.setImageBitmap(bmp);
         } catch (Exception ignored) { }
+    }
+
+    private byte[] hexToBytes(String hex) {
+        if (hex == null) return new byte[0];
+        String h = hex.trim();
+        int len = h.length();
+        if (len % 2 == 1) h = "0" + h;
+        byte[] out = new byte[h.length() / 2];
+        for (int i = 0; i < out.length; i++) {
+            int pos = i * 2;
+            try { out[i] = (byte) Integer.parseInt(h.substring(pos, pos + 2), 16); }
+            catch (Exception ignored) { out[i] = 0; }
+        }
+        return out;
+    }
+
+    private Bitmap smartProductBitmap(JSONObject r) {
+        try {
+            int w = 320, h = 320;
+            Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bmp);
+            Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+            String name = r == null ? "محصول" : stringOr(r.optString("نام", ""), "محصول");
+            String group = r == null ? "" : r.optString("گروه", "");
+            int accent = smartProductAccent(name + " " + group);
+            int accent2 = mix(accent, GOLD_2, 0.34f);
+            int dark = mix(accent, Color.BLACK, isLightTheme() ? 0.18f : 0.38f);
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(mix(accent, Color.WHITE, isLightTheme() ? 0.70f : 0.22f));
+            canvas.drawRoundRect(new RectF(0, 0, w, h), dp(30), dp(30), p);
+            p.setColor(alpha(accent2, 185)); canvas.drawCircle(w - 44, 52, 72, p);
+            p.setColor(alpha(Color.WHITE, isLightTheme() ? 130 : 40)); canvas.drawCircle(58, 66, 46, p);
+            p.setColor(alpha(dark, 190)); canvas.drawRoundRect(new RectF(54, 74, 266, 266), dp(28), dp(28), p);
+            p.setColor(alpha(mix(accent, Color.WHITE, 0.42f), 245)); canvas.drawRoundRect(new RectF(72, 52, 244, 244), dp(26), dp(26), p);
+            p.setColor(alpha(Color.WHITE, isLightTheme() ? 190 : 96)); canvas.drawRoundRect(new RectF(92, 84, 224, 196), dp(20), dp(20), p);
+            p.setColor(alpha(accent, 230)); canvas.drawRoundRect(new RectF(96, 154, 220, 218), dp(18), dp(18), p);
+            String glyph = productGlyph(name + " " + group);
+            p.setTextAlign(Paint.Align.CENTER); p.setTypeface(Typeface.DEFAULT_BOLD); p.setTextSize(dp(48)); p.setColor(onColorFor(accent));
+            canvas.drawText(glyph, w / 2f, 142, p);
+            p.setTextSize(dp(18)); p.setColor(Color.WHITE); canvas.drawText(shortProductTitle(name, 15), w / 2f, 193, p);
+            p.setTextSize(dp(12)); p.setColor(alpha(Color.WHITE, 232)); canvas.drawText(shortProductTitle(stringOr(group, "MEELANO"), 18), w / 2f, 214, p);
+            p.setTextSize(dp(10)); p.setColor(alpha(dark, 200)); canvas.drawText("تصویر هوشمند کالا", w / 2f, 285, p);
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(dp(2)); p.setColor(alpha(Color.WHITE, isLightTheme() ? 160 : 95));
+            canvas.drawRoundRect(new RectF(8, 8, w - 8, h - 8), dp(28), dp(28), p);
+            return bmp;
+        } catch (Exception ignored) { return null; }
+    }
+
+    private String shortProductTitle(String text, int max) {
+        String t = text == null ? "" : text.trim();
+        if (t.length() <= max) return t;
+        return t.substring(0, Math.max(1, max - 1)) + "…";
+    }
+
+    private int smartProductAccent(String value) {
+        String t = productKeyText(value);
+        if (productHas(t, "شیر", "لبن", "ماست", "دوغ", "پنیر", "خامه", "کشک", "کره")) return Color.rgb(88, 171, 245);
+        if (productHas(t, "آب", "اب ", "نوشابه", "دلستر", "نکتار", "آبمیوه", "ابمیوه", "شربت", "نوشیدنی")) return Color.rgb(43, 184, 210);
+        if (productHas(t, "چای", "قهوه", "نسکافه", "کاپوچینو", "دمنوش")) return Color.rgb(156, 93, 50);
+        if (productHas(t, "برنج", "حبوبات", "لوبیا", "عدس", "نخود", "لپه", "گندم", "جو")) return Color.rgb(222, 178, 88);
+        if (productHas(t, "روغن", "کنجد", "زیتون")) return Color.rgb(238, 180, 58);
+        if (productHas(t, "رب", "سس", "کنسرو", "تن", "تون", "کمپوت")) return Color.rgb(231, 82, 83);
+        if (productHas(t, "چیپس", "پفک", "اسنک", "کرانچی", "پاپ کورن")) return Color.rgb(243, 149, 57);
+        if (productHas(t, "بیسک", "کیک", "کلوچه", "ویفر", "شکلات", "آبنبات", "ابنبات", "شیرینی")) return Color.rgb(182, 109, 212);
+        if (productHas(t, "شامپو", "صابون", "مایع", "پودر", "شوینده", "دستمال", "وایتکس", "جرمگیر")) return Color.rgb(77, 194, 158);
+        if (productHas(t, "گوشت", "مرغ", "ماهی", "سوسیس", "کالباس", "تن ماهی")) return Color.rgb(220, 86, 103);
+        if (productHas(t, "خرما", "کشمش", "آجیل", "اجیل", "خشکبار", "پسته", "بادام", "گردو")) return Color.rgb(165, 104, 64);
+        if (productHas(t, "قند", "شکر", "نمک", "آرد", "ارد")) return Color.rgb(116, 132, 159);
+        int[] palette = {SUCCESS, INFO, WARNING, GOLD, Color.rgb(126, 87, 255), Color.rgb(236, 72, 153)};
+        return palette[(t.hashCode() & 0x7fffffff) % palette.length];
+    }
+
+    private String productGlyph(String value) {
+        String t = productKeyText(value);
+        if (productHas(t, "شیر", "لبن", "ماست", "دوغ", "پنیر", "خامه", "کشک", "کره")) return "🥛";
+        if (productHas(t, "آب", "اب ", "نوشابه", "دلستر", "آبمیوه", "ابمیوه", "نکتار", "شربت")) return "🍾";
+        if (productHas(t, "چای", "قهوه", "نسکافه", "کاپوچینو", "دمنوش")) return "☕";
+        if (productHas(t, "برنج", "حبوبات", "لوبیا", "عدس", "نخود", "لپه", "گندم")) return "◍";
+        if (productHas(t, "روغن", "زیتون", "کنجد")) return "🧴";
+        if (productHas(t, "رب", "سس", "کنسرو", "تن", "تون", "کمپوت")) return "🥫";
+        if (productHas(t, "چیپس", "پفک", "اسنک", "کرانچی")) return "▰";
+        if (productHas(t, "بیسک", "کیک", "کلوچه", "ویفر", "شکلات")) return "🍪";
+        if (productHas(t, "شامپو", "صابون", "مایع", "پودر", "شوینده", "دستمال")) return "✦";
+        if (productHas(t, "گوشت", "مرغ", "ماهی", "سوسیس", "کالباس")) return "◆";
+        if (productHas(t, "تخم")) return "🥚";
+        if (productHas(t, "عسل", "مربا")) return "◉";
+        return initials(value);
+    }
+
+    private String productKeyText(String value) {
+        return (value == null ? "" : value).toLowerCase(Locale.US).replace('ي','ی').replace('ك','ک').replace('أ','ا').replace('إ','ا').replace('آ','آ');
+    }
+
+    private boolean productHas(String text, String... keys) {
+        if (text == null || keys == null) return false;
+        for (String k : keys) if (k != null && !k.isEmpty() && text.contains(k.toLowerCase(Locale.US).replace('ي','ی').replace('ك','ک'))) return true;
+        return false;
     }
 
     private void showProductDialog(JSONObject r) {
@@ -8854,7 +8973,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.38.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.39.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -11519,7 +11638,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.38.0\nاین نسخه ورود ویزیتور/کاربران را با تشخیص انعطاف‌پذیر ستون‌های نام کاربری و رمز در SQL اصلاح می‌کند و ظاهر ویترین، دکمه افزودن به سبد، انتخاب مشتری، سبد خرید و داشبورد ویزیتور را کاملاً هماهنگ‌تر با تم انتخابی می‌سازد.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.39.0\nاین نسخه ویترین را با تصویر هوشمند اختصاصی برای هر کالا بر اساس نام و گروه محصول تکمیل می‌کند و فراخوانی موجودی، واحد شمارش، تعداد در بسته، قیمت‌ها و سایر اطلاعات کارت کالا را با تشخیص انعطاف‌پذیر ستون‌های SQL دقیق‌تر می‌سازد.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
