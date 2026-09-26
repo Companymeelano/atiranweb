@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.android'
         minSdk 24
         targetSdk 35
-        versionCode 45
-        versionName '3.40.0-direct-sql-smart-showcase-visual-grid'
+        versionCode 46
+        versionName '3.41.0-direct-sql-smart-showcase-ledger-access-icon'
     }
 
     compileOptions {

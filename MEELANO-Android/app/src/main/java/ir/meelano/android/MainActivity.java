@@ -265,6 +265,7 @@ public class MainActivity extends Activity {
     private volatile boolean lastSqlVpnBypassed = false;
     private volatile String lastSqlNetworkNote = "";
     private final Map<String, String> customerLedgerCache = new HashMap<>();
+    private final Map<String, Bitmap> productBitmapCache = new HashMap<>();
 
     private static final Set<String> SAFE_TABLES = new HashSet<>(Arrays.asList(
             "CUSTOMERS", "inventory", "sailfact", "subsailfact", "sailfact_pish", "subsailfact_pish",
@@ -1575,6 +1576,7 @@ public class MainActivity extends Activity {
     private void addNav(LinearLayout parent, String key, String label, String icon) {
         boolean active = key.equals(activePage);
         boolean locked = !canOpenPage(key);
+        if (locked && !active) return;
         int accent = navAccent(key);
         LinearLayout tab = new LinearLayout(this);
         tab.setOrientation(LinearLayout.HORIZONTAL);
@@ -1627,7 +1629,7 @@ public class MainActivity extends Activity {
     private boolean getRtlMode() { return prefs == null || prefs.getBoolean("rtl_mode", true); }
 
     private void renderActivePage() {
-        if (!canOpenPage(activePage)) { renderLockedSection(activePage); return; }
+        if (!canOpenPage(activePage)) { activePage = "dashboard"; if (!canOpenPage(activePage)) { content.removeAllViews(); addEmptyTo(content, "بخشی برای نمایش در دسترس نیست."); return; } }
         switch (activePage) {
             case "command": loadCommandCenter(); break;
             case "assistant": showAssistant(); break;
@@ -1843,7 +1845,7 @@ public class MainActivity extends Activity {
     private void exportTodayCsv(JSONObject today) {
         try {
             File dir = getExternalFilesDir(null); if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Today-Command-v3.40.csv");
+            File file = new File(dir, "Meelano-Today-Command-v3.41.csv");
             StringBuilder b = new StringBuilder("section,label,value\n");
             appendCsvMetricRows(b, "sales", today == null ? null : today.optJSONObject("sales"));
             appendCsvMetricRows(b, "purchases", today == null ? null : today.optJSONObject("purchases"));
@@ -3695,10 +3697,13 @@ public class MainActivity extends Activity {
         String dateCol = sales ? resolve(cols, "date") : resolve(cols, "DATE", "date");
         String amountCol = resolve(cols, "all");
         if (dateCol == null || amountCol == null || date == null || date.isEmpty()) return new JSONArray();
-        String where = "WHERE [" + dateCol + "]<=?" + activeAnd(cols, "");
+        String numberCol = sales ? resolveFlexible(cols, "shfacfo", "shfac", "factor_no", "invoice_no", "number", "serial") : resolveFlexible(cols, "shfackh", "shfac", "factor_no", "invoice_no", "number", "serial");
+        String where = "WHERE x.[" + dateCol + "]<=?" + activeAnd(cols, "x");
+        String soft = softDeleteCondition(cols, "x"); if (!soft.isEmpty()) where += " AND " + soft;
         List<Object> params = new ArrayList<>(); params.add(date);
-        if (sales && session != null && session.visitorId != null && hasCol(cols, "vis_rdf")) { where += " AND TRY_CONVERT(int,[vis_rdf])=?"; params.add(session.visitorId); }
-        String sql = "SELECT TOP (7) [" + dateCol + "], ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + amountCol + "])),0) FROM dbo.[" + table + "] " + where + " GROUP BY [" + dateCol + "] ORDER BY [" + dateCol + "] DESC";
+        if (sales && session != null && session.visitorId != null && hasCol(cols, "vis_rdf")) { where += " AND TRY_CONVERT(int,x.[vis_rdf])=?"; params.add(session.visitorId); }
+        String source = dedupeFactorSource(table, cols, numberCol, "h", where);
+        String sql = "SELECT TOP (7) h.[" + dateCol + "], ISNULL(SUM(" + sqlNumberExpr("h", amountCol, "decimal(19,2)") + "),0) FROM " + source + " GROUP BY h.[" + dateCol + "] ORDER BY h.[" + dateCol + "] DESC";
         return reverse(readPoints(c, sql, params));
     }
 
@@ -3713,9 +3718,13 @@ public class MainActivity extends Activity {
         String headerParty = hasCol(h, "moname") ? "TRY_CONVERT(nvarchar(250),h.moname)" : "N'بدون نام'";
         boolean canJoinCustomer = hasCol(cust, "SHMO") && hasCol(h, "shmo") && hasCol(cust, "MONAME");
         String partyExpr = canJoinCustomer ? "COALESCE(TRY_CONVERT(nvarchar(250),c.MONAME)," + headerParty + ",N'بدون نام')" : "COALESCE(" + headerParty + ",N'بدون نام')";
-        String sql = "SELECT TOP (150) TRY_CONVERT(nvarchar(80),h.[" + numberCol + "]), " + partyExpr + ", TRY_CONVERT(decimal(19,2),h.[" + amountCol + "]), TRY_CONVERT(nvarchar(500)," + (hasCol(h, "description") ? "h.description" : (hasCol(h, "Explain") ? "h.[Explain]" : "NULL")) + ") FROM dbo.[" + table + "] h " + (canJoinCustomer ? "LEFT JOIN dbo.CUSTOMERS c ON c.SHMO=h.shmo " : "") + " WHERE h.[" + dateCol + "]=? AND ISNULL(TRY_CONVERT(decimal(19,2),h.[" + amountCol + "]),0)>0" + activeAnd(h, "h") + " ORDER BY h.[" + numberCol + "]";
+        List<Object> params = new ArrayList<>(); params.add(date); params.add(date);
+        String innerWhere = "WHERE (TRY_CONVERT(nvarchar(30),x.[" + dateCol + "])=? OR LEFT(TRY_CONVERT(nvarchar(30),x.[" + dateCol + "]),10)=LEFT(?,10))" + activeAnd(h, "x");
+        String soft = softDeleteCondition(h, "x"); if (!soft.isEmpty()) innerWhere += " AND " + soft;
+        String source = dedupeFactorSource(table, h, numberCol, "h", innerWhere);
+        String sql = "SELECT TOP (150) TRY_CONVERT(nvarchar(80),h.[" + numberCol + "]), " + partyExpr + ", " + sqlNumberExpr("h", amountCol, "decimal(19,2)") + ", TRY_CONVERT(nvarchar(500)," + (hasCol(h, "description") ? "h.description" : (hasCol(h, "Explain") ? "h.[Explain]" : "NULL")) + ") FROM " + source + " " + (canJoinCustomer ? "LEFT JOIN dbo.CUSTOMERS c ON TRY_CONVERT(nvarchar(100),c.SHMO)=TRY_CONVERT(nvarchar(100),h.shmo) " : "") + " WHERE ISNULL(" + sqlNumberExpr("h", amountCol, "decimal(19,2)") + ",0)>0 ORDER BY h.[" + numberCol + "]";
         JSONArray arr = new JSONArray();
-        try (PreparedStatement ps = c.prepareStatement(sql)) { ps.setString(1, date); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("number", stringOr(r.getString(1), "—")); o.put("party", stringOr(r.getString(2), "بدون نام")); o.put("amount", r.getDouble(3)); o.put("description", stringOr(r.getString(4), "")); arr.put(o); } } }
+        try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("number", stringOr(r.getString(1), "—")); o.put("party", stringOr(r.getString(2), "بدون نام")); o.put("amount", r.getDouble(3)); o.put("description", stringOr(r.getString(4), "")); arr.put(o); } } }
         return arr;
     }
 
@@ -3864,19 +3873,24 @@ public class MainActivity extends Activity {
         String taxCol = resolve(cols, "tax", "Tax", "maliat");
         double total = 0, paid = 0, discount = 0, tax = 0; long docs = 0, parties = 0;
         if (dateCol != null && amountCol != null && date != null && !date.isEmpty()) {
-            String where = "WHERE [" + dateCol + "]=?" + activeAnd(cols, "");
-            String sql = "SELECT ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + amountCol + "])),0), COUNT_BIG(" + (numberCol == null ? "1" : "[" + numberCol + "]") + "), " +
-                    (partyCol == null ? "CAST(0 AS bigint)" : "COUNT(DISTINCT [" + partyCol + "])") + ", " +
-                    (paidCol == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + paidCol + "])),0)") + ", " +
-                    (discountCol == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + discountCol + "])),0)") + ", " +
-                    (taxCol == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + taxCol + "])),0)") + " FROM dbo.[" + table + "] " + where;
+            List<Object> params = new ArrayList<>(); params.add(date); params.add(date);
+            String innerWhere = "WHERE (TRY_CONVERT(nvarchar(30),x.[" + dateCol + "])=? OR LEFT(TRY_CONVERT(nvarchar(30),x.[" + dateCol + "]),10)=LEFT(?,10))" + activeAnd(cols, "x");
+            String soft = softDeleteCondition(cols, "x"); if (!soft.isEmpty()) innerWhere += " AND " + soft;
+            String source = dedupeFactorSource(table, cols, numberCol, "h", innerWhere);
+            String sql = "SELECT ISNULL(SUM(" + sqlNumberExpr("h", amountCol, "decimal(19,2)") + "),0), COUNT_BIG(1), " +
+                    (partyCol == null ? "CAST(0 AS bigint)" : "COUNT(DISTINCT h.[" + partyCol + "])") + ", " +
+                    (paidCol == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(" + sqlNumberExpr("h", paidCol, "decimal(19,2)") + "),0)") + ", " +
+                    (discountCol == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(" + sqlNumberExpr("h", discountCol, "decimal(19,2)") + "),0)") + ", " +
+                    (taxCol == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(" + sqlNumberExpr("h", taxCol, "decimal(19,2)") + "),0)") + " FROM " + source;
             try (PreparedStatement ps = c.prepareStatement(sql)) {
-                ps.setString(1, date);
+                setParams(ps, params);
                 try (ResultSet r = ps.executeQuery()) {
                     if (r.next()) { total = r.getDouble(1); docs = r.getLong(2); parties = r.getLong(3); paid = r.getDouble(4); discount = r.getDouble(5); tax = r.getDouble(6); }
                 }
             }
-            String trendSql = "SELECT TOP (7) [" + dateCol + "], ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + amountCol + "])),0) FROM dbo.[" + table + "] " + (activeWhere(cols, "").isEmpty() ? "" : activeWhere(cols, "")) + " GROUP BY [" + dateCol + "] ORDER BY [" + dateCol + "] DESC";
+            String trendInner = activeWhere(cols, "x"); String softTrend = softDeleteCondition(cols, "x"); if (!softTrend.isEmpty()) trendInner = appendWhere(trendInner, softTrend);
+            String trendSource = dedupeFactorSource(table, cols, numberCol, "h", trendInner);
+            String trendSql = "SELECT TOP (7) h.[" + dateCol + "], ISNULL(SUM(" + sqlNumberExpr("h", amountCol, "decimal(19,2)") + "),0) FROM " + trendSource + " GROUP BY h.[" + dateCol + "] ORDER BY h.[" + dateCol + "] DESC";
             chart = reverse(readPoints(c, trendSql, new ArrayList<>()));
         }
         addMetric(metrics, sales ? "جمع فروش" : "جمع خرید", money(total));
@@ -4109,17 +4123,20 @@ public class MainActivity extends Activity {
         else amountExpr = "CAST(0 AS decimal(19,2))";
         boolean canJoinHeader = numberCol != null && detailNumber != null && dateCol != null;
         String from = " FROM dbo.[" + detailTable + "] dd";
-        String dateExpr;
+        String where;
+        List<Object> params = new ArrayList<>(); params.add(date.trim()); params.add(date.trim());
         if (canJoinHeader) {
-            from += " JOIN dbo.[" + header + "] h ON TRY_CONVERT(nvarchar(100),h.[" + numberCol + "])=TRY_CONVERT(nvarchar(100),dd.[" + detailNumber + "])";
-            dateExpr = "h.[" + dateCol + "]";
+            String innerWhere = "WHERE (TRY_CONVERT(nvarchar(30),x.[" + dateCol + "])=? OR LEFT(TRY_CONVERT(nvarchar(30),x.[" + dateCol + "]),10)=LEFT(?,10))" + activeAnd(h, "x");
+            String soft = softDeleteCondition(h, "x"); if (!soft.isEmpty()) innerWhere += " AND " + soft;
+            String source = dedupeFactorSource(header, h, numberCol, "h", innerWhere);
+            from += " JOIN " + source + " ON TRY_CONVERT(nvarchar(100),h.[" + numberCol + "])=TRY_CONVERT(nvarchar(100),dd.[" + detailNumber + "])";
+            where = " WHERE 1=1";
         } else if (detailDate != null) {
-            dateExpr = "dd.[" + detailDate + "]";
+            String dateExpr = "dd.[" + detailDate + "]";
+            where = " WHERE (TRY_CONVERT(nvarchar(30)," + dateExpr + ")=? OR LEFT(TRY_CONVERT(nvarchar(30)," + dateExpr + "),10)=LEFT(?,10))";
         } else return arr;
         from += joinInv + joinGroup;
-        String where = " WHERE (TRY_CONVERT(nvarchar(30)," + dateExpr + ")=? OR LEFT(TRY_CONVERT(nvarchar(30)," + dateExpr + "),10)=LEFT(?,10))";
-        if (canJoinHeader) where += activeAnd(h, "h");
-        List<Object> params = new ArrayList<>(); params.add(date.trim()); params.add(date.trim());
+        where += activeAnd(d, "dd");
         int limit = Math.max(1, Math.min(180, top));
         String sql = "SELECT TOP (" + limit + ") " + productCode + ", " + itemName + ", " + qty + ", " + amountExpr + ", " + groupExpr + from + where + " GROUP BY " + productCode + "," + itemName + "," + groupExpr + " ORDER BY 4 DESC, 3 DESC";
         try (PreparedStatement ps = c.prepareStatement(sql)) {
@@ -5181,7 +5198,7 @@ public class MainActivity extends Activity {
         String nameExpr = name == null ? "TRY_CONVERT(nvarchar(220),v.[" + id + "])" : "TRY_CONVERT(nvarchar(220),v.[" + name + "])";
         String userExpr = username == null ? "CAST(NULL AS nvarchar(120))" : "TRY_CONVERT(nvarchar(120),v.[" + username + "])";
         String phoneExpr = phone == null ? "CAST(NULL AS nvarchar(120))" : "TRY_CONVERT(nvarchar(120),v.[" + phone + "])";
-        String balExpr = balance == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(TRY_CONVERT(decimal(19,2),v.[" + balance + "]),0)";
+        String balExpr = balance == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(" + sqlNumberExpr("v", balance, "decimal(19,2)") + ",0)";
         String apply = ""; String docCount="CAST(0 AS bigint)", saleTotal="CAST(0 AS decimal(19,2))", lastDate="CAST(NULL AS nvarchar(30))";
         String visitorRef = resolve(sail, "vis_rdf", "visitor", "visitor_id", "shvis");
         String amount = resolve(sail, "all", "amount", "total");
@@ -5197,8 +5214,10 @@ public class MainActivity extends Activity {
             while (r.next()) {
                 String pid = stringOr(r.getString(1), ""); String u = stringOr(r.getString(3), ""); String key = u + "|" + pid; if (seen.contains(key)) continue; seen.add(key);
                 double liveBalance = r.getDouble(5);
-                if (Math.abs(liveBalance) <= 0.0001) liveBalance = computedPersonnelBalance(c, pid, u);
-                JSONObject o = new JSONObject(); o.put("id", pid); o.put("name", stringOr(r.getString(2), "پرسنل")); o.put("username", u); o.put("phone", stringOr(r.getString(4), "")); o.put("balance", liveBalance); o.put("docs", r.getLong(6)); o.put("sales", r.getDouble(7)); o.put("last", stringOr(r.getString(8), "")); o.put("source", "visitors"); arr.put(o);
+                double computedBalance = computedPersonnelBalance(c, pid, u);
+                if (Math.abs(computedBalance) > 0.0001 && Math.abs(computedBalance - liveBalance) > 1) liveBalance = computedBalance;
+                else if (Math.abs(liveBalance) <= 0.0001) liveBalance = computedBalance;
+                JSONObject o = new JSONObject(); o.put("id", pid); o.put("name", stringOr(r.getString(2), "پرسنل")); o.put("username", u); o.put("phone", stringOr(r.getString(4), "")); o.put("balance", liveBalance); o.put("computedBalance", computedBalance); o.put("docs", r.getLong(6)); o.put("sales", r.getDouble(7)); o.put("last", stringOr(r.getString(8), "")); o.put("source", "visitors"); arr.put(o);
             }
         }
     }
@@ -5214,15 +5233,17 @@ public class MainActivity extends Activity {
         Set<String> seen = new HashSet<>();
         for (int i = 0; i < arr.length(); i++) { JSONObject o = arr.optJSONObject(i); if (o != null) { seen.add(o.optString("username", "").toLowerCase(Locale.US)); seen.add(o.optString("id", "")); } }
         String phoneExpr = phone == null ? "CAST(NULL AS nvarchar(120))" : "TRY_CONVERT(nvarchar(120),[" + phone + "])";
-        String balExpr = balance == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(TRY_CONVERT(decimal(19,2),[" + balance + "]),0)";
+        String balExpr = balance == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(" + sqlNumberExpr("", balance, "decimal(19,2)") + ",0)";
         String usql = "SELECT TOP (160) TRY_CONVERT(nvarchar(100),[" + uid + "]), TRY_CONVERT(nvarchar(220),[" + uname + "]), " + phoneExpr + ", " + balExpr + " FROM dbo.sys_users ORDER BY [" + uname + "]";
         try (PreparedStatement ps = c.prepareStatement(usql); ResultSet r = ps.executeQuery()) {
             while (r.next()) {
                 String id = stringOr(r.getString(1), ""); String user = stringOr(r.getString(2), "");
                 if (seen.contains(user.toLowerCase(Locale.US)) || seen.contains(id)) continue;
                 double liveBalance = r.getDouble(4);
-                if (Math.abs(liveBalance) <= 0.0001) liveBalance = computedPersonnelBalance(c, id, user);
-                JSONObject o = new JSONObject(); o.put("id", id); o.put("name", stringOr(user, "پرسنل")); o.put("username", user); o.put("phone", stringOr(r.getString(3), "")); o.put("balance", liveBalance); o.put("docs", 0); o.put("sales", 0); o.put("last", ""); o.put("source", "sys_users"); arr.put(o);
+                double computedBalance = computedPersonnelBalance(c, id, user);
+                if (Math.abs(computedBalance) > 0.0001 && Math.abs(computedBalance - liveBalance) > 1) liveBalance = computedBalance;
+                else if (Math.abs(liveBalance) <= 0.0001) liveBalance = computedBalance;
+                JSONObject o = new JSONObject(); o.put("id", id); o.put("name", stringOr(user, "پرسنل")); o.put("username", user); o.put("phone", stringOr(r.getString(3), "")); o.put("balance", liveBalance); o.put("computedBalance", computedBalance); o.put("docs", 0); o.put("sales", 0); o.put("last", ""); o.put("source", "sys_users"); arr.put(o);
             }
         }
     }
@@ -5272,7 +5293,7 @@ public class MainActivity extends Activity {
             for (String vid : visitorIds) {
                 if (vid == null || vid.trim().isEmpty() || used.contains(vid.trim())) continue;
                 used.add(vid.trim());
-                try (PreparedStatement ps = c.prepareStatement("SELECT ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + bal + "])),0) FROM dbo.CUSTOMERS WHERE TRY_CONVERT(nvarchar(100),[" + vis + "])=?")) {
+                try (PreparedStatement ps = c.prepareStatement("SELECT ISNULL(SUM(" + sqlNumberExpr("", bal, "decimal(19,2)") + "),0) FROM dbo.CUSTOMERS WHERE TRY_CONVERT(nvarchar(100),[" + vis + "])=?")) {
                     ps.setString(1, vid.trim());
                     try (ResultSet r = ps.executeQuery()) { if (r.next()) balance += r.getDouble(1); }
                 }
@@ -5547,7 +5568,10 @@ public class MainActivity extends Activity {
         if(vis==null || amount==null) return;
         List<Object> params=new ArrayList<>(); params.add(id);
         String dateExpr = date==null ? null : "sf.["+date+"]";
-        String sql="SELECT TOP (160) "+(date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),sf.["+date+"])") +", "+(number==null?"CAST(NULL AS nvarchar(80))":"TRY_CONVERT(nvarchar(80),sf.["+number+"])") +", "+(shmo==null?"CAST(NULL AS nvarchar(100))":"TRY_CONVERT(nvarchar(100),sf.["+shmo+"])") +", TRY_CONVERT(decimal(19,2),sf.["+amount+"]), "+(paid==null?"CAST(0 AS decimal(19,2))":"TRY_CONVERT(decimal(19,2),sf.["+paid+"])") +", "+(desc==null?"CAST(NULL AS nvarchar(500))":"TRY_CONVERT(nvarchar(500),sf.["+desc+"])") +" FROM dbo.sailfact sf WHERE TRY_CONVERT(nvarchar(100),sf.["+vis+"])=?"+personnelDateWhere(dateExpr,from,to,params)+" ORDER BY "+(date==null?"1":"sf.["+date+"] DESC");
+        String innerWhere = "WHERE TRY_CONVERT(nvarchar(100),x.["+vis+"])=?" + activeAnd(sail, "x");
+        String soft = softDeleteCondition(sail, "x"); if(!soft.isEmpty()) innerWhere += " AND " + soft;
+        String source = dedupeFactorSource("sailfact", sail, number, "sf", innerWhere + personnelDateWhere(date==null?null:"x.["+date+"]",from,to,params));
+        String sql="SELECT TOP (160) "+(date==null?"CAST(NULL AS nvarchar(30))":"TRY_CONVERT(nvarchar(30),sf.["+date+"])") +", "+(number==null?"CAST(NULL AS nvarchar(80))":"TRY_CONVERT(nvarchar(80),sf.["+number+"])") +", "+(shmo==null?"CAST(NULL AS nvarchar(100))":"TRY_CONVERT(nvarchar(100),sf.["+shmo+"])") +", "+sqlNumberExpr("sf",amount,"decimal(19,2)") +", "+(paid==null?"CAST(0 AS decimal(19,2))":sqlNumberExpr("sf",paid,"decimal(19,2)")) +", "+(desc==null?"CAST(NULL AS nvarchar(500))":"TRY_CONVERT(nvarchar(500),sf.["+desc+"])") +" FROM "+source+" ORDER BY "+(date==null?"1":"sf.["+date+"] DESC");
         try(PreparedStatement ps=c.prepareStatement(sql)){ setParams(ps,params); try(ResultSet r=ps.executeQuery()){ while(r.next()){ JSONObject o=new JSONObject(); o.put("type","فاکتور فروش"); o.put("date",stringOr(r.getString(1),"—")); o.put("title","فاکتور "+stringOr(r.getString(2),"—")+" • مشتری "+stringOr(r.getString(3),"—")); o.put("amount",r.getDouble(4)); o.put("received",r.getDouble(5)); o.put("status","دریافتی: "+money(r.getObject(5))); o.put("description",stringOr(r.getString(6),"")); rows.put(o);} } }
     }
 
@@ -5831,7 +5855,7 @@ public class MainActivity extends Activity {
     private void exportAttendanceCsv(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.40.csv");
+            File file=new File(dir,"Meelano-Attendance-v3.41.csv");
             StringBuilder b=new StringBuilder("section,user,display,type,time,ssid,status,start,end,hours,reason\n");
             if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r==null)continue; b.append("attendance,").append(csvSafe(r.optString("username"))).append(',').append(csvSafe(r.optString("display"))).append(',').append(csvSafe(r.optString("type"))).append(',').append(csvSafe(r.optString("time"))).append(',').append(csvSafe(r.optString("ssid"))).append(",,,,,\n"); }
             if(leaves!=null) for(int i=0;i<leaves.length();i++){ JSONObject l=leaves.optJSONObject(i); if(l==null)continue; b.append("leave,").append(csvSafe(l.optString("username"))).append(',').append(csvSafe(l.optString("display"))).append(',').append(csvSafe(l.optString("type"))).append(",,,").append(csvSafe(l.optString("status"))).append(',').append(csvSafe(l.optString("start"))).append(',').append(csvSafe(l.optString("end"))).append(',').append(csvSafe(l.optString("hours"))).append(',').append(csvSafe(l.optString("reason"))).append('\n'); }
@@ -5843,7 +5867,7 @@ public class MainActivity extends Activity {
     private void exportAttendancePdf(JSONArray rows, JSONArray leaves) {
         try {
             File dir=getExternalFilesDir(null); if(dir==null)dir=getFilesDir();
-            File file=new File(dir,"Meelano-Attendance-v3.40.pdf");
+            File file=new File(dir,"Meelano-Attendance-v3.41.pdf");
             PdfDocument doc=new PdfDocument();
             PdfDocument.Page page=doc.startPage(new PdfDocument.PageInfo.Builder(595,842,1).create());
             Canvas canvas=page.getCanvas(); Paint pnt=new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -6552,6 +6576,20 @@ public class MainActivity extends Activity {
                 .replace('٠','0').replace('١','1').replace('٢','2').replace('٣','3').replace('٤','4').replace('٥','5').replace('٦','6').replace('٧','7').replace('٨','8').replace('٩','9');
     }
 
+    private List<String> searchVariants(String query) {
+        List<String> out = new ArrayList<>();
+        if (query == null) return out;
+        String q = query.trim();
+        if (q.isEmpty()) return out;
+        addUniqueValue(out, q);
+        addUniqueValue(out, normalizeDigits(q));
+        addUniqueValue(out, q.replace('ي','ی').replace('ك','ک'));
+        addUniqueValue(out, q.replace('ی','ي').replace('ک','ك'));
+        addUniqueValue(out, normalizeDigits(q).replace(" ", "").replace("-", ""));
+        while (out.size() > 5) out.remove(out.size() - 1);
+        return out;
+    }
+
     private JSONArray customerFilteredRows(JSONArray rows, String filter) {
         JSONArray out = new JSONArray();
         if (rows == null) return out;
@@ -6637,8 +6675,12 @@ public class MainActivity extends Activity {
             String phone2 = resolve(cols, "tell1", "tell2", "phone", "Phone");
             String phone3 = resolve(cols, "tell2", "tell3");
             String address = resolveFlexible(cols, "address", "Address", "ADDRESS", "adr", "addr", "ADDR", "Adress", "adress", "address1", "Address1", "customer_address", "CustomerAddress", "neshani", "Neshani", "NESHANI", "نشانی", "نشاني", "آدرس", "ادرس", "manzel", "Manzel", "MOADD", "MOADR", "moneshan", "MONESHAN");
-            String balance = resolve(cols, "man", "Balance", "Mandeh", "mande");
-            String credit = resolve(cols, "etebar", "credit", "Credit");
+            String balance = resolveFlexible(cols, "mande_hesab", "مانده_حساب", "man", "MAN", "Balance", "Mandeh", "mande", "mandeh", "account_balance", "hesab", "بدهی", "مانده");
+            String credit = resolveFlexible(cols, "etebar", "credit", "Credit", "credit_limit", "سقف_اعتبار", "اعتبار");
+            String debitCol = resolveFlexible(cols, "bed", "debit", "bedehkar", "bedehi", "بد", "بدهکار");
+            String creditCol = resolveFlexible(cols, "bes", "creditor", "bestankar", "طلب", "بستانکار");
+            String balanceExpr = balance != null ? sqlNumberExpr("c", balance, "decimal(19,2)") : (debitCol != null && creditCol != null ? "(" + sqlNumberExpr("c", debitCol, "decimal(19,2)") + "-" + sqlNumberExpr("c", creditCol, "decimal(19,2)") + ")" : "CAST(0 AS decimal(19,2))");
+            String creditExpr = credit == null ? "CAST(NULL AS decimal(19,2))" : sqlNumberExpr("c", credit, "decimal(19,2)");
             String vis = resolve(cols, "vis_rdf", "VisitorID", "visid");
             String economic = resolve(cols, "eghtesadi", "EconomicCode", "codeeghtesadi");
             String national = resolve(cols, "meli", "NationalCode", "codemeli");
@@ -6650,8 +6692,8 @@ public class MainActivity extends Activity {
             select.add(phone2 == null ? "CAST(NULL AS nvarchar(100)) AS تلفن" : "TRY_CONVERT(nvarchar(100),c.[" + phone2 + "]) AS تلفن");
             select.add(phone3 == null ? "CAST(NULL AS nvarchar(100)) AS تلفن۲" : "TRY_CONVERT(nvarchar(100),c.[" + phone3 + "]) AS تلفن۲");
             select.add(customerAddressExpr(cols, "c") + " AS نشانی");
-            select.add(balance == null ? "CAST(0 AS decimal(19,2)) AS مانده" : "TRY_CONVERT(decimal(19,2),c.[" + balance + "]) AS مانده");
-            select.add(credit == null ? "CAST(NULL AS decimal(19,2)) AS اعتبار" : "TRY_CONVERT(decimal(19,2),c.[" + credit + "]) AS اعتبار");
+            select.add("ISNULL(" + balanceExpr + ",0) AS مانده");
+            select.add(creditExpr + " AS اعتبار");
             select.add(economic == null ? "CAST(NULL AS nvarchar(100)) AS اقتصادی" : "TRY_CONVERT(nvarchar(100),c.[" + economic + "]) AS اقتصادی");
             select.add(national == null ? "CAST(NULL AS nvarchar(100)) AS ملی" : "TRY_CONVERT(nvarchar(100),c.[" + national + "]) AS ملی");
             select.add(vis == null ? "CAST(NULL AS int) AS کد_ویزیتور" : "TRY_CONVERT(int,c.[" + vis + "]) AS کد_ویزیتور");
@@ -6668,21 +6710,27 @@ public class MainActivity extends Activity {
                 for (String col : new String[]{name, phone, phone2, phone3, address, shmo, national, economic}) if (col != null && !searchCols.contains(col)) searchCols.add(col);
                 for (String col : customerAddressColumns(cols)) if (col != null && !searchCols.contains(col)) searchCols.add(col);
                 for (String col : searchCols) {
-                    parts.add("TRY_CONVERT(nvarchar(500),c.[" + col + "]) LIKE N'%' + ? + N'%'"); params.add(search.trim());
+                    for (String sv : searchVariants(search)) { parts.add("TRY_CONVERT(nvarchar(500),c.[" + col + "]) LIKE N'%' + ? + N'%'"); params.add(sv); }
                 }
                 where.add("(" + join(parts, " OR ") + ")");
             }
             String scope = customerScopeCondition(cols, "c", params);
             if (!scope.isEmpty()) where.add(scope);
-            boolean canSales = hasCol(saleCols, "shmo") && hasCol(saleCols, "all");
+            String saleShmo = resolveFlexible(saleCols, "shmo", "SHMO", "CustomerCode", "customer");
+            String saleAmountCol = resolveFlexible(saleCols, "all", "all_fel", "amount", "total", "Total", "mablagh", "مبلغ");
+            String saleNumberCol = resolveFlexible(saleCols, "shfacfo", "shfac", "factor_no", "invoice_no", "number", "serial", "شماره");
+            boolean canSales = saleShmo != null && saleAmountCol != null;
             boolean canChecks = hasCol(checkCols, "shmo") && hasCol(checkCols, "getchkmab");
-            String saleDate = resolve(saleCols, "date", "t_date", "Date");
+            String saleDate = resolveFlexible(saleCols, "date", "t_date", "Date", "tarikh", "تاریخ");
+            String saleInner = canSales ? "WHERE TRY_CONVERT(nvarchar(100),x.[" + saleShmo + "])=TRY_CONVERT(nvarchar(100),c.[" + shmo + "])" + activeAnd(saleCols, "x") : "";
+            String saleSoft = softDeleteCondition(saleCols, "x"); if (!saleSoft.isEmpty()) saleInner += " AND " + saleSoft;
+            String saleSource = canSales ? dedupeFactorSource("sailfact", saleCols, saleNumberCol, "s", saleInner) : "";
             String lastSaleExpr = saleDate == null ? "CAST(N'' AS nvarchar(30))" : "ISNULL(MAX(TRY_CONVERT(nvarchar(30),s.[" + saleDate + "])),N'')";
-            String saleApply = canSales ? "OUTER APPLY (SELECT COUNT_BIG(1) sales_count, ISNULL(SUM(TRY_CONVERT(decimal(19,2),s.[" + resolve(saleCols, "all") + "])),0) sales_total, " + lastSaleExpr + " last_sale FROM dbo.sailfact s WHERE s.[" + resolve(saleCols, "shmo") + "]=c.[" + shmo + "]) sf " : "OUTER APPLY (SELECT CAST(0 AS bigint) sales_count, CAST(0 AS decimal(19,2)) sales_total, CAST(N'' AS nvarchar(30)) last_sale) sf ";
-            String checkApply = canChecks ? "OUTER APPLY (SELECT ISNULL(SUM(TRY_CONVERT(decimal(19,2),g.[" + resolve(checkCols, "getchkmab") + "])),0) check_total FROM dbo.getchk g WHERE g.[" + resolve(checkCols, "shmo") + "]=c.[" + shmo + "]) ch " : "OUTER APPLY (SELECT CAST(0 AS decimal(19,2)) check_total) ch ";
-            if ("debt".equals(filter) && balance != null) where.add("TRY_CONVERT(decimal(19,2),c.[" + balance + "])>0");
-            if ("credit".equals(filter) && balance != null) where.add("TRY_CONVERT(decimal(19,2),c.[" + balance + "])<0");
-            if ("settled".equals(filter) && balance != null) where.add("ABS(ISNULL(TRY_CONVERT(decimal(19,2),c.[" + balance + "]),0))<=0.0001");
+            String saleApply = canSales ? "OUTER APPLY (SELECT COUNT_BIG(1) sales_count, ISNULL(SUM(" + sqlNumberExpr("s", saleAmountCol, "decimal(19,2)") + "),0) sales_total, " + lastSaleExpr + " last_sale FROM " + saleSource + ") sf " : "OUTER APPLY (SELECT CAST(0 AS bigint) sales_count, CAST(0 AS decimal(19,2)) sales_total, CAST(N'' AS nvarchar(30)) last_sale) sf ";
+            String checkApply = canChecks ? "OUTER APPLY (SELECT ISNULL(SUM(" + sqlNumberExpr("g", resolve(checkCols, "getchkmab"), "decimal(19,2)") + "),0) check_total FROM dbo.getchk g WHERE TRY_CONVERT(nvarchar(100),g.[" + resolve(checkCols, "shmo") + "])=TRY_CONVERT(nvarchar(100),c.[" + shmo + "])) ch " : "OUTER APPLY (SELECT CAST(0 AS decimal(19,2)) check_total) ch ";
+            if ("debt".equals(filter)) where.add("ISNULL(" + balanceExpr + ",0)>0");
+            if ("credit".equals(filter)) where.add("ISNULL(" + balanceExpr + ",0)<0");
+            if ("settled".equals(filter)) where.add("ABS(ISNULL(" + balanceExpr + ",0))<=0.0001");
             if ("no_buy".equals(filter) && canSales) where.add("ISNULL(sf.sales_count,0)=0");
             String order = "top".equals(filter) ? " ORDER BY جمع_فروش DESC, نام" : ("debt".equals(filter) ? " ORDER BY مانده DESC, نام" : " ORDER BY نام, کد");
             String sql = "SELECT TOP (350) " + join(select, ",") + " FROM dbo.[CUSTOMERS] c " + saleApply + checkApply +
@@ -7231,8 +7279,12 @@ public class MainActivity extends Activity {
         String shmo = resolve(cols, "shmo"); String date = resolve(cols, "date"); String amount = resolve(cols, "all"); String number = resolve(cols, "shfacfo");
         if (shmo == null || date == null || amount == null) return;
         String tasvieh = resolve(cols, "tasvieh"); String paid = resolve(cols, "MabDaryaftFactor", "Daryaft"); String desc = resolve(cols, "description", "Explain");
-        String sql = "SELECT TOP (100) [" + date + "], " + (number == null ? "CAST(NULL AS nvarchar(50))" : "TRY_CONVERT(nvarchar(50),[" + number + "])") + ", TRY_CONVERT(decimal(19,2),[" + amount + "]), " + (tasvieh == null ? "N'نامشخص'" : "TRY_CONVERT(nvarchar(50),[" + tasvieh + "])") + ", " + (paid == null ? "CAST(0 AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),[" + paid + "])") + ", " + (desc == null ? "CAST(NULL AS nvarchar(500))" : "TRY_CONVERT(nvarchar(500),[" + desc + "])") + " FROM dbo.sailfact WHERE TRY_CONVERT(nvarchar(100),[" + shmo + "])=? ORDER BY [" + date + "] DESC";
-        try (PreparedStatement ps = c.prepareStatement(sql)) { ps.setString(1, code); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("type", "فاکتور فروش"); o.put("date", r.getString(1)); o.put("title", "شماره فاکتور " + stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("status", "تسویه: " + translateStatus(stringOr(r.getString(4), "—")) + " / دریافتی: " + money(r.getObject(5))); o.put("description", stringOr(r.getString(6), "")); rows.put(o); } } }
+        List<Object> params = new ArrayList<>(); params.add(code);
+        String innerWhere = "WHERE TRY_CONVERT(nvarchar(100),x.[" + shmo + "])=?" + activeAnd(cols, "x");
+        String soft = softDeleteCondition(cols, "x"); if (!soft.isEmpty()) innerWhere += " AND " + soft;
+        String source = dedupeFactorSource("sailfact", cols, number, "sf", innerWhere);
+        String sql = "SELECT TOP (100) sf.[" + date + "], " + (number == null ? "CAST(NULL AS nvarchar(50))" : "TRY_CONVERT(nvarchar(50),sf.[" + number + "])") + ", " + sqlNumberExpr("sf", amount, "decimal(19,2)") + ", " + (tasvieh == null ? "N'نامشخص'" : "TRY_CONVERT(nvarchar(50),sf.[" + tasvieh + "])") + ", " + (paid == null ? "CAST(0 AS decimal(19,2))" : sqlNumberExpr("sf", paid, "decimal(19,2)") ) + ", " + (desc == null ? "CAST(NULL AS nvarchar(500))" : "TRY_CONVERT(nvarchar(500),sf.[" + desc + "])") + " FROM " + source + " ORDER BY sf.[" + date + "] DESC";
+        try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("type", "فاکتور فروش"); o.put("date", r.getString(1)); o.put("title", "شماره فاکتور " + stringOr(r.getString(2), "—")); o.put("amount", r.getDouble(3)); o.put("status", "تسویه: " + translateStatus(stringOr(r.getString(4), "—")) + " / دریافتی: " + money(r.getObject(5))); o.put("description", stringOr(r.getString(6), "")); rows.put(o); } } }
     }
 
     private void appendCustomerChecksLedger(Connection c, JSONArray rows, String code, boolean incoming) throws Exception {
@@ -7282,11 +7334,15 @@ public class MainActivity extends Activity {
                 String shmo = resolveFlexible(sf, "shmo", "SHMO", "CustomerCode");
                 if (vis != null && amount != null) {
                     String latest = out.optString("date", "");
-                    String whereDate = date != null && latest != null && !latest.trim().isEmpty() ? " AND TRY_CONVERT(nvarchar(30),[" + date + "])=?" : "";
-                    String sql = "SELECT COUNT_BIG(1), ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + amount + "])),0), " + (shmo == null ? "CAST(0 AS bigint)" : "COUNT(DISTINCT [" + shmo + "])") + " FROM dbo.sailfact WHERE TRY_CONVERT(nvarchar(100),[" + vis + "])=?" + whereDate + activeAnd(sf, "");
+                    List<Object> params = new ArrayList<>(); params.add(String.valueOf(vid));
+                    String number = resolveFlexible(sf, "shfacfo", "shfac", "factor_no", "invoice_no", "number", "serial");
+                    String inner = "WHERE TRY_CONVERT(nvarchar(100),x.[" + vis + "])=?" + activeAnd(sf, "x");
+                    if (date != null && latest != null && !latest.trim().isEmpty()) { inner += " AND (TRY_CONVERT(nvarchar(30),x.[" + date + "])=? OR LEFT(TRY_CONVERT(nvarchar(30),x.[" + date + "]),10)=LEFT(?,10))"; params.add(latest); params.add(latest); }
+                    String soft = softDeleteCondition(sf, "x"); if (!soft.isEmpty()) inner += " AND " + soft;
+                    String source = dedupeFactorSource("sailfact", sf, number, "s", inner);
+                    String sql = "SELECT COUNT_BIG(1), ISNULL(SUM(" + sqlNumberExpr("s", amount, "decimal(19,2)") + "),0), " + (shmo == null ? "CAST(0 AS bigint)" : "COUNT(DISTINCT s.[" + shmo + "])") + " FROM " + source;
                     try (PreparedStatement ps = c.prepareStatement(sql)) {
-                        ps.setString(1, String.valueOf(vid));
-                        if (!whereDate.isEmpty()) ps.setString(2, latest);
+                        setParams(ps, params);
                         try (ResultSet r = ps.executeQuery()) {
                             if (r.next()) { long count = r.getLong(1); double total = r.getDouble(2); sales.put("count", count); sales.put("total", total); sales.put("customers", r.getLong(3)); sales.put("avg", count == 0 ? 0 : total / count); }
                         }
@@ -7367,7 +7423,7 @@ public class MainActivity extends Activity {
     }
 
     private void loadShowcase(String query, String filter) {
-        if (!canUsePermission("showcase")) { renderLockedSection("showcase"); return; }
+        if (!canUsePermission("showcase")) { showApp("dashboard"); return; }
         String q = query == null ? "" : query;
         String f = filter == null || filter.trim().isEmpty() ? "all" : filter;
         content.removeAllViews();
@@ -7418,10 +7474,80 @@ public class MainActivity extends Activity {
         addManualRefreshPanel("showcase", "بروزرسانی ویترین", "آخرین بروزرسانی: " + lastRefreshText("showcase"), () -> loadShowcase(query, filter));
         addSearchBox("جستجوی محصول، کد یا بارکد…", query, q -> loadShowcase(q, filter));
         addShowcaseFilters(query, filter);
+        addShowcaseIntelligencePanel(rows, query, filter);
         LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list, new LinearLayout.LayoutParams(-1, -2));
         if (rows == null || rows.length() == 0) { addEmptyTo(list, "محصولی برای این فیلتر پیدا نشد."); addShowcaseFloatingCartBar(); return; }
-        for (int i = 0; i < rows.length(); i++) addShowcaseProductCard(list, rows.optJSONObject(i), i, query, filter);
+        int renderLimit = Math.min(rows.length(), compactUi() ? 72 : 96);
+        for (int i = 0; i < renderLimit; i++) addShowcaseProductCard(list, rows.optJSONObject(i), i, query, filter);
+        if (rows.length() > renderLimit) addShowcaseMoreHint(list, rows.length(), renderLimit);
         addShowcaseFloatingCartBar();
+    }
+
+    private void addShowcaseMoreHint(LinearLayout parent, int total, int shown) {
+        LinearLayout c = card();
+        int accent = navAccent("showcase");
+        c.setPadding(dp(12), dp(10), dp(12), dp(10));
+        c.setBackground(roundedStroke(alpha(accent, isLightTheme()?18:32), 18, alpha(accent, 70)));
+        TextView t = text("برای جلوگیری از لگ گوشی، " + formatNumber(shown) + " کالا از " + formatNumber(total) + " کالا نمایش داده شد. برای دسترسی سریع‌تر، نام/کد/بارکد را جستجو یا فیلتر موجود/قیمت‌دار را انتخاب کنید.", 10.6f, MUTED, Typeface.BOLD);
+        t.setGravity(Gravity.CENTER);
+        c.addView(t, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(10)); parent.addView(c, lp);
+    }
+
+    private void addShowcaseIntelligencePanel(JSONArray rows, String query, String filter) {
+        LinearLayout c = card();
+        c.setPadding(dp(12), dp(10), dp(12), dp(10));
+        int accent = navAccent("showcase");
+        c.setBackground(gradient(new int[]{alpha(accent, isLightTheme()?26:42), alpha(GOLD, isLightTheme()?18:28), alpha(SURFACE, 246)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        String customerName = visitorCartCustomer == null ? "بدون مشتری انتخاب‌شده" : visitorCartCustomer.optString("name", visitorCartCustomer.optString("نام", "مشتری"));
+        c.addView(text("ویترین هوشمند Meelano", 15.2f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView desc = text("مشتری: " + customerName + " • تصویرها با یادگیری اصلاح دسته، قیمت/موجودی کنترل‌شده، پیشنهاد مکمل و حالت ارائه سریع کار می‌کنند.", 10.4f, MUTED, Typeface.NORMAL);
+        desc.setMaxLines(3); c.addView(desc, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(showcaseMetric("کالاهای آماده", formatNumber(rows == null ? 0 : rows.length()), SUCCESS, false), showcaseCellLp(1f, 54));
+        row.addView(showcaseMetric("سبد", formatNumber(visitorCartItems.length()) + " قلم", navAccent("cart"), false), showcaseCellLp(1f, 54));
+        row.addView(showcaseMetric("فیلتر", showcaseFilterLabel(filter), accent, false), showcaseCellLp(1f, 54));
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(8), 0, 0); c.addView(row, rp);
+        String suggestion = smartCartSuggestionText();
+        if (!suggestion.isEmpty()) {
+            TextView s = text("پیشنهاد سبد: " + suggestion, 10.3f, alpha(TEXT, 220), Typeface.BOLD);
+            s.setPadding(dp(8), dp(7), dp(8), dp(7));
+            s.setBackground(roundedStroke(alpha(navAccent("cart"), 18), 14, alpha(navAccent("cart"), 65)));
+            LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2); sp.setMargins(0, dp(8), 0, 0); c.addView(s, sp);
+        }
+        LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button scan = themedActionButton("اسکن و افزودن", accent, false); scan.setTextSize(9.2f); scan.setOnClickListener(v -> showBarcodeSearchDialog());
+        Button cart = themedActionButton("رفتن به سبد", navAccent("cart"), true); cart.setTextSize(9.2f); cart.setOnClickListener(v -> showApp("cart"));
+        actions.addView(scan, showcaseButtonLp(1f)); actions.addView(cart, showcaseButtonLp(1f));
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); c.addView(actions, ap);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(10)); content.addView(c, cp);
+    }
+
+    private String showcaseFilterLabel(String filter) {
+        if ("stock".equals(filter)) return "موجود";
+        if ("top".equals(filter)) return "پرفروش";
+        if ("low".equals(filter)) return "کمبود";
+        if ("idle".equals(filter)) return "کم‌گردش";
+        if ("priced".equals(filter)) return "قیمت‌دار";
+        if ("image".equals(filter)) return "تصویردار";
+        if ("package".equals(filter)) return "بسته‌بندی";
+        return "همه";
+    }
+
+    private String smartCartSuggestionText() {
+        if (visitorCartItems == null || visitorCartItems.length() == 0) return "";
+        StringBuilder names = new StringBuilder();
+        for (int i = 0; i < visitorCartItems.length(); i++) {
+            JSONObject it = visitorCartItems.optJSONObject(i);
+            if (it != null) names.append(' ').append(it.optString("name", ""));
+        }
+        String t = productKeyText(names.toString());
+        if (productHas(t, "چای", "قهوه")) return "قند، شکر، بیسکویت یا شکلات را هم پیشنهاد بده.";
+        if (productHas(t, "برنج", "ماکارونی")) return "روغن، رب، تن ماهی یا ادویه مکمل خوبی است.";
+        if (productHas(t, "شامپو", "شوینده", "دستمال")) return "محصولات بهداشتی مکمل یا بسته اقتصادی را معرفی کن.";
+        if (productHas(t, "چیپس", "پفک", "شکلات", "کیک")) return "نوشیدنی یا آبمیوه کنار تنقلات پیشنهاد شود.";
+        if (productHas(t, "شیر", "پنیر", "ماست")) return "کیک، بیسکویت یا نان/صبحانه مکمل فروش است.";
+        return "برای افزایش سبد، کالاهای مکمل همان گروه را نمایش بده.";
     }
 
     private void addShowcaseFloatingCartBar() {
@@ -7603,12 +7729,39 @@ public class MainActivity extends Activity {
         Button remove = themedActionButton("حذف از سبد", DANGER, false);
         remove.setVisibility(cartFindIndex(r.optString("کد", "")) >= 0 ? View.VISIBLE : View.GONE);
         LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(-1, dp(45)); rlp.setMargins(0, dp(6), 0, 0); box.addView(remove, rlp);
+        Button fixVisual = themedActionButton("اصلاح هوشمندی تصویر این کالا", accent, false);
+        fixVisual.setTextSize(9.4f);
+        LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(-1, dp(45)); flp.setMargins(0, dp(6), 0, 0); box.addView(fixVisual, flp);
 
         AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).create();
         add1.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) loadShowcase(stringOr(query, ""), stringOr(filter, "all")); });
         add2.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) loadShowcase(stringOr(query, ""), stringOr(filter, "all")); });
         remove.setOnClickListener(v -> { removeCartItem(r.optString("کد", "")); Toast.makeText(this, "از سبد حذف شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) loadShowcase(stringOr(query, ""), stringOr(filter, "all")); });
+        fixVisual.setOnClickListener(v -> { dlg.dismiss(); showProductVisualChooser(r, query, filter); });
         dlg.setOnShowListener(d -> styleMeelanoDialog(dlg, accent));
+        dlg.show();
+    }
+
+    private void showProductVisualChooser(JSONObject product, String query, String filter) {
+        if (product == null) return;
+        String[] labels = {"تشخیص خودکار", "لبنیات/شیر", "شیرینی/شکلات", "نوشیدنی", "آبمیوه", "چای", "قهوه", "برنج", "حبوبات", "روغن", "کنسرو/قوطی", "سس", "شیشه/جار", "تنقلات", "خشکبار", "تخم‌مرغ", "پروتئینی", "شوینده", "بهداشتی", "دستمال", "کالای عمومی"};
+        String[] types = {"", "milk_carton", "sweet_box", "drink_bottle", "juice_carton", "tea_box", "coffee_pack", "rice_bag", "beans_bag", "oil_bottle", "can", "sauce_bottle", "jar", "snack_pouch", "nuts_bag", "egg_tray", "meat_tray", "detergent_bottle", "care_bottle", "tissue", "generic_box"};
+        AlertDialog dlg = new AlertDialog.Builder(this)
+                .setTitle("اصلاح تصویر کالا")
+                .setItems(labels, (d, which) -> {
+                    if (prefs != null) {
+                        SharedPreferences.Editor ed = prefs.edit();
+                        String key = productVisualOverrideKey(product);
+                        if (which <= 0) ed.remove(key); else ed.putString(key, types[which]);
+                        ed.apply();
+                    }
+                    productBitmapCache.clear();
+                    Toast.makeText(this, "تصویر این کالا ذخیره شد.", Toast.LENGTH_SHORT).show();
+                    loadShowcase(stringOr(query, ""), stringOr(filter, "all"));
+                })
+                .setNegativeButton("بستن", null)
+                .create();
+        dlg.setOnShowListener(d -> styleMeelanoDialog(dlg, productVisualProfile(product).accent));
         dlg.show();
     }
 
@@ -8217,7 +8370,7 @@ public class MainActivity extends Activity {
         AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("ساخت PDF",null).create(); dlg.setOnShowListener(x->{ styleMeelanoDialog(dlg,navAccent("cart")); Button ok=dlg.getButton(AlertDialog.BUTTON_POSITIVE); if(ok!=null) ok.setOnClickListener(v->{ generatePrefactorPdf(d,"Meelano-Prefactor-"+d.optLong("id")+".pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(d), null); }); }); dlg.show();
     }
 
-    private void generateCurrentCartPdfAndShare(boolean shareOnly){ JSONObject snap=currentCartSnapshot(finalCartStatus()); generatePrefactorPdf(snap,"Meelano-Prefactor-Draft-v3.40.pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(snap), null); }
+    private void generateCurrentCartPdfAndShare(boolean shareOnly){ JSONObject snap=currentCartSnapshot(finalCartStatus()); generatePrefactorPdf(snap,"Meelano-Prefactor-Draft-v3.41.pdf"); sharePlainText("پیش‌فاکتور MEELANO", prefactorShareText(snap), null); }
 
     private String prefactorShareText(JSONObject d){
         StringBuilder b=new StringBuilder(); b.append("پیش‌فاکتور MEELANO\n"); b.append("مشتری: ").append(d.optString("customerName","")).append('\n'); b.append("مبلغ نهایی: ").append(money(d.optDouble("grandTotal",0))).append('\n'); JSONArray items=d.optJSONArray("items"); for(int i=0;items!=null&&i<items.length();i++){ JSONObject it=items.optJSONObject(i); if(it!=null)b.append("- ").append(it.optString("name","")).append(" × ").append(formatNumber(it.optDouble("qty",0))).append(" = ").append(money(cartItemNet(it))).append('\n'); } b.append("توضیحات: ").append(d.optString("notes","")); return b.toString();
@@ -8326,7 +8479,7 @@ public class MainActivity extends Activity {
 
     private String sqlNumberExpr(String alias, String col, String type) {
         if (col == null || col.trim().isEmpty()) return "CAST(NULL AS " + type + ")";
-        String ref = alias + ".[" + col + "]";
+        String ref = (alias == null || alias.trim().isEmpty() ? "" : alias + ".") + "[" + col + "]";
         String raw = "TRY_CONVERT(nvarchar(120)," + ref + ")";
         String norm = "LTRIM(RTRIM(" + raw + "))";
         String[][] repl = {
@@ -8339,6 +8492,45 @@ public class MainActivity extends Activity {
         };
         for (String[] r : repl) norm = "REPLACE(" + norm + "," + r[0] + "," + r[1] + ")";
         return "COALESCE(TRY_CONVERT(" + type + "," + ref + "),TRY_CONVERT(" + type + "," + norm + "))";
+    }
+
+    private String factorLatestOrder(Set<String> cols, String alias) {
+        String prefix = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
+        List<String> parts = new ArrayList<>();
+        String active = resolveFlexible(cols, "active", "Active", "is_active", "enabled", "Enable", "is_current", "Current", "selected", "Valid", "valid");
+        if (active != null) {
+            String f = prefix + "[" + active + "]";
+            parts.add("CASE WHEN UPPER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(20)," + f + ")))) IN (N'T',N'TRUE',N'Y',N'YES',N'1',N'فعال') OR TRY_CONVERT(int," + f + ")=1 THEN 1 ELSE 0 END DESC");
+        }
+        for (String candidate : new String[]{"updated_at","UpdateDate","update_date","modified_at","ModifyDate","modify_date","edit_date","EditDate","last_update","LastUpdate","created_at","CreateDate","create_date","tarikh_sabt","date","DATE","t_date"}) {
+            String col = resolveFlexible(cols, candidate);
+            if (col != null) parts.add("TRY_CONVERT(datetime2," + prefix + "[" + col + "]) DESC");
+        }
+        for (String candidate : new String[]{"rdf","RDF","id","ID","serial","Serial","row_id","RowID","autoid","AutoID","radif","Radif"}) {
+            String col = resolveFlexible(cols, candidate);
+            if (col != null) parts.add("TRY_CONVERT(bigint," + prefix + "[" + col + "]) DESC");
+        }
+        parts.add("(SELECT 0)");
+        return join(parts, ",");
+    }
+
+    private String dedupeFactorSource(String table, Set<String> cols, String numberCol, String alias, String innerWhere) {
+        String a = alias == null || alias.trim().isEmpty() ? "h" : alias.trim();
+        String where = innerWhere == null || innerWhere.trim().isEmpty() ? "" : innerWhere.trim();
+        if (numberCol == null || numberCol.trim().isEmpty()) return "dbo.[" + table + "] " + a + (where.isEmpty() ? "" : " " + where.replace("x.", a + "."));
+        return "(SELECT * FROM (SELECT x.*, ROW_NUMBER() OVER(PARTITION BY TRY_CONVERT(nvarchar(120),x.[" + numberCol + "]) ORDER BY " + factorLatestOrder(cols, "x") + ") AS _meelano_rn FROM dbo.[" + table + "] x " + where + ") mx WHERE mx._meelano_rn=1) " + a;
+    }
+
+    private String softDeleteCondition(Set<String> cols, String alias) {
+        String prefix = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
+        List<String> parts = new ArrayList<>();
+        String del = resolveFlexible(cols, "deleted", "Deleted", "is_deleted", "IsDeleted", "isDelete", "delete_flag", "deleted_flag", "حذف", "حذف_شده");
+        if (del != null) parts.add("ISNULL(TRY_CONVERT(int," + prefix + "[" + del + "]),0)=0");
+        String cancel = resolveFlexible(cols, "cancel", "Cancel", "canceled", "cancelled", "is_cancel", "is_canceled", "void", "Void", "باطل", "ابطال");
+        if (cancel != null) parts.add("ISNULL(TRY_CONVERT(int," + prefix + "[" + cancel + "]),0)=0");
+        String status = resolveFlexible(cols, "status", "Status", "satus", "Satus", "state", "State");
+        if (status != null) parts.add("UPPER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(50)," + prefix + "[" + status + "])))) NOT IN (N'DELETED',N'DELETE',N'CANCEL',N'CANCELLED',N'VOID',N'باطل',N'حذف')");
+        return parts.isEmpty() ? "" : "(" + join(parts, " AND ") + ")";
     }
 
     private boolean isBinaryColumn(Map<String, String> types, String col) {
@@ -8412,7 +8604,8 @@ public class MainActivity extends Activity {
             select.add(sqlNumberExpr("i", price, "decimal(19,2)") + " AS قیمت_فروش");
             select.add(sqlNumberExpr("i", price2, "decimal(19,2)") + " AS قیمت_فروش۲");
             select.add(sqlNumberExpr("i", buyPrice, "decimal(19,2)") + " AS بهای_خرید");
-            String stockExpr = stock == null ? "(ISNULL(ba.buy_qty,0)-ISNULL(sa.sale_qty,0))" : sqlNumberExpr("i", stock, "decimal(19,3)");
+            String movementStockExpr = "(ISNULL(ba.buy_qty,0)-ISNULL(sa.sale_qty,0))";
+            String stockExpr = stock == null ? movementStockExpr : "COALESCE(" + sqlNumberExpr("i", stock, "decimal(19,3)") + "," + movementStockExpr + ")";
             String unitFallback = unitText != null ? "TRY_CONVERT(nvarchar(80),i.[" + unitText + "])" : (unitRef != null ? "TRY_CONVERT(nvarchar(80),i.[" + unitRef + "])" : "CAST(NULL AS nvarchar(80))");
             String unitExpr = unitRef != null && unitKey != null && unitName != null ? "COALESCE(TRY_CONVERT(nvarchar(80),u.[" + unitName + "])," + unitFallback + ")" : unitFallback;
             select.add("ISNULL(" + stockExpr + ",0) AS موجودی");
@@ -8426,12 +8619,14 @@ public class MainActivity extends Activity {
             select.add("ISNULL(ba.buy_amount,0) AS مبلغ_خرید");
             select.add("(ISNULL(ba.buy_qty,0)-ISNULL(sa.sale_qty,0)) AS گردش_خالص");
 
+            String saleDetailSoft = softDeleteCondition(saleCols, "s");
+            String buyDetailSoft = softDeleteCondition(buyCols, "b");
             String saleApply = saleKey != null ? "OUTER APPLY (SELECT " +
-                    (saleQty == null ? "CAST(0 AS decimal(19,3))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,3),s.[" + saleQty + "])),0)") + " sale_qty, " +
-                    (saleAmount == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,2),s.[" + saleAmount + "])),0)") + " sale_amount FROM dbo.subsailfact s WHERE TRY_CONVERT(nvarchar(100),s.[" + saleKey + "])=TRY_CONVERT(nvarchar(100),i.[" + shka + "])" + activeAnd(saleCols, "s") + ") sa " : "OUTER APPLY (SELECT CAST(0 AS decimal(19,3)) sale_qty, CAST(0 AS decimal(19,2)) sale_amount) sa ";
+                    (saleQty == null ? "CAST(0 AS decimal(19,3))" : "ISNULL(SUM(" + sqlNumberExpr("s", saleQty, "decimal(19,3)") + "),0)") + " sale_qty, " +
+                    (saleAmount == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(" + sqlNumberExpr("s", saleAmount, "decimal(19,2)") + "),0)") + " sale_amount FROM dbo.subsailfact s WHERE TRY_CONVERT(nvarchar(100),s.[" + saleKey + "])=TRY_CONVERT(nvarchar(100),i.[" + shka + "])" + activeAnd(saleCols, "s") + (saleDetailSoft.isEmpty()?"":" AND "+saleDetailSoft) + ") sa " : "OUTER APPLY (SELECT CAST(0 AS decimal(19,3)) sale_qty, CAST(0 AS decimal(19,2)) sale_amount) sa ";
             String buyApply = buyKey != null ? "OUTER APPLY (SELECT " +
-                    (buyQty == null ? "CAST(0 AS decimal(19,3))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,3),b.[" + buyQty + "])),0)") + " buy_qty, " +
-                    (buyAmount == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,2),b.[" + buyAmount + "])),0)") + " buy_amount FROM dbo.subbuyfact b WHERE TRY_CONVERT(nvarchar(100),b.[" + buyKey + "])=TRY_CONVERT(nvarchar(100),i.[" + shka + "])" + activeAnd(buyCols, "b") + ") ba " : "OUTER APPLY (SELECT CAST(0 AS decimal(19,3)) buy_qty, CAST(0 AS decimal(19,2)) buy_amount) ba ";
+                    (buyQty == null ? "CAST(0 AS decimal(19,3))" : "ISNULL(SUM(" + sqlNumberExpr("b", buyQty, "decimal(19,3)") + "),0)") + " buy_qty, " +
+                    (buyAmount == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(" + sqlNumberExpr("b", buyAmount, "decimal(19,2)") + "),0)") + " buy_amount FROM dbo.subbuyfact b WHERE TRY_CONVERT(nvarchar(100),b.[" + buyKey + "])=TRY_CONVERT(nvarchar(100),i.[" + shka + "])" + activeAnd(buyCols, "b") + (buyDetailSoft.isEmpty()?"":" AND "+buyDetailSoft) + ") ba " : "OUTER APPLY (SELECT CAST(0 AS decimal(19,3)) buy_qty, CAST(0 AS decimal(19,2)) buy_amount) ba ";
             String unitJoin = unitTable != null && unitRef != null && unitKey != null && unitName != null ? "LEFT JOIN dbo.[" + unitTable + "] u ON TRY_CONVERT(nvarchar(100),u.[" + unitKey + "])=TRY_CONVERT(nvarchar(100),i.[" + unitRef + "]) " : "";
             String groupJoin = groupName != null && groupKey != null && groupId != null ? "LEFT JOIN dbo.kagroup g ON TRY_CONVERT(nvarchar(100),g.[" + groupKey + "])=TRY_CONVERT(nvarchar(100),i.[" + groupId + "]) " : "";
 
@@ -8440,11 +8635,11 @@ public class MainActivity extends Activity {
             if (search != null && !search.trim().isEmpty()) {
                 List<String> parts = new ArrayList<>();
                 for (String col : new String[]{name, code, shka}) {
-                    if (col != null) { parts.add("TRY_CONVERT(nvarchar(500),i.[" + col + "]) LIKE N'%' + ? + N'%'"); params.add(search.trim()); }
+                    if (col != null) for (String sv : searchVariants(search)) { parts.add("TRY_CONVERT(nvarchar(500),i.[" + col + "]) LIKE N'%' + ? + N'%'"); params.add(sv); }
                 }
                 where.add("(" + join(parts, " OR ") + ")");
             }
-            String stockWhereExpr = stock == null ? "(ISNULL(ba.buy_qty,0)-ISNULL(sa.sale_qty,0))" : "ISNULL(" + sqlNumberExpr("i", stock, "decimal(19,3)") + ",0)";
+            String stockWhereExpr = stock == null ? movementStockExpr : "ISNULL(COALESCE(" + sqlNumberExpr("i", stock, "decimal(19,3)") + "," + movementStockExpr + "),0)";
             if ("stock".equals(filter)) where.add(stockWhereExpr + ">0");
             if ("low".equals(filter)) where.add(stockWhereExpr + "<=0");
             if ("idle".equals(filter)) where.add("ISNULL(sa.sale_qty,0)=0 AND ISNULL(ba.buy_qty,0)=0");
@@ -8571,7 +8766,10 @@ public class MainActivity extends Activity {
             Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
             String name = r == null ? "محصول" : stringOr(r.optString("نام", ""), "محصول");
             String group = r == null ? "" : r.optString("گروه", "");
-            ProductVisualProfile vp = productVisualProfile(name, group);
+            ProductVisualProfile vp = productVisualProfile(r);
+            String cacheKey = currentThemeId() + "|" + vp.type + "|" + shortProductTitle(name, 34) + "|" + shortProductTitle(group, 24);
+            Bitmap cached = productBitmapCache.get(cacheKey);
+            if (cached != null && !cached.isRecycled()) return cached;
             int accent = vp.accent;
             int base = mix(SURFACE, accent, isLightTheme() ? 0.10f : 0.24f);
             int glow = mix(accent, Color.WHITE, isLightTheme() ? 0.58f : 0.26f);
@@ -8587,13 +8785,24 @@ public class MainActivity extends Activity {
             p.setTextSize(14f); p.setColor(alpha(MUTED, 230)); canvas.drawText(vp.title, w / 2f, 342f, p);
             p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(2.2f); p.setColor(alpha(accent, isLightTheme() ? 120 : 150));
             canvas.drawRoundRect(new RectF(8, 8, w - 8, h - 8), 32f, 32f, p);
+            if (productBitmapCache.size() > 180) productBitmapCache.clear();
+            productBitmapCache.put(cacheKey, bmp);
             return bmp;
         } catch (Exception ignored) { return null; }
     }
 
     private ProductVisualProfile productVisualProfile(JSONObject r) {
         if (r == null) return productVisualProfile("", "");
+        String key = productVisualOverrideKey(r);
+        String forced = prefs == null ? "" : prefs.getString(key, "");
+        if (forced != null && !forced.trim().isEmpty()) return productVisualProfileForType(forced.trim());
         return productVisualProfile(r.optString("نام", ""), r.optString("گروه", ""));
+    }
+
+    private String productVisualOverrideKey(JSONObject r) {
+        String code = r == null ? "" : r.optString("کد", "").trim();
+        if (code.isEmpty()) code = r == null ? "" : r.optString("نام", "").trim();
+        return "product_visual_override_" + normalizeDigits(code).replace(" ", "_");
     }
 
     private ProductVisualProfile productVisualProfile(String name, String group) {
@@ -8627,6 +8836,38 @@ public class MainActivity extends Activity {
         if (productHas(t, "شامپو", "نرم کننده", "خمیر دندان", "مسواک", "کرم", "لوسیون", "مام", "اسپری")) return visual("care_bottle", "آرایشی بهداشتی", "بهداشت", Color.rgb(111, 100, 226), themeMixRatio);
         if (productHas(t, "صابون", "مایع دست", "مایع ظرف", "مایع لباس", "شوینده", "پودر لباس", "وایتکس", "جرمگیر", "پاک کننده", "پاک‌کننده", "سفید کننده")) return visual(productHas(t, "پودر") ? "detergent_box" : "detergent_bottle", "شوینده", "شوینده", Color.rgb(66, 193, 155), themeMixRatio);
         return visual("generic_box", "کالای عمومی", "کالا", Color.rgb(126, 87, 255), themeMixRatio);
+    }
+
+    private ProductVisualProfile productVisualProfileForType(String type) {
+        int m = isLightTheme() ? 14 : 22;
+        String t = type == null ? "generic_box" : type;
+        if ("tissue".equals(t)) return visual("tissue", "بهداشتی سلولزی", "دستمال", Color.rgb(92, 170, 210), m);
+        if ("milk_carton".equals(t)) return visual("milk_carton", "لبنیات", "شیر", Color.rgb(75, 164, 240), m);
+        if ("dairy_cup".equals(t)) return visual("dairy_cup", "لبنیات کاسه‌ای", "لبنی", Color.rgb(84, 165, 238), m);
+        if ("cheese".equals(t)) return visual("cheese", "پنیر", "لبنی", Color.rgb(246, 188, 74), m);
+        if ("juice_carton".equals(t)) return visual("juice_carton", "آبمیوه", "آبمیوه", Color.rgb(245, 145, 65), m);
+        if ("drink_bottle".equals(t)) return visual("drink_bottle", "نوشیدنی", "بطری", Color.rgb(46, 184, 210), m);
+        if ("water_bottle".equals(t)) return visual("water_bottle", "آب", "آب", Color.rgb(55, 180, 238), m);
+        if ("tea_box".equals(t)) return visual("tea_box", "چای و دمنوش", "چای", Color.rgb(144, 92, 48), m);
+        if ("coffee_pack".equals(t)) return visual("coffee_pack", "قهوه", "قهوه", Color.rgb(119, 75, 48), m);
+        if ("rice_bag".equals(t)) return visual("rice_bag", "برنج", "برنج", Color.rgb(219, 178, 90), m);
+        if ("beans_bag".equals(t)) return visual("beans_bag", "حبوبات و غلات", "حبوبات", Color.rgb(196, 135, 70), m);
+        if ("pasta_pack".equals(t)) return visual("pasta_pack", "ماکارونی و رشته", "پاستا", Color.rgb(229, 169, 58), m);
+        if ("staple_bag".equals(t)) return visual("staple_bag", "کالاهای پایه", "اصلی", Color.rgb(134, 147, 166), m);
+        if ("oil_bottle".equals(t)) return visual("oil_bottle", "روغن", "روغن", Color.rgb(237, 178, 49), m);
+        if ("sauce_bottle".equals(t)) return visual("sauce_bottle", "چاشنی و سس", "سس", Color.rgb(226, 72, 74), m);
+        if ("can".equals(t)) return visual("can", "کنسرو", "قوطی", Color.rgb(220, 82, 84), m);
+        if ("jar".equals(t)) return visual("jar", "شیشه و جار", "جار", Color.rgb(232, 156, 65), m);
+        if ("spice_jar".equals(t)) return visual("spice_jar", "ادویه", "ادویه", Color.rgb(214, 112, 52), m);
+        if ("snack_pouch".equals(t)) return visual("snack_pouch", "تنقلات", "اسنک", Color.rgb(240, 145, 54), m);
+        if ("nuts_bag".equals(t)) return visual("nuts_bag", "خشکبار", "خشکبار", Color.rgb(161, 101, 62), m);
+        if ("egg_tray".equals(t)) return visual("egg_tray", "تخم‌مرغ", "تخم‌مرغ", Color.rgb(209, 184, 124), m);
+        if ("meat_tray".equals(t)) return visual("meat_tray", "پروتئینی", "پروتئین", Color.rgb(218, 82, 100), m);
+        if ("care_bottle".equals(t)) return visual("care_bottle", "آرایشی بهداشتی", "بهداشت", Color.rgb(111, 100, 226), m);
+        if ("detergent_box".equals(t)) return visual("detergent_box", "شوینده", "شوینده", Color.rgb(66, 193, 155), m);
+        if ("detergent_bottle".equals(t)) return visual("detergent_bottle", "شوینده", "شوینده", Color.rgb(66, 193, 155), m);
+        if ("sweet_box".equals(t)) return visual("sweet_box", "شیرینی و شکلات", "شیرینی", Color.rgb(181, 96, 210), m);
+        return visual("generic_box", "کالای عمومی", "کالا", Color.rgb(126, 87, 255), m);
     }
 
     private ProductVisualProfile visual(String type, String title, String badge, int baseAccent, int themeMixPercent) {
@@ -9330,7 +9571,7 @@ public class MainActivity extends Activity {
             doc.finishPage(page);
             File dir = getExternalFilesDir(null);
             if (dir == null) dir = getFilesDir();
-            File file = new File(dir, "Meelano-Management-Report-v3.40.pdf");
+            File file = new File(dir, "Meelano-Management-Report-v3.41.pdf");
             try (FileOutputStream fos = new FileOutputStream(file)) { doc.writeTo(fos); }
             Toast.makeText(this, "PDF لوکس ساخته شد: " + file.getAbsolutePath(), Toast.LENGTH_LONG).show();
         } catch (Exception ex) { Toast.makeText(this, "ساخت PDF ممکن نشد: " + shortError(ex), Toast.LENGTH_SHORT).show(); }
@@ -10053,11 +10294,14 @@ public class MainActivity extends Activity {
                 boolean canJoinCustomer = hasCol(cust, "SHMO") && hasCol(h, "shmo");
                 String partyExpr = canJoinCustomer && hasCol(cust, "MONAME") ? "COALESCE(TRY_CONVERT(nvarchar(250),c.MONAME)," + headerParty + ",N'بدون نام')" : "COALESCE(" + headerParty + ",N'بدون نام')";
                 String descExpr = sales ? (hasCol(h, "description") ? "TRY_CONVERT(nvarchar(500),h.description)" : "CAST(NULL AS nvarchar(500))") : (hasCol(h, "Explain") ? "TRY_CONVERT(nvarchar(500),h.[Explain])" : "CAST(NULL AS nvarchar(500))");
-                String itemApply = detailNumber == null ? "" : " OUTER APPLY (SELECT COUNT_BIG(1) item_count FROM dbo.[" + detailTable + "] dd WHERE dd.[" + detailNumber + "]=h.[" + numberCol + "]" + activeAnd(d, "dd") + ") ic ";
+                String itemApply = detailNumber == null ? "" : " OUTER APPLY (SELECT COUNT_BIG(1) item_count FROM dbo.[" + detailTable + "] dd WHERE TRY_CONVERT(nvarchar(120),dd.[" + detailNumber + "])=TRY_CONVERT(nvarchar(120),h.[" + numberCol + "])" + activeAnd(d, "dd") + ") ic ";
                 String itemCountExpr = detailNumber == null ? "CAST(0 AS bigint)" : "ISNULL(ic.item_count,0)";
-                String where = "WHERE h.[" + dateCol + "]=?"; where += activeAnd(h, "h"); List<Object> params = new ArrayList<>(); params.add(actualDate);
-                if (sales && session != null && session.visitorId != null && hasCol(h, "vis_rdf")) { where += " AND TRY_CONVERT(int,h.vis_rdf)=?"; params.add(session.visitorId); }
-                String sql = "SELECT TOP (150) TRY_CONVERT(bigint,h.[" + numberCol + "]), " + partyExpr + ", TRY_CONVERT(decimal(19,2),h.[" + amountCol + "]), " + itemCountExpr + ", " + descExpr + " FROM dbo.[" + header + "] h " + (canJoinCustomer ? "LEFT JOIN dbo.CUSTOMERS c ON c.SHMO=h.shmo " : "") + itemApply + where + " ORDER BY h.[" + numberCol + "]";
+                List<Object> params = new ArrayList<>(); params.add(actualDate); params.add(actualDate);
+                String innerWhere = "WHERE (TRY_CONVERT(nvarchar(30),x.[" + dateCol + "])=? OR LEFT(TRY_CONVERT(nvarchar(30),x.[" + dateCol + "]),10)=LEFT(?,10))" + activeAnd(h, "x");
+                String soft = softDeleteCondition(h, "x"); if (!soft.isEmpty()) innerWhere += " AND " + soft;
+                if (sales && session != null && session.visitorId != null && hasCol(h, "vis_rdf")) { innerWhere += " AND TRY_CONVERT(int,x.vis_rdf)=?"; params.add(session.visitorId); }
+                String source = dedupeFactorSource(header, h, numberCol, "h", innerWhere);
+                String sql = "SELECT TOP (150) TRY_CONVERT(bigint,h.[" + numberCol + "]), " + partyExpr + ", " + sqlNumberExpr("h", amountCol, "decimal(19,2)") + ", " + itemCountExpr + ", " + descExpr + " FROM " + source + " " + (canJoinCustomer ? "LEFT JOIN dbo.CUSTOMERS c ON TRY_CONVERT(nvarchar(100),c.SHMO)=TRY_CONVERT(nvarchar(100),h.shmo) " : "") + itemApply + " ORDER BY h.[" + numberCol + "]";
                 try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { Set<String> parties = new HashSet<>(); while (r.next()) { JSONObject o = new JSONObject(); o.put("number", r.getLong(1)); String party = stringOr(r.getString(2), "بدون نام"); o.put("party", party); o.put("amount", r.getDouble(3)); o.put("items", r.getLong(4)); o.put("description", stringOr(r.getString(5), "")); docs.put(o); total += r.getDouble(3); docCount++; parties.add(party); itemCount += r.getLong(4); } partyCount = parties.size(); } }
                 if (detailNumber != null && hasCol(d, sales ? "SHKA" : "shka")) {
                     String key = sales ? resolve(d, "SHKA") : resolve(d, "shka", "SHKA");
@@ -10069,7 +10313,7 @@ public class MainActivity extends Activity {
                         String tedvah = hasCol(d, "TEDVAH") ? "ISNULL(TRY_CONVERT(decimal(19,4),dd.TEDVAH),0)" : "0";
                         String tedjoz = hasCol(d, "TEDJOZ") ? "ISNULL(TRY_CONVERT(decimal(19,4),dd.TEDJOZ),0)" : "0";
                         String qty = hasCol(inv, "mohvah") ? "ISNULL(SUM(" + tedvah + "*ISNULL(TRY_CONVERT(decimal(19,4),i.mohvah),1)+" + tedjoz + "),0)" : "ISNULL(SUM(" + tedvah + "+" + tedjoz + "),0)";
-                        String itemSql = "SELECT TOP (120) " + itemName + ", " + qty + ", ISNULL(SUM(TRY_CONVERT(decimal(19,2),dd.[" + lineAmount + "])),0) FROM dbo.[" + detailTable + "] dd JOIN dbo.[" + header + "] h ON h.[" + numberCol + "]=dd.[" + detailNumber + "] LEFT JOIN dbo.inventory i ON i.shka=dd.[" + key + "] " + where + activeAnd(d, "dd") + " GROUP BY " + itemName + " ORDER BY 3 DESC";
+                        String itemSql = "SELECT TOP (120) " + itemName + ", " + qty + ", ISNULL(SUM(" + sqlNumberExpr("dd", lineAmount, "decimal(19,2)") + "),0) FROM dbo.[" + detailTable + "] dd JOIN " + source + " ON TRY_CONVERT(nvarchar(120),h.[" + numberCol + "])=TRY_CONVERT(nvarchar(120),dd.[" + detailNumber + "]) LEFT JOIN dbo.inventory i ON TRY_CONVERT(nvarchar(100),i.shka)=TRY_CONVERT(nvarchar(100),dd.[" + key + "]) WHERE 1=1" + activeAnd(d, "dd") + " GROUP BY " + itemName + " ORDER BY 3 DESC";
                         try (PreparedStatement ps = c.prepareStatement(itemSql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("item", stringOr(r.getString(1), "بدون نام")); o.put("quantity", r.getDouble(2)); o.put("amount", r.getDouble(3)); items.put(o); } } }
                     }
                 }
@@ -10139,14 +10383,17 @@ public class MainActivity extends Activity {
         String discount = resolve(cols, "tafif", "takhfif", "discount");
         String tax = resolve(cols, "tax", "Tax", "maliat");
         String paid = sales ? resolve(cols, "MabDaryaftFactor", "received", "Daryaft") : resolve(cols, "MablaghPardakht", "paid", "Pardakht");
-        String sd = discount == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + discount + "])),0)";
-        String st = tax == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + tax + "])),0)";
-        String sp = paid == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,2),[" + paid + "])),0)";
-        String where = "WHERE [" + dateCol + "]=?";
-        where += activeAnd(cols, "");
-        List<Object> params = new ArrayList<>(); params.add(date);
-        if (sales && session != null && session.visitorId != null && hasCol(cols, "vis_rdf")) { where += " AND TRY_CONVERT(int,[vis_rdf])=?"; params.add(session.visitorId); }
-        try (PreparedStatement ps = c.prepareStatement("SELECT " + sd + "," + st + "," + sp + " FROM dbo.[" + table + "] " + where)) {
+        String sd = discount == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(" + sqlNumberExpr("h", discount, "decimal(19,2)") + "),0)";
+        String st = tax == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(" + sqlNumberExpr("h", tax, "decimal(19,2)") + "),0)";
+        String sp = paid == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(" + sqlNumberExpr("h", paid, "decimal(19,2)") + "),0)";
+        String number = sales ? resolveFlexible(cols, "shfacfo", "shfac", "factor_no", "invoice_no", "number", "serial") : resolveFlexible(cols, "shfackh", "shfac", "factor_no", "invoice_no", "number", "serial");
+        String where = "WHERE (TRY_CONVERT(nvarchar(30),x.[" + dateCol + "])=? OR LEFT(TRY_CONVERT(nvarchar(30),x.[" + dateCol + "]),10)=LEFT(?,10))";
+        where += activeAnd(cols, "x");
+        String soft = softDeleteCondition(cols, "x"); if (!soft.isEmpty()) where += " AND " + soft;
+        List<Object> params = new ArrayList<>(); params.add(date); params.add(date);
+        if (sales && session != null && session.visitorId != null && hasCol(cols, "vis_rdf")) { where += " AND TRY_CONVERT(int,x.[vis_rdf])=?"; params.add(session.visitorId); }
+        String source = dedupeFactorSource(table, cols, number, "h", where);
+        try (PreparedStatement ps = c.prepareStatement("SELECT " + sd + "," + st + "," + sp + " FROM " + source)) {
             setParams(ps, params);
             try (ResultSet r = ps.executeQuery()) {
                 if (r.next()) { o.put("discount", r.getDouble(1)); o.put("tax", r.getDouble(2)); o.put("paid", r.getDouble(3)); }
@@ -11995,7 +12242,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android Direct SQL v3.40.0\nاین نسخه ویترین را هوشمندتر می‌کند: تصویرهای برداری اختصاصی و دقیق‌تر بر اساس نام کالا بدون بهم‌ریختگی اندازه، جدول قیمت/موجودی/واحد خواناتر، دکمه‌های افزودن به سبد بزرگ‌تر و هماهنگ‌تر با تم، و تشخیص گسترده‌تر ستون‌های قیمت و موجودی در SQL.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android Direct SQL v3.41.0\nاین نسخه ویترین، گزارش فاکتورها و دسترسی‌ها را ارتقا می‌دهد: تصویر هوشمند قابل اصلاح، کش تصویر برای حذف لگ، موجودی و مانده دقیق‌تر، حذف تکرار فاکتورهای ویرایش‌شده از گزارش روز/پرونده مشتری/پرسنل، پنهان‌سازی بخش‌های بدون دسترسی و آیکن جدید لوکس Meelano.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
@@ -12505,7 +12752,10 @@ public class MainActivity extends Activity {
             String code = data.getStringExtra("SCAN_RESULT");
             if (code == null || code.trim().isEmpty()) code = data.getStringExtra("SCAN_RESULT_BYTES");
             Toast.makeText(this, "کد اسکن‌شده: " + stringOr(code, "—"), Toast.LENGTH_LONG).show();
-            if (assistantInput != null) {
+            if (code != null && !code.trim().isEmpty() && session != null) {
+                showApp("showcase");
+                loadShowcase(code.trim(), "all");
+            } else if (assistantInput != null) {
                 assistantInput.setText("این کد/بارکد را در کالاها بررسی کن: " + stringOr(code, ""));
                 assistantInput.setSelection(assistantInput.getText().length());
             }
