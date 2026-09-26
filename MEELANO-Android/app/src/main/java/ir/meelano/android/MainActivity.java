@@ -649,7 +649,7 @@ public class MainActivity extends Activity {
 
     private View liveMeelanoLogo(boolean compact) {
         LiveMeelanoLogoView logo = new LiveMeelanoLogoView(this, compact);
-        logo.setContentDescription("لوگوی زنده Meelano");
+        logo.setContentDescription("لوگوی Meelano با ترکیب M و A");
         logo.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         return logo;
     }
@@ -675,77 +675,103 @@ public class MainActivity extends Activity {
             boolean moving = motionAllowed();
             float t = moving ? (System.currentTimeMillis() - startMs) / 1000f : 0f;
             float s = Math.min(w, h);
-            float pulse = (float) Math.sin(t * 2.2f);
-            float drift = (float) Math.sin(t * 1.35f);
-            int skyA = mix(HEADER_START, INFO, isLightTheme() ? 0.18f : 0.08f);
-            int skyB = mix(NAVY, themeAccent(activePage), isLightTheme() ? 0.20f : 0.13f);
-            int moonColor = mix(GOLD_2, Color.WHITE, isLightTheme() ? 0.45f : 0.28f);
-            int mColor = mix(GOLD, themeAccent(activePage), isLightTheme() ? 0.36f : 0.22f);
+            float cx = w / 2f, cy = h / 2f;
+            float pulse = (float) Math.sin(t * 2.0f);
+            int leather = Color.rgb(252, 249, 242);
+            int leatherEdge = Color.rgb(239, 229, 211);
+            int blue = Color.rgb(31, 120, 222);
+            int deepBlue = Color.rgb(8, 45, 107);
+            int gold = Color.rgb(235, 184, 97);
             RectF outer = new RectF(s * 0.06f, s * 0.06f, w - s * 0.06f, h - s * 0.06f);
-            p.setStyle(Paint.Style.FILL);
-            p.setShadowLayer(s * 0.08f, 0, s * 0.028f, alpha(Color.BLACK, 145));
-            p.setColor(skyA);
-            canvas.drawRoundRect(outer, s * 0.24f, s * 0.24f, p);
-            p.clearShadowLayer();
-            p.setColor(alpha(skyB, 205));
-            canvas.drawCircle(s * 0.24f, s * 0.88f, s * 0.72f, p);
-            p.setColor(alpha(INFO, isLightTheme() ? 44 : 34));
-            canvas.drawCircle(s * 0.82f, s * 0.15f, s * 0.45f, p);
 
-            float moonX = w - s * 0.24f;
-            float moonY = s * 0.23f;
-            p.setColor(alpha(moonColor, 92));
-            canvas.drawCircle(moonX, moonY, s * (0.245f + 0.016f * pulse), p);
-            p.setColor(alpha(mix(moonColor, GOLD, 0.20f), 225));
-            canvas.drawCircle(moonX, moonY, s * 0.165f, p);
-            p.setColor(alpha(Color.WHITE, 120));
-            canvas.drawCircle(moonX - s * 0.045f, moonY - s * 0.04f, s * 0.045f, p);
-            p.setColor(alpha(GOLD_2, 120));
-            canvas.drawCircle(moonX + s * 0.052f, moonY + s * 0.038f, s * 0.030f, p);
-            p.setColor(alpha(Color.WHITE, isLightTheme() ? 165 : 132));
-            float[][] stars = {{.22f,.22f,.018f},{.38f,.15f,.012f},{.18f,.43f,.010f},{.68f,.40f,.013f},{.48f,.31f,.009f}};
-            for (int i = 0; i < stars.length; i++) {
-                float twinkle = 0.65f + 0.35f * (float)Math.sin(t * 2.0f + i * 1.7f);
-                canvas.drawCircle(stars[i][0] * w, stars[i][1] * h, Math.max(1.2f, s * stars[i][2] * twinkle), p);
-            }
-
-            float mx = s * (0.48f + drift * 0.035f);
-            float my = s * (0.73f - (0.05f + 0.035f * pulse));
-            p.setTextAlign(Paint.Align.CENTER);
-            p.setTypeface(Typeface.DEFAULT_BOLD);
-            p.setTextSize(s * (compact ? 0.60f : 0.62f));
             p.setStyle(Paint.Style.FILL);
-            p.setShadowLayer(s * 0.07f, 0, s * 0.025f, alpha(Color.BLACK, 170));
-            for (int i = 5; i >= 1; i--) {
-                p.setColor(alpha(mix(mColor, Color.BLACK, 0.42f), 88 + i * 18));
-                canvas.drawText("M", mx + i * s * 0.012f, my + i * s * 0.014f, p);
-            }
-            p.setColor(mix(INFO, mColor, 0.35f));
-            canvas.drawText("M", mx - s * 0.018f, my - s * 0.010f, p);
-            p.setColor(mix(DANGER, INFO, 0.28f));
-            canvas.drawText("M", mx + s * 0.010f, my + s * 0.006f, p);
-            p.setColor(mix(mColor, moonColor, 0.36f));
-            canvas.drawText("M", mx, my, p);
+            p.setShadowLayer(s * 0.055f, 0, s * 0.020f, alpha(Color.BLACK, 80));
+            p.setColor(leather);
+            canvas.drawRoundRect(outer, s * 0.22f, s * 0.22f, p);
             p.clearShadowLayer();
+            p.setColor(leatherEdge);
             p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(Math.max(1.1f, s * 0.019f));
-            p.setColor(alpha(Color.WHITE, isLightTheme() ? 170 : 132));
-            canvas.drawText("M", mx, my, p);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(Math.max(1.0f, s * 0.012f));
-            p.setColor(alpha(moonColor, 115));
+            p.setStrokeWidth(Math.max(1f, s * 0.035f));
+            canvas.drawRoundRect(new RectF(s * 0.09f, s * 0.09f, w - s * 0.09f, h - s * 0.09f), s * 0.18f, s * 0.18f, p);
+
             p.setStrokeCap(Paint.Cap.ROUND);
-            canvas.drawLine(mx + s * 0.18f, my - s * 0.16f, moonX - s * 0.10f, moonY + s * 0.06f, p);
-            p.setStyle(Paint.Style.FILL);
-            p.setColor(alpha(moonColor, 190));
-            canvas.drawCircle(mx + s * 0.20f, my - s * 0.17f, Math.max(1.2f, s * 0.022f), p);
+            p.setStrokeJoin(Paint.Join.ROUND);
+            p.setStrokeWidth(Math.max(1f, s * 0.018f));
+            p.setColor(alpha(Color.rgb(198, 174, 132), 54));
+            Path grain = new Path();
+            grain.moveTo(s * 0.13f, s * 0.30f); grain.cubicTo(s * 0.28f, s * 0.23f, s * 0.41f, s * 0.33f, s * 0.54f, s * 0.27f); grain.cubicTo(s * 0.70f, s * 0.20f, s * 0.82f, s * 0.25f, s * 0.92f, s * 0.32f); canvas.drawPath(grain, p);
+            p.setColor(alpha(Color.rgb(226, 210, 180), 60));
+            Path grain2 = new Path();
+            grain2.moveTo(s * 0.12f, s * 0.70f); grain2.cubicTo(s * 0.30f, s * 0.63f, s * 0.42f, s * 0.76f, s * 0.58f, s * 0.69f); grain2.cubicTo(s * 0.75f, s * 0.61f, s * 0.84f, s * 0.67f, s * 0.93f, s * 0.74f); canvas.drawPath(grain2, p);
 
             p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(Math.max(1.2f, s * 0.018f));
-            p.setColor(alpha(mix(mColor, moonColor, 0.45f), 150));
-            canvas.drawRoundRect(outer, s * 0.24f, s * 0.24f, p);
+            p.setStrokeWidth(Math.max(2f, s * 0.045f));
+            p.setColor(gold);
+            canvas.drawCircle(cx, cy, s * 0.370f, p);
+            p.setStrokeWidth(Math.max(1f, s * 0.014f));
+            p.setColor(alpha(Color.WHITE, 232));
+            canvas.drawCircle(cx, cy, s * 0.327f, p);
+            p.setColor(alpha(deepBlue, 44));
+            canvas.drawCircle(cx, cy, s * 0.292f, p);
+
+            Path m = new Path();
+            m.moveTo(s * 0.235f, s * 0.705f);
+            m.lineTo(s * 0.302f, s * 0.323f);
+            m.lineTo(s * 0.500f, s * 0.610f);
+            m.lineTo(s * 0.698f, s * 0.323f);
+            m.lineTo(s * 0.765f, s * 0.705f);
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeJoin(Paint.Join.ROUND);
+            p.setStyle(Paint.Style.STROKE);
+            p.setShadowLayer(s * 0.050f, 0, s * 0.020f, alpha(deepBlue, 84));
+            p.setStrokeWidth(s * 0.128f);
+            p.setColor(blue);
+            canvas.drawPath(m, p);
+            p.clearShadowLayer();
+            p.setStrokeWidth(s * 0.043f);
+            p.setColor(deepBlue);
+            canvas.drawPath(m, p);
+            p.setStrokeWidth(s * 0.040f);
+            p.setColor(gold);
+            canvas.drawPath(m, p);
+
+            Path inner = new Path();
+            inner.moveTo(s * 0.260f, s * 0.690f);
+            inner.lineTo(s * 0.312f, s * 0.380f);
+            inner.lineTo(s * 0.500f, s * 0.640f);
+            inner.lineTo(s * 0.688f, s * 0.380f);
+            inner.lineTo(s * 0.740f, s * 0.690f);
+            p.setStrokeWidth(s * 0.017f);
+            p.setColor(blue);
+            canvas.drawPath(inner, p);
+
+            Path a = new Path();
+            a.moveTo(s * 0.410f, s * 0.715f);
+            a.lineTo(s * 0.500f, s * 0.458f);
+            a.lineTo(s * 0.590f, s * 0.715f);
+            p.setStrokeWidth(s * 0.030f);
+            p.setColor(alpha(Color.WHITE, 214));
+            canvas.drawPath(a, p);
+            p.setStrokeWidth(Math.max(1f, s * 0.008f));
+            p.setColor(alpha(deepBlue, 56));
+            canvas.drawPath(a, p);
+            p.setStrokeWidth(s * 0.019f);
+            p.setColor(alpha(gold, 180));
+            canvas.drawLine(s * 0.465f, s * 0.598f, s * 0.555f, s * 0.598f, p);
+
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(alpha(Color.rgb(255, 243, 194), 230));
+            canvas.drawCircle(s * 0.742f, s * 0.260f, s * (0.030f + 0.004f * pulse), p);
+            p.setColor(alpha(blue, 160));
+            canvas.drawCircle(s * 0.780f, s * 0.305f, s * 0.012f, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(1f, s * 0.016f));
+            p.setColor(alpha(Color.WHITE, 145));
+            canvas.drawLine(s * 0.220f, s * 0.312f, s * 0.270f, s * 0.270f, p);
+            canvas.drawLine(s * 0.832f, s * 0.326f, s * 0.858f, s * 0.294f, p);
+
             if (moving) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) postInvalidateOnAnimation(); else postInvalidateDelayed(40);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) postInvalidateOnAnimation(); else postInvalidateDelayed(60);
             }
         }
     }
@@ -760,7 +786,9 @@ public class MainActivity extends Activity {
 
         LinearLayout headerWrap = new LinearLayout(this);
         headerWrap.setOrientation(LinearLayout.VERTICAL);
-        headerWrap.setPadding(dp(8), dp(6), dp(8), dp(6));
+        headerWrap.setPadding(dp(8), dp(8), dp(8), dp(8));
+        headerWrap.setClipToPadding(false);
+        headerWrap.setFitsSystemWindows(true);
         headerWrap.setBackground(gradient(new int[]{mix(HEADER_START, INFO, 0.10f), mix(HEADER_END, GOLD_2, 0.08f), HEADER_END}, GradientDrawable.Orientation.LEFT_RIGHT, 0));
 
         LinearLayout header = new LinearLayout(this);
@@ -796,11 +824,11 @@ public class MainActivity extends Activity {
         addHeaderTool(tools, "✺", "انتخاب تم", GOLD_2, v -> showThemeChooser());
         addHeaderTool(tools, "⚙", "تنظیمات", SUCCESS, v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings"); });
         addHeaderTool(tools, "⎋", "خروج", DANGER, v -> { if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید."); else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید."); });
-        header.addView(tools, new LinearLayout.LayoutParams(-2, dp(38)));
-        headerWrap.addView(header, new LinearLayout.LayoutParams(-1, dp(54)));
+        header.addView(tools, new LinearLayout.LayoutParams(-2, dp(52)));
+        headerWrap.addView(header, new LinearLayout.LayoutParams(-1, dp(60)));
         setConnectionStatus(session == null ? "idle" : "connected");
 
-        root.addView(headerWrap, new LinearLayout.LayoutParams(-1, dp(64)));
+        root.addView(headerWrap, new LinearLayout.LayoutParams(-1, dp(76)));
 
         stage = new FrameLayout(this);
         stage.setBackgroundColor(NAVY);
@@ -809,9 +837,20 @@ public class MainActivity extends Activity {
     }
 
     private void addHeaderTool(LinearLayout parent, String glyph, String label, int accent, View.OnClickListener listener) {
+        FrameLayout hit = new FrameLayout(this);
+        hit.setContentDescription(label);
+        hit.setClickable(true);
+        hit.setFocusable(true);
+        hit.setMinimumWidth(dp(48));
+        hit.setMinimumHeight(dp(48));
+        hit.setPadding(dp(4), dp(4), dp(4), dp(4));
+        hit.setOnClickListener(listener);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) hit.setElevation(dp(8));
+        applyTouchFeedback(hit);
+
         TextView b = new TextView(this);
         b.setText(glyph == null ? "" : glyph);
-        b.setTextSize(glyph != null && glyph.length() > 1 ? 11.2f : 14.8f);
+        b.setTextSize(glyph != null && glyph.length() > 1 ? 12.0f : 16.4f);
         b.setGravity(Gravity.CENTER);
         b.setSingleLine(true);
         b.setTextColor(onColorFor(accent));
@@ -823,14 +862,12 @@ public class MainActivity extends Activity {
         bg.setStroke(dp(1), alpha(mix(baseAccent, Color.WHITE, 0.45f), 155));
         b.setBackground(bg);
         b.setContentDescription(label);
-        b.setClickable(true);
-        b.setFocusable(true);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) b.setElevation(dp(7));
-        applyTouchFeedback(b);
-        b.setOnClickListener(listener);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(31), dp(31));
-        lp.setMargins(dp(2), 0, dp(2), 0);
-        parent.addView(b, lp);
+        b.setDuplicateParentStateEnabled(true);
+        hit.addView(b, new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.CENTER));
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(48), dp(50));
+        lp.setMargins(0, 0, 0, 0);
+        parent.addView(hit, lp);
     }
 
     private LinearLayout.LayoutParams headerButtonLp(boolean margin) {
@@ -12605,7 +12642,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android v3.43.0\nاین نسخه سیستم بصری Native Meelano را در همه بخش‌ها ارتقا می‌دهد: کارت‌های شیشه‌ای، Heroهای هوشمند، میکروانیمیشن قابل کاهش، کارت‌های مشتری/کالا با ریسک و نمودار کوچک، سبد مرحله‌ای، تایم‌لاین مودیان، داشبورد پرسنل، کارت سلامت سخت‌افزار و تنظیمات دسته‌بندی‌شده.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android v3.43.1\nاین نسخه آیکن برنامه را با لوگوی سفید چرمی و ترکیب هوشمند M/A جایگزین می‌کند و ناحیه لمس آیکن‌های بالای برنامه را برای گوشی‌هایی مثل Galaxy S24 بزرگ‌تر و قابل‌کلیک‌تر می‌سازد.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
