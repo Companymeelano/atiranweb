@@ -620,6 +620,10 @@ public class MainActivity extends Activity {
         return Color.argb(amount, Color.red(color), Color.green(color), Color.blue(color));
     }
 
+    private MeelanoTheme.Tokens uiTokens() {
+        return MeelanoTheme.runtime(NAVY, SURFACE, SURFACE_2, GOLD, GOLD_2, SUCCESS, INFO, WARNING, DANGER, TEXT, MUTED, BORDER);
+    }
+
     private int mix(int from, int to, float ratio) {
         float r = Math.max(0f, Math.min(1f, ratio));
         return Color.rgb(
@@ -686,6 +690,14 @@ public class MainActivity extends Activity {
             }
             return false;
         });
+    }
+
+    private void quickAddFeedback(View v) {
+        if (v == null) return;
+        try { v.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY); } catch (Exception ignored) { }
+        if (motionAllowed()) {
+            try { v.animate().scaleX(1.035f).scaleY(1.035f).setDuration(80).withEndAction(() -> v.animate().scaleX(1f).scaleY(1f).setDuration(120).start()).start(); } catch (Exception ignored) { }
+        }
     }
 
     private String navGlyph(String key) {
@@ -785,7 +797,7 @@ public class MainActivity extends Activity {
         t.setText(value);
         t.setTextSize(size);
         t.setTextColor(color);
-        t.setTypeface(Typeface.DEFAULT, style);
+        MeelanoUiKit.applyText(t, this, style);
         t.setIncludeFontPadding(true);
         t.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
@@ -1272,50 +1284,26 @@ public class MainActivity extends Activity {
     }
 
     private Button primaryButton(String label) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setAllCaps(false);
         int accent = themeAccent(label);
-        b.setTextColor(onColorFor(accent));
+        Button b = MeelanoUiKit.actionButton(this, label, uiTokens(), accent, true, compactUi());
         b.setTextSize(compactUi() ? 12.4f : 13.3f);
-        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setMinHeight(dp(44));
-        b.setPadding(dp(10), 0, dp(10), dp(1));
         b.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, isLightTheme() ? 80 : 150));
-        b.setBackground(luxuryButtonBg(accent, true, 18));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) { b.setElevation(dp(5)); b.setLetterSpacing(0.01f); }
         applyTouchFeedback(b);
         return b;
     }
 
     private Button secondaryButton(String label) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setAllCaps(false);
         int accent = themeAccent(label);
-        b.setTextColor(TEXT);
+        Button b = MeelanoUiKit.actionButton(this, label, uiTokens(), accent, false, compactUi());
         b.setTextSize(compactUi() ? 12.0f : 12.8f);
-        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setMinHeight(dp(42));
-        b.setPadding(dp(10), 0, dp(10), dp(1));
-        b.setBackground(luxuryButtonBg(accent, false, 17));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) { b.setElevation(dp(2)); b.setLetterSpacing(0.005f); }
         applyTouchFeedback(b);
         return b;
     }
 
     private Button themedActionButton(String label, int accent, boolean primary) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setAllCaps(false);
-        b.setTextColor(primary ? onColorFor(accent) : TEXT);
-        b.setTextSize(compactUi() ? 10.7f : 11.6f);
-        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        b.setMinHeight(dp(44));
-        b.setPadding(dp(9), 0, dp(9), dp(1));
+        Button b = MeelanoUiKit.actionButton(this, label, uiTokens(), accent, primary, compactUi());
         b.setShadowLayer(dp(primary ? 3 : 1), 0, dp(1), alpha(Color.BLACK, isLightTheme() ? 80 : 150));
-        b.setBackground(luxuryButtonBg(accent, primary, primary ? 999 : 19));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) { b.setElevation(dp(primary ? 7 : 3)); b.setLetterSpacing(0.01f); }
         applyTouchFeedback(b);
         return b;
     }
@@ -1384,6 +1372,7 @@ public class MainActivity extends Activity {
         e.setHintTextColor(alpha(MUTED, 190));
         e.setTextColor(TEXT);
         e.setTextSize(14);
+        MeelanoUiKit.applyText(e, this, Typeface.NORMAL);
         e.setSelectAllOnFocus(true);
         e.setPadding(dp(14), 0, dp(14), 0);
         e.setBackground(roundedStroke(SURFACE_2, 16, BORDER));
@@ -1400,7 +1389,7 @@ public class MainActivity extends Activity {
         c.setOrientation(LinearLayout.VERTICAL);
         int pad = compactUi() ? dp(11) : dp(15);
         c.setPadding(pad, pad, pad, pad);
-        c.setBackground(VISITOR_EDITION ? visitorPanel(currentPageAccent(), compactUi() ? 22 : 28) : premiumPanel(currentPageAccent(), compactUi() ? 19 : 23));
+        c.setBackground(MeelanoUiKit.cardBg(this, uiTokens(), currentPageAccent(), false));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) c.setElevation(dp(VISITOR_EDITION ? 9 : 7));
         animateEntrance(c, motionSerial++);
         return c;
@@ -2740,7 +2729,7 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        TextView icon = report3dIcon(navGlyph(page), accent);
+        View icon = sectionVectorIcon(page, accent);
         row.addView(icon, new LinearLayout.LayoutParams(dp(62), dp(62)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
@@ -9720,13 +9709,13 @@ public class MainActivity extends Activity {
         c.setPadding(dp(12), dp(10), dp(12), dp(10));
         c.setBackground(visitorPanel(navAccent("showcase"), 28));
         LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
-        TextView icon = text("🏬", 20, onColorFor(GOLD), Typeface.BOLD); icon.setGravity(Gravity.CENTER); icon.setBackground(luxuryButtonBg(GOLD, true, 16));
+        View icon = sectionVectorIcon("showcase", navAccent("showcase"));
         head.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
         LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(10), 0, dp(8), 0);
         copy.addView(text("کالا", 17.4f, GOLD_2, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         copy.addView(text((loading ? "در حال آماده‌سازی" : formatNumber(count) + " کالا") + " • " + formatNumber(p2) + " قیمت ۲ • نمایش مرحله‌ای برای گوشی روان", 9.7f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
-        TextView cart = text("🛒", 18, onColorFor(navAccent("cart")), Typeface.BOLD); cart.setGravity(Gravity.CENTER); cart.setBackground(luxuryButtonBg(navAccent("cart"), true, 999)); cart.setOnClickListener(v -> showApp("cart"));
+        View cart = sectionVectorIcon("cart", navAccent("cart")); cart.setOnClickListener(v -> showApp("cart"));
         head.addView(cart, new LinearLayout.LayoutParams(dp(46), dp(46)));
         c.addView(head, new LinearLayout.LayoutParams(-1, -2));
 
@@ -10050,7 +10039,7 @@ public class MainActivity extends Activity {
         c.setPadding(dp(13), dp(11), dp(13), dp(11));
         c.setBackground(gradient(new int[]{alpha(accent, isLightTheme() ? 42 : 62), alpha(WARNING, isLightTheme() ? 26 : 42), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 28));
         LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
-        TextView icon = text("◈", 18, onColorFor(accent), Typeface.BOLD); icon.setGravity(Gravity.CENTER); icon.setBackground(luxuryButtonBg(accent, true, 999));
+        View icon = sectionVectorIcon("showcase", accent);
         head.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
         LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(10), 0, dp(6), 0);
         copy.addView(text("کالاهای آماده فروش", 15.6f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
@@ -10257,10 +10246,10 @@ public class MainActivity extends Activity {
         actions.setGravity(Gravity.CENTER);
         Button add2 = themedActionButton(price2Ok ? "+۲" : "۲—", WARNING, price2Ok);
         add2.setTextSize(9.0f); add2.setEnabled(price2Ok); add2.setAlpha(price2Ok ? 1f : .42f);
-        add2.setOnClickListener(v -> { incrementCartItem(r, 2); Toast.makeText(this, "یک عدد با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
+        add2.setOnClickListener(v -> { quickAddFeedback(v); incrementCartItem(r, 2); Toast.makeText(this, "یک عدد با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
         Button add1 = themedActionButton("+۱", navAccent("cart"), true);
         add1.setTextSize(9.0f); add1.setEnabled(price1Ok); add1.setAlpha(price1Ok ? 1f : .48f);
-        add1.setOnClickListener(v -> { incrementCartItem(r, 1); Toast.makeText(this, "یک عدد با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
+        add1.setOnClickListener(v -> { quickAddFeedback(v); incrementCartItem(r, 1); Toast.makeText(this, "یک عدد با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
         actions.addView(add2, new LinearLayout.LayoutParams(dp(48), dp(32)));
         LinearLayout.LayoutParams a1p = new LinearLayout.LayoutParams(dp(48), dp(32)); a1p.setMargins(0, dp(5), 0, 0); actions.addView(add1, a1p);
         row.addView(actions, new LinearLayout.LayoutParams(dp(54), -2));
@@ -10346,9 +10335,9 @@ public class MainActivity extends Activity {
             actions.setOrientation(LinearLayout.HORIZONTAL);
             Button detail = themedActionButton("جزئیات/تعداد", accent, false); detail.setTextSize(8.9f); detail.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
             Button add2 = themedActionButton(price2Ok ? "افزودن قیمت ۲" : "قیمت ۲ ندارد", WARNING, price2Ok); add2.setTextSize(8.8f); add2.setEnabled(price2Ok); add2.setAlpha(price2Ok ? 1f : .48f);
-            add2.setOnClickListener(v -> { incrementCartItem(r, 2); Toast.makeText(this, "یک عدد با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
+            add2.setOnClickListener(v -> { quickAddFeedback(v); incrementCartItem(r, 2); Toast.makeText(this, "یک عدد با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
             Button add1 = themedActionButton(selected ? "بروزرسانی ۱" : "افزودن ۱", navAccent("cart"), true); add1.setTextSize(8.9f); add1.setEnabled(price1Ok); add1.setAlpha(price1Ok ? 1f : .48f);
-            add1.setOnClickListener(v -> { incrementCartItem(r, 1); Toast.makeText(this, "یک عدد با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
+            add1.setOnClickListener(v -> { quickAddFeedback(v); incrementCartItem(r, 1); Toast.makeText(this, "یک عدد با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
             actions.addView(detail, showcaseButtonLp(.92f));
             actions.addView(add2, showcaseButtonLp(1.04f));
             actions.addView(add1, showcaseButtonLp(1f));
@@ -10415,8 +10404,8 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams dpLp = new LinearLayout.LayoutParams(dp(70), dp(48)); dpLp.setMargins(dp(8), 0, 0, 0); qtyRow.addView(detail, dpLp);
             LinearLayout.LayoutParams qrp = new LinearLayout.LayoutParams(-1, -2); qrp.setMargins(0, dp(11), 0, 0); c.addView(qtyRow, qrp);
             LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
-            Button add2 = themedActionButton(price2Ok ? "فروش ۲" : "قیمت ۲ ندارد", GOLD, price2Ok); add2.setEnabled(price2Ok); add2.setAlpha(price2Ok ? 1f : .48f); add2.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
-            Button add1 = themedActionButton("فروش ۱", SUCCESS, true); add1.setEnabled(price1Ok); add1.setAlpha(price1Ok ? 1f : .48f); add1.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
+            Button add2 = themedActionButton(price2Ok ? "فروش ۲" : "قیمت ۲ ندارد", GOLD, price2Ok); add2.setEnabled(price2Ok); add2.setAlpha(price2Ok ? 1f : .48f); add2.setOnClickListener(v -> { quickAddFeedback(v); addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
+            Button add1 = themedActionButton("فروش ۱", SUCCESS, true); add1.setEnabled(price1Ok); add1.setAlpha(price1Ok ? 1f : .48f); add1.setOnClickListener(v -> { quickAddFeedback(v); addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
             actions.addView(add2, showcaseButtonLp(1f)); actions.addView(add1, showcaseButtonLp(1f));
             if (selected) { Button del = themedActionButton("حذف", DANGER, false); del.setOnClickListener(v -> { removeCartItem(safeDisplayText(r.opt("کد"), "")); rerenderShowcaseFast(query, filter); }); actions.addView(del, showcaseButtonLp(.8f)); }
             LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(9), 0, 0); c.addView(actions, ap);
@@ -10518,11 +10507,11 @@ public class MainActivity extends Activity {
             Button add = themedActionButton(selected ? "بروزرسانی با قیمت ۱" : "افزودن با قیمت ۱", navAccent("cart"), true);
             add.setTextSize(9.4f);
             add.setEnabled(price1Ok); add.setAlpha(price1Ok ? 1f : 0.52f);
-            add.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "کالا با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
+            add.setOnClickListener(v -> { quickAddFeedback(v); addOrUpdateCartItem(r, qty.getText().toString(), 1); Toast.makeText(this, "کالا با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
             Button add2 = themedActionButton(price2Ok ? "افزودن با قیمت ۲ ✦" : "قیمت ۲ ثبت نشده", WARNING, price2Ok);
             add2.setTextSize(9.2f);
             add2.setEnabled(price2Ok); add2.setAlpha(price2Ok ? 1f : 0.52f);
-            add2.setOnClickListener(v -> { addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "کالا با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
+            add2.setOnClickListener(v -> { quickAddFeedback(v); addOrUpdateCartItem(r, qty.getText().toString(), 2); Toast.makeText(this, "کالا با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); rerenderShowcaseFast(query, filter); });
             action.addView(add, showcaseButtonLp(1f));
             action.addView(add2, showcaseButtonLp(1f));
             LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); c.addView(action, ap);
@@ -10684,8 +10673,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams elp = new LinearLayout.LayoutParams(-1, dp(45)); elp.setMargins(0, dp(6), 0, 0); box.addView(editProduct, elp);
 
         AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).create();
-        if (add1Ref[0] != null) add1Ref[0].setOnClickListener(v -> { addOrUpdateCartItem(r, qtyRef[0].getText().toString(), 1); Toast.makeText(this, "با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) rerenderShowcaseFast(stringOr(query, ""), stringOr(filter, "all")); });
-        if (add2Ref[0] != null) add2Ref[0].setOnClickListener(v -> { addOrUpdateCartItem(r, qtyRef[0].getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) rerenderShowcaseFast(stringOr(query, ""), stringOr(filter, "all")); });
+        if (add1Ref[0] != null) add1Ref[0].setOnClickListener(v -> { quickAddFeedback(v); addOrUpdateCartItem(r, qtyRef[0].getText().toString(), 1); Toast.makeText(this, "با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) rerenderShowcaseFast(stringOr(query, ""), stringOr(filter, "all")); });
+        if (add2Ref[0] != null) add2Ref[0].setOnClickListener(v -> { quickAddFeedback(v); addOrUpdateCartItem(r, qtyRef[0].getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) rerenderShowcaseFast(stringOr(query, ""), stringOr(filter, "all")); });
         if (removeRef[0] != null) removeRef[0].setOnClickListener(v -> { removeCartItem(safeDisplayText(r.opt("کد"), "")); Toast.makeText(this, "از سبد حذف شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) rerenderShowcaseFast(stringOr(query, ""), stringOr(filter, "all")); });
         fixVisual.setOnClickListener(v -> { dlg.dismiss(); showProductVisualChooser(r, query, filter); });
         if (photoRef[0] != null) photoRef[0].setOnClickListener(v -> { dlg.dismiss(); pickVisitorProductImage(r); });
@@ -14771,6 +14760,30 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) icon.setElevation(dp(5));
         applyTouchFeedback(icon);
         return icon;
+    }
+
+    private FrameLayout sectionVectorIcon(String key, int accent) {
+        FrameLayout wrap = new FrameLayout(this);
+        wrap.setContentDescription(MeelanoDesignKit.label(key));
+        wrap.setClickable(true);
+        wrap.setFocusable(true);
+        wrap.setPadding(dp(9), dp(9), dp(9), dp(9));
+        GradientDrawable bg = gradient(new int[]{
+                mix(accent, Color.WHITE, isLightTheme() ? 0.34f : 0.20f),
+                accent,
+                mix(accent, NAVY, isLightTheme() ? 0.10f : 0.32f)
+        }, GradientDrawable.Orientation.TL_BR, 20);
+        bg.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.55f), 138));
+        wrap.setBackground(bg);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) wrap.setElevation(dp(6));
+        ImageView image = new ImageView(this);
+        image.setImageResource(MeelanoDesignKit.iconRes(key));
+        image.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        image.setAdjustViewBounds(true);
+        image.setContentDescription(MeelanoDesignKit.label(key));
+        wrap.addView(image, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+        applyTouchFeedback(wrap);
+        return wrap;
     }
 
     private JSONObject strongestPoint(JSONArray arr) {

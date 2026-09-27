@@ -2,11 +2,33 @@ package ir.meelano.android;
 
 /**
  * Central visual language tokens for the native Meelano Android app.
- * The main Activity still owns Android Views, but semantic glyphs, labels and
- * beauty hints live here so every section can share one design vocabulary.
+ * Semantic labels, vector icon resources and compatibility glyph fallbacks live
+ * here so all Java/View screens share one design vocabulary.
  */
 final class MeelanoDesignKit {
     private MeelanoDesignKit() {}
+
+    static int iconRes(String key) {
+        if ("dashboard".equals(key) || "visitor_dashboard".equals(key)) return R.drawable.icon_dashboard;
+        if ("customers".equals(key)) return R.drawable.icon_customers;
+        if ("products".equals(key)) return R.drawable.icon_products;
+        if ("showcase".equals(key)) return R.drawable.icon_showcase;
+        if ("reports".equals(key) || "visitor_reports".equals(key)) return R.drawable.icon_reports;
+        if ("command".equals(key)) return R.drawable.icon_command;
+        if ("assistant".equals(key)) return R.drawable.icon_assistant;
+        if ("chat".equals(key)) return R.drawable.icon_chat;
+        if ("personnel".equals(key)) return R.drawable.icon_personnel;
+        if ("attendance".equals(key)) return R.drawable.icon_attendance;
+        if ("taxpayers".equals(key)) return R.drawable.icon_taxpayers;
+        if ("cameras".equals(key)) return R.drawable.icon_cameras;
+        if ("alarm".equals(key)) return R.drawable.icon_alarm;
+        if ("cart".equals(key)) return R.drawable.icon_cart;
+        if ("settings".equals(key)) return R.drawable.icon_settings;
+        if ("management".equals(key) || "more".equals(key)) return R.drawable.icon_management;
+        if ("health".equals(key)) return R.drawable.icon_health;
+        if ("barcode".equals(key)) return R.drawable.icon_barcode;
+        return R.drawable.icon_dashboard;
+    }
 
     static String glyph(String key) {
         if ("dashboard".equals(key)) return "⌂";
