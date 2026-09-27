@@ -12,7 +12,7 @@ final class MeelanoDesignKit {
         if ("dashboard".equals(key)) return "⌂";
         if ("customers".equals(key)) return "♙";
         if ("products".equals(key)) return "◍";
-        if ("reports".equals(key)) return "≡";
+        if ("reports".equals(key) || "visitor_reports".equals(key)) return "↗";
         if ("command".equals(key)) return "⌘";
         if ("assistant".equals(key)) return "✦";
         if ("chat".equals(key)) return "✉";
@@ -34,7 +34,7 @@ final class MeelanoDesignKit {
         if ("dashboard".equals(key)) return "داشبورد";
         if ("customers".equals(key)) return "مشتریان";
         if ("products".equals(key)) return "کالاها";
-        if ("reports".equals(key)) return "گزارشات";
+        if ("reports".equals(key) || "visitor_reports".equals(key)) return "گزارشات";
         if ("command".equals(key)) return "فرماندهی";
         if ("assistant".equals(key)) return "دستیار";
         if ("chat".equals(key)) return "گفتگو";
@@ -60,7 +60,7 @@ final class MeelanoDesignKit {
         if ("cart".equals(key)) return "گردش پیش‌فاکتور مرحله‌ای و قابل امضا";
         if ("visitor_dashboard".equals(key)) return "ماموریت، مسیر، ویترین و پیش‌فاکتور بدون بخش اضافه";
         if ("personnel".equals(key)) return "پرونده پرسنلی با خلاصه مالی و حضور";
-        if ("reports".equals(key)) return "گزارش‌های مدیریتی با خروجی تمیز";
+        if ("reports".equals(key) || "visitor_reports".equals(key)) return "گزارشات طلایی ویزیتور، فاکتورهای من و صف آفلاین";
         if ("taxpayers".equals(key)) return "ارسال سازمانی با وضعیت روشن";
         if ("cameras".equals(key) || "alarm".equals(key)) return "کنترل سخت‌افزار با کارت وضعیت";
         if ("settings".equals(key)) return "آزمایشگاه تم، حرکت و امنیت محلی";
