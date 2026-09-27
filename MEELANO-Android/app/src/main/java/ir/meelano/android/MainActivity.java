@@ -24,6 +24,9 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.graphics.LinearGradient;
+import android.graphics.RadialGradient;
+import android.graphics.Shader;
 import android.graphics.pdf.PdfDocument;
 import android.graphics.drawable.GradientDrawable;
 import android.hardware.biometrics.BiometricPrompt;
@@ -8985,10 +8988,10 @@ public class MainActivity extends Activity {
         c.setBackground(roundedStroke(alpha(Color.rgb(10, 9, 6), 246), 30, alpha(price2Ok ? GOLD_2 : GOLD, selected ? 190 : 130)));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) c.setElevation(dp(selected ? 12 : 7));
         LinearLayout top = new LinearLayout(this); top.setOrientation(LinearLayout.HORIZONTAL); top.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setPadding(dp(5), dp(5), dp(5), dp(5));
-        img.setBackground(roundedStroke(alpha(GOLD, 34), 24, alpha(GOLD_2, 175))); applyProductImage(img, r, false);
+        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setPadding(dp(3), dp(3), dp(3), dp(3));
+        img.setBackground(roundedStroke(alpha(GOLD, 34), 26, alpha(GOLD_2, 175))); applyProductImage(img, r, false);
         img.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
-        top.addView(img, new LinearLayout.LayoutParams(dp(110), dp(110)));
+        top.addView(img, new LinearLayout.LayoutParams(dp(132), dp(132)));
         LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(12), 0, dp(6), 0);
         TextView name = text(safeDisplayText(r.opt("نام"), "محصول"), 18.0f, TEXT, Typeface.BOLD); name.setMaxLines(2); copy.addView(name, new LinearLayout.LayoutParams(-1, -2));
         copy.addView(text("کد: " + safeDisplayText(r.opt("کد"), "—") + "  |  " + safeDisplayText(r.opt("گروه"), vp.title), 10.5f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
@@ -9052,11 +9055,11 @@ public class MainActivity extends Activity {
         head.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
         ImageView img = new ImageView(this);
         img.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        img.setPadding(dp(5), dp(5), dp(5), dp(5));
-        img.setBackground(roundedStroke(alpha(accent, isLightTheme() ? 34 : 58), 24, alpha(accent, 112)));
+        img.setPadding(dp(3), dp(3), dp(3), dp(3));
+        img.setBackground(roundedStroke(alpha(accent, isLightTheme() ? 34 : 58), 26, alpha(accent, 122)));
         applyProductImage(img, r, false);
         img.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
-        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(96), dp(96)); ip.setMargins(0, 0, dp(10), 0); head.addView(img, ip);
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(116), dp(116)); ip.setMargins(0, 0, dp(12), 0); head.addView(img, ip);
 
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
@@ -9222,8 +9225,8 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(12), dp(10), dp(12), dp(8));
         LinearLayout hero = new LinearLayout(this); hero.setOrientation(LinearLayout.HORIZONTAL); hero.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setPadding(dp(6), dp(6), dp(6), dp(6)); img.setBackground(roundedStroke(alpha(accent, 36), 26, alpha(accent, 120))); applyProductImage(img, r);
-        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp(132), dp(132)); ilp.setMargins(0, 0, dp(12), 0); hero.addView(img, ilp);
+        ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setPadding(dp(3), dp(3), dp(3), dp(3)); img.setBackground(roundedStroke(alpha(accent, 36), 30, alpha(accent, 135))); applyProductImage(img, r);
+        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp(176), dp(176)); ilp.setMargins(0, 0, dp(14), 0); hero.addView(img, ilp);
         LinearLayout title = new LinearLayout(this); title.setOrientation(LinearLayout.VERTICAL);
         TextView name = text(safeDisplayText(r.opt("نام"), "محصول"), 17.2f, TEXT, Typeface.BOLD); name.setMaxLines(3); title.addView(name, new LinearLayout.LayoutParams(-1, -2));
         title.addView(text(vp.title + " • " + safeDisplayText(r.opt("گروه"), "بدون گروه"), 11.2f, accent, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
@@ -10427,7 +10430,7 @@ public class MainActivity extends Activity {
         thumb.setScaleType(ImageView.ScaleType.CENTER_CROP);
         thumb.setBackground(roundedStroke(alpha(accent, 45), 18, alpha(accent, 110)));
         applyProductImage(thumb, r);
-        head.addView(thumb, new LinearLayout.LayoutParams(dp(66), dp(66)));
+        head.addView(thumb, new LinearLayout.LayoutParams(dp(84), dp(84)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(10), 0, dp(10), 0);
@@ -10489,6 +10492,7 @@ public class MainActivity extends Activity {
         if (img == null) return;
         Bitmap smart = smartProductBitmap(r);
         if (smart != null) img.setImageBitmap(smart); else img.setImageResource(ir.meelano.android.R.drawable.icon_products);
+        if (VISITOR_EDITION) return;
         if (!decodeRealImage || !hasProductImage(r)) return;
         String raw = r.optString("تصویر", "").trim();
         int comma = raw.indexOf(',');
@@ -10518,36 +10522,81 @@ public class MainActivity extends Activity {
 
     private Bitmap smartProductBitmap(JSONObject r) {
         try {
-            int w = 288, h = 288;
-            Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(bmp);
-            canvas.scale(w / 360f, h / 360f);
-            Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+            int w = 360, h = 360;
             String name = r == null ? "محصول" : stringOr(r.optString("نام", ""), "محصول");
             String group = r == null ? "" : r.optString("گروه", "");
             ProductVisualProfile vp = productVisualProfile(r);
-            String cacheKey = currentThemeId() + "|" + vp.type + "|" + shortProductTitle(name, 34) + "|" + shortProductTitle(group, 24);
+            String cacheKey = currentThemeId() + "|premium|" + vp.type + "|" + shortProductTitle(name, 42) + "|" + shortProductTitle(group, 28);
             Bitmap cached = productBitmapCache.get(cacheKey);
             if (cached != null && !cached.isRecycled()) return cached;
+
+            Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bmp);
+            Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
             int accent = vp.accent;
-            int base = mix(SURFACE, accent, isLightTheme() ? 0.10f : 0.24f);
-            int glow = mix(accent, Color.WHITE, isLightTheme() ? 0.58f : 0.26f);
+            int deep = mix(SURFACE, accent, isLightTheme() ? 0.10f : 0.30f);
+            int glow = mix(accent, Color.WHITE, isLightTheme() ? 0.58f : 0.32f);
+            int warm = mix(GOLD_2, accent, 0.24f);
+
+            RectF full = new RectF(0, 0, w, h);
             p.setStyle(Paint.Style.FILL);
-            p.setColor(base); canvas.drawRoundRect(new RectF(0, 0, w, h), 34f, 34f, p);
-            p.setColor(alpha(glow, isLightTheme() ? 132 : 82)); canvas.drawCircle(300, 58, 96, p);
-            p.setColor(alpha(navAccent("showcase"), isLightTheme() ? 48 : 58)); canvas.drawCircle(54, 306, 86, p);
-            p.setColor(alpha(Color.WHITE, isLightTheme() ? 156 : 28)); canvas.drawRoundRect(new RectF(18, 18, 342, 342), 30f, 30f, p);
-            p.setColor(alpha(mix(accent, Color.BLACK, 0.16f), isLightTheme() ? 28 : 92)); canvas.drawOval(new RectF(88, 270, 272, 310), p);
+            p.setShader(new LinearGradient(0, 0, w, h,
+                    new int[]{mix(Color.WHITE, glow, isLightTheme() ? 0.18f : 0.08f), alpha(warm, 255), deep},
+                    new float[]{0f, .45f, 1f}, Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(full, 38f, 38f, p);
+            p.setShader(null);
+
+            p.setShader(new RadialGradient(292, 62, 144, alpha(Color.WHITE, isLightTheme() ? 220 : 105), alpha(accent, 0), Shader.TileMode.CLAMP));
+            canvas.drawCircle(292, 62, 144, p);
+            p.setShader(null);
+            p.setColor(alpha(GOLD_2, isLightTheme() ? 60 : 46)); canvas.drawCircle(58, 306, 108, p);
+            p.setColor(alpha(Color.WHITE, isLightTheme() ? 168 : 34)); canvas.drawRoundRect(new RectF(18, 18, 342, 342), 34f, 34f, p);
+            p.setColor(alpha(Color.BLACK, isLightTheme() ? 20 : 92)); canvas.drawRoundRect(new RectF(37, 248, 323, 314), 34f, 34f, p);
+            p.setColor(alpha(Color.WHITE, isLightTheme() ? 110 : 22)); canvas.drawRoundRect(new RectF(42, 236, 318, 290), 26f, 26f, p);
+
+            Path shine = new Path();
+            shine.moveTo(42, 44); shine.lineTo(318, 30); shine.lineTo(274, 86); shine.lineTo(78, 101); shine.close();
+            p.setColor(alpha(Color.WHITE, isLightTheme() ? 92 : 38)); canvas.drawPath(shine, p);
+
             drawProductIllustration(canvas, p, vp, name, group);
+            drawProductSparkles(canvas, p, accent);
+
+            RectF label = new RectF(28, 288, 332, 348);
+            p.setShader(new LinearGradient(28, 288, 332, 348,
+                    new int[]{alpha(Color.WHITE, isLightTheme() ? 230 : 64), alpha(mix(SURFACE, accent, .18f), isLightTheme() ? 236 : 214)},
+                    null, Shader.TileMode.CLAMP));
+            canvas.drawRoundRect(label, 24f, 24f, p);
+            p.setShader(null);
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(2.1f); p.setColor(alpha(accent, isLightTheme() ? 128 : 118)); canvas.drawRoundRect(label, 24f, 24f, p);
+            p.setStyle(Paint.Style.FILL);
             p.setTextAlign(Paint.Align.CENTER); p.setTypeface(Typeface.DEFAULT_BOLD);
-            p.setTextSize(22f); p.setColor(TEXT); canvas.drawText(shortProductTitle(name, 19), w / 2f, 322f, p);
-            p.setTextSize(14f); p.setColor(alpha(MUTED, 230)); canvas.drawText(vp.title, w / 2f, 342f, p);
-            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(2.2f); p.setColor(alpha(accent, isLightTheme() ? 120 : 150));
-            canvas.drawRoundRect(new RectF(8, 8, w - 8, h - 8), 32f, 32f, p);
-            if (productBitmapCache.size() > 180) productBitmapCache.clear();
+            p.setTextSize(shortProductTitle(name, 24).length() > 17 ? 18f : 20.5f); p.setColor(TEXT); canvas.drawText(shortProductTitle(name, 24), w / 2f, 316f, p);
+            p.setTextSize(13.5f); p.setColor(alpha(MUTED, 235)); canvas.drawText(vp.title, w / 2f, 338f, p);
+
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(3.2f); p.setColor(alpha(mix(accent, GOLD_2, .24f), isLightTheme() ? 160 : 190));
+            canvas.drawRoundRect(new RectF(8, 8, w - 8, h - 8), 36f, 36f, p);
+            p.setStrokeWidth(1.15f); p.setColor(alpha(Color.WHITE, isLightTheme() ? 176 : 72));
+            canvas.drawRoundRect(new RectF(15, 15, w - 15, h - 15), 31f, 31f, p);
+            p.setStyle(Paint.Style.FILL);
+            if (productBitmapCache.size() > 120) productBitmapCache.clear();
             productBitmapCache.put(cacheKey, bmp);
             return bmp;
         } catch (Exception ignored) { return null; }
+    }
+
+    private void drawProductSparkles(Canvas c, Paint p, int accent) {
+        p.setStyle(Paint.Style.FILL);
+        int[] xs = {54, 86, 286, 314, 248};
+        int[] ys = {72, 228, 42, 212, 92};
+        for (int i = 0; i < xs.length; i++) {
+            float r = i % 2 == 0 ? 4.2f : 3.0f;
+            p.setColor(alpha(i == 2 ? GOLD_2 : mix(accent, Color.WHITE, .36f), i == 3 ? 130 : 185));
+            c.drawCircle(xs[i], ys[i], r, p);
+            p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(1.4f); p.setColor(alpha(Color.WHITE, 110));
+            c.drawLine(xs[i] - r * 2.2f, ys[i], xs[i] + r * 2.2f, ys[i], p);
+            c.drawLine(xs[i], ys[i] - r * 2.2f, xs[i], ys[i] + r * 2.2f, p);
+            p.setStyle(Paint.Style.FILL);
+        }
     }
 
     private ProductVisualProfile productVisualProfile(JSONObject r) {
@@ -14004,7 +14053,7 @@ public class MainActivity extends Activity {
         LinearLayout about = card();
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Visit v4.4.2\nسکشن‌های توضیحی بالای خانه، مشتریان، گزارشات و سبد حذف شد و چیدمان dock از سمت راست با خانه شروع می‌شود.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Visit v4.4.3\nچرخش خودکار صفحه حذف شد و تصاویر هوشمند کالاها با اندازه مناسب‌تر، نورپردازی و طراحی زیباتر ساخته می‌شوند.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f); about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
     }
@@ -14058,7 +14107,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Visit v4.4.2\nنسخه ویزیتور با صفحه‌های خلوت‌تر، خانه سمت راست در dock، محدودسازی latifi و ویترین/سبد سریع‌تر.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Visit v4.4.3\nنسخه ویزیتور با حالت عمودی ثابت، تصویرهای جذاب‌تر بر اساس نام کالا، محدودسازی latifi و چیدمان خلوت‌تر.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
