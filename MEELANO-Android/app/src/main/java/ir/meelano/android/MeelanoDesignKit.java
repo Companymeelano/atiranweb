@@ -44,7 +44,7 @@ final class MeelanoDesignKit {
         if ("cameras".equals(key)) return "دوربین";
         if ("alarm".equals(key)) return "دزدگیر";
         if ("visitor_dashboard".equals(key)) return "ماموریت";
-        if ("showcase".equals(key)) return "ویترین";
+        if ("showcase".equals(key)) return "کالا";
         if ("cart".equals(key)) return "سبد";
         if ("settings".equals(key)) return "تنظیمات";
         if ("management".equals(key)) return "مدیریت";
@@ -56,9 +56,9 @@ final class MeelanoDesignKit {
         if ("dashboard".equals(key)) return "نمای مدیریتی glass با KPIهای سریع";
         if ("customers".equals(key)) return "کارت مشتری با ریسک، تماس و اولویت وصول";
         if ("products".equals(key)) return "کارت کالا با تصویر، قیمت و نمودار ریزگردش";
-        if ("showcase".equals(key)) return "ویترین مشتری‌محور، سریع و آماده ارائه";
-        if ("cart".equals(key)) return "گردش پیش‌فاکتور مرحله‌ای و قابل امضا";
-        if ("visitor_dashboard".equals(key)) return "ماموریت، مسیر، ویترین و پیش‌فاکتور بدون بخش اضافه";
+        if ("showcase".equals(key)) return "کالای مشتری‌محور، سریع و آماده ارائه";
+        if ("cart".equals(key)) return "سبد ساده پیش‌فاکتور برای ویزیتور";
+        if ("visitor_dashboard".equals(key)) return "ماموریت، مسیر، کالا و پیش‌فاکتور بدون بخش اضافه";
         if ("personnel".equals(key)) return "پرونده پرسنلی با خلاصه مالی و حضور";
         if ("reports".equals(key) || "visitor_reports".equals(key)) return "گزارشات طلایی ویزیتور، فاکتورهای من و صف آفلاین";
         if ("taxpayers".equals(key)) return "ارسال سازمانی با وضعیت روشن";
