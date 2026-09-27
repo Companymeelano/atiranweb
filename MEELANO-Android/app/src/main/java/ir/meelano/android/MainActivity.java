@@ -321,7 +321,6 @@ public class MainActivity extends Activity {
     }
 
     private boolean isLightTheme() {
-        if (VISITOR_EDITION) return false;
         return Color.red(NAVY) + Color.green(NAVY) + Color.blue(NAVY) > 520;
     }
 
@@ -329,7 +328,7 @@ public class MainActivity extends Activity {
         if (prefs == null) return;
         String savedTheme = prefs.getString(KEY_THEME, "");
         SharedPreferences.Editor ed = prefs.edit();
-        if (savedTheme == null || savedTheme.trim().isEmpty() || isLightThemeId(savedTheme)) ed.putString(KEY_THEME, "onyx_gold");
+        if (savedTheme == null || savedTheme.trim().isEmpty()) ed.putString(KEY_THEME, "onyx_gold");
         ed.putBoolean(KEY_QUICK_LOGIN_ENABLED, false)
                 .remove(KEY_QUICK_PIN)
                 .remove(KEY_QUICK_USER_ID)
@@ -342,7 +341,8 @@ public class MainActivity extends Activity {
 
     private boolean isLightThemeId(String id) {
         String v = id == null ? "" : id.trim();
-        return "azure_diamond".equals(v) || "crystal_lagoon".equals(v) || "ivory_sunrise".equals(v);
+        return "azure_diamond".equals(v) || "crystal_lagoon".equals(v) || "ivory_sunrise".equals(v) ||
+                "pearl_platinum".equals(v) || "rose_quartz_lux".equals(v) || "emerald_silk".equals(v);
     }
 
     private boolean motionAllowed() {
@@ -378,14 +378,68 @@ public class MainActivity extends Activity {
     private String normalizeThemeId(String themeId) {
         String id = themeId == null ? DEFAULT_THEME : themeId.trim();
         if (id.isEmpty()) return DEFAULT_THEME;
-        if (VISITOR_EDITION && isLightThemeId(id)) return "onyx_gold";
-        if ("royal_amethyst".equals(id) || "ivory_sunrise".equals(id) || "crystal_lagoon".equals(id) || "azure_diamond".equals(id) || "noir_aurora".equals(id) || "onyx_gold".equals(id)) return id;
+        if ("pearl_platinum".equals(id) || "rose_quartz_lux".equals(id) || "emerald_silk".equals(id) ||
+                "royal_amethyst".equals(id) || "ivory_sunrise".equals(id) || "crystal_lagoon".equals(id) || "azure_diamond".equals(id) || "noir_aurora".equals(id) || "onyx_gold".equals(id)) return id;
         return DEFAULT_THEME;
     }
 
     private void applyTheme(String themeId) {
         String id = normalizeThemeId(themeId);
-        if ("royal_amethyst".equals(id)) {
+        if ("pearl_platinum".equals(id)) {
+            NAVY = Color.rgb(246, 248, 252);
+            SURFACE = Color.rgb(255, 255, 255);
+            SURFACE_2 = Color.rgb(235, 240, 248);
+            GOLD = Color.rgb(190, 143, 55);
+            GOLD_2 = Color.rgb(235, 195, 103);
+            SUCCESS = Color.rgb(23, 159, 120);
+            INFO = Color.rgb(62, 107, 211);
+            WARNING = Color.rgb(209, 135, 42);
+            DANGER = Color.rgb(198, 57, 86);
+            TEXT = Color.rgb(21, 27, 39);
+            MUTED = Color.rgb(88, 99, 121);
+            BORDER = Color.argb(62, 125, 111, 82);
+            HEADER_START = Color.rgb(255, 255, 255);
+            HEADER_END = Color.rgb(232, 238, 249);
+            HERO_START = Color.rgb(255, 253, 246);
+            HERO_END = Color.rgb(232, 239, 252);
+            ON_PRIMARY = Color.rgb(24, 20, 12);
+        } else if ("rose_quartz_lux".equals(id)) {
+            NAVY = Color.rgb(255, 246, 248);
+            SURFACE = Color.rgb(255, 255, 255);
+            SURFACE_2 = Color.rgb(255, 232, 239);
+            GOLD = Color.rgb(195, 123, 80);
+            GOLD_2 = Color.rgb(255, 177, 180);
+            SUCCESS = Color.rgb(31, 159, 119);
+            INFO = Color.rgb(109, 105, 214);
+            WARNING = Color.rgb(218, 136, 52);
+            DANGER = Color.rgb(200, 55, 105);
+            TEXT = Color.rgb(47, 30, 39);
+            MUTED = Color.rgb(118, 88, 100);
+            BORDER = Color.argb(56, 170, 95, 120);
+            HEADER_START = Color.rgb(255, 249, 250);
+            HEADER_END = Color.rgb(255, 226, 235);
+            HERO_START = Color.rgb(255, 241, 244);
+            HERO_END = Color.rgb(255, 251, 246);
+            ON_PRIMARY = Color.rgb(50, 25, 20);
+        } else if ("emerald_silk".equals(id)) {
+            NAVY = Color.rgb(241, 250, 246);
+            SURFACE = Color.rgb(255, 255, 252);
+            SURFACE_2 = Color.rgb(222, 242, 232);
+            GOLD = Color.rgb(175, 135, 54);
+            GOLD_2 = Color.rgb(74, 196, 145);
+            SUCCESS = Color.rgb(20, 151, 101);
+            INFO = Color.rgb(35, 128, 190);
+            WARNING = Color.rgb(205, 137, 45);
+            DANGER = Color.rgb(199, 63, 80);
+            TEXT = Color.rgb(20, 42, 34);
+            MUTED = Color.rgb(73, 105, 93);
+            BORDER = Color.argb(58, 69, 145, 105);
+            HEADER_START = Color.rgb(250, 255, 251);
+            HEADER_END = Color.rgb(215, 240, 227);
+            HERO_START = Color.rgb(232, 250, 240);
+            HERO_END = Color.rgb(255, 253, 241);
+            ON_PRIMARY = Color.rgb(16, 39, 29);
+        } else if ("royal_amethyst".equals(id)) {
             NAVY = Color.rgb(10, 8, 24);
             SURFACE = Color.rgb(25, 20, 45);
             SURFACE_2 = Color.rgb(35, 27, 63);
@@ -525,6 +579,9 @@ public class MainActivity extends Activity {
     }
 
     private String themeName(String id) {
+        if ("pearl_platinum".equals(id)) return "مروارید پلاتینیوم";
+        if ("rose_quartz_lux".equals(id)) return "رز کوارتز لاکچری";
+        if ("emerald_silk".equals(id)) return "زمرد ابریشمی روشن";
         if ("royal_amethyst".equals(id)) return "شب آمتیست سلطنتی";
         if ("ivory_sunrise".equals(id)) return "طلوع عاجی لوکس";
         if ("crystal_lagoon".equals(id)) return "لاگون کریستالی روشن";
@@ -1096,18 +1153,21 @@ public class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(8), dp(8), dp(8), dp(4));
-        TextView hint = text(VISITOR_EDITION ? "برای خوانایی کامل نسخه ویزیتور، فقط تم‌های دارک فعال هستند؛ پیش‌فرض برنامه «اونیکس طلایی» است." : "یک پالت را لمس کنید؛ همه کارت‌ها، دکمه‌ها و گزارش‌ها هماهنگ تغییر می‌کنند.", 11, MUTED, Typeface.NORMAL);
+        TextView hint = text(VISITOR_EDITION ? "۳ تم روشن لاکچری تازه اضافه شد؛ کارت‌ها، منوها و نوشته‌ها با خوانایی کامل و جلوه سه‌بعدی هماهنگ می‌شوند." : "یک پالت را لمس کنید؛ همه کارت‌ها، دکمه‌ها و گزارش‌ها هماهنگ تغییر می‌کنند.", 11, MUTED, Typeface.NORMAL);
         hint.setGravity(Gravity.CENTER);
         box.addView(hint, new LinearLayout.LayoutParams(-1, -2));
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(VISITOR_EDITION ? "تم‌های دارک Meelano Visit" : "تم‌های Meelano")
+                .setTitle(VISITOR_EDITION ? "تم‌های Meelano Visit" : "تم‌های Meelano")
                 .setView(box)
                 .setNegativeButton("بستن", null)
                 .create();
+        addThemeOption(box, dialog, "pearl_platinum", "روشن ۱", "مروارید پلاتینیوم", new int[]{Color.rgb(246, 248, 252), Color.rgb(190, 143, 55), Color.rgb(62, 107, 211)});
+        addThemeOption(box, dialog, "rose_quartz_lux", "روشن ۲", "رز کوارتز لاکچری", new int[]{Color.rgb(255, 246, 248), Color.rgb(195, 123, 80), Color.rgb(200, 55, 105)});
+        addThemeOption(box, dialog, "emerald_silk", "روشن ۳", "زمرد ابریشمی", new int[]{Color.rgb(241, 250, 246), Color.rgb(20, 151, 101), Color.rgb(175, 135, 54)});
         if (!VISITOR_EDITION) {
-            addThemeOption(box, dialog, "azure_diamond", "روشن ۱", "الماس آبی", new int[]{Color.rgb(239, 247, 255), Color.rgb(28, 101, 242), Color.rgb(98, 196, 255)});
-            addThemeOption(box, dialog, "crystal_lagoon", "روشن ۲", "کریستالی", new int[]{Color.rgb(235, 248, 250), Color.rgb(0, 151, 178), Color.rgb(42, 125, 225)});
-            addThemeOption(box, dialog, "ivory_sunrise", "روشن ۳", "عاجی", new int[]{Color.rgb(248, 241, 229), Color.rgb(213, 126, 55), Color.rgb(32, 158, 119)});
+            addThemeOption(box, dialog, "azure_diamond", "روشن کلاسیک", "الماس آبی", new int[]{Color.rgb(239, 247, 255), Color.rgb(28, 101, 242), Color.rgb(98, 196, 255)});
+            addThemeOption(box, dialog, "crystal_lagoon", "روشن کلاسیک", "کریستالی", new int[]{Color.rgb(235, 248, 250), Color.rgb(0, 151, 178), Color.rgb(42, 125, 225)});
+            addThemeOption(box, dialog, "ivory_sunrise", "روشن کلاسیک", "عاجی", new int[]{Color.rgb(248, 241, 229), Color.rgb(213, 126, 55), Color.rgb(32, 158, 119)});
         }
         addThemeOption(box, dialog, "onyx_gold", "دارک ۱", "اونیکس طلایی", new int[]{Color.rgb(7, 9, 16), Color.rgb(231, 177, 90), Color.rgb(102, 170, 245)});
         addThemeOption(box, dialog, "royal_amethyst", "دارک ۲", "آمتیست", new int[]{Color.rgb(10, 8, 24), Color.rgb(184, 114, 255), Color.rgb(248, 113, 193)});
@@ -1322,13 +1382,13 @@ public class MainActivity extends Activity {
             super.onDraw(canvas);
             int w = getWidth(), h = getHeight();
             if (w <= 0 || h <= 0) return;
-            canvas.drawColor(Color.rgb(4, 4, 3));
+            canvas.drawColor(isLightTheme() ? NAVY : Color.rgb(4, 4, 3));
             p.setStyle(Paint.Style.FILL);
-            p.setColor(alpha(Color.rgb(28, 22, 10), 185));
+            p.setColor(isLightTheme() ? alpha(mix(SURFACE_2, GOLD_2, 0.10f), 210) : alpha(Color.rgb(28, 22, 10), 185));
             canvas.drawRect(0, 0, w, h, p);
-            p.setColor(alpha(Color.BLACK, 118));
+            p.setColor(isLightTheme() ? alpha(Color.WHITE, 92) : alpha(Color.BLACK, 118));
             canvas.drawRect(0, h * 0.18f, w, h, p);
-            p.setColor(alpha(GOLD_2, 10));
+            p.setColor(alpha(GOLD_2, isLightTheme() ? 20 : 10));
             int step = Math.max(dp(118), 96);
             for (int y = -step; y < h + step; y += step) {
                 for (int x = -step; x < w + step; x += step) {
@@ -1348,7 +1408,7 @@ public class MainActivity extends Activity {
             canvas.drawCircle(w * 0.14f, h * 0.12f, Math.max(w, h) * 0.20f, p);
             p.setColor(alpha(GOLD_2, 24));
             canvas.drawCircle(w * 0.92f, h * 0.06f, Math.max(w, h) * 0.18f, p);
-            p.setColor(alpha(Color.BLACK, 112));
+            p.setColor(isLightTheme() ? alpha(mix(INFO, Color.WHITE, 0.55f), 58) : alpha(Color.BLACK, 112));
             canvas.drawCircle(w * 0.50f, h * 0.94f, Math.max(w, h) * 0.42f, p);
             p.setColor(alpha(GOLD_2, 34));
             for (int i = 0; i < 22; i++) {
@@ -1932,7 +1992,7 @@ public class MainActivity extends Activity {
         navStrip.setOrientation(LinearLayout.VERTICAL);
         navStrip.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         navStrip.setPadding(dp(0), dp(2), dp(0), dp(8));
-        navStrip.setBackground(gradient(new int[]{alpha(Color.TRANSPARENT, 0), alpha(Color.BLACK, 185), alpha(Color.BLACK, 244)}, GradientDrawable.Orientation.TOP_BOTTOM, 0));
+        navStrip.setBackground(gradient(new int[]{alpha(Color.TRANSPARENT, 0), alpha(isLightTheme() ? SURFACE_2 : Color.BLACK, isLightTheme() ? 150 : 185), alpha(isLightTheme() ? SURFACE : Color.BLACK, isLightTheme() ? 235 : 244)}, GradientDrawable.Orientation.TOP_BOTTOM, 0));
         int accent = currentPageAccent();
         FrameLayout dock = new FrameLayout(this);
         dock.setClipChildren(false);
@@ -1947,8 +2007,8 @@ public class MainActivity extends Activity {
             bar.setTextDirection(View.TEXT_DIRECTION_RTL);
         }
         bar.setPadding(dp(8), dp(8), dp(8), dp(7));
-        GradientDrawable bg = gradient(new int[]{alpha(Color.rgb(8, 7, 4), 248), alpha(Color.rgb(22, 18, 11), 248), alpha(Color.BLACK, 250)}, GradientDrawable.Orientation.TOP_BOTTOM, 30);
-        bg.setStroke(dp(1), alpha(GOLD_2, 96));
+        GradientDrawable bg = gradient(new int[]{alpha(isLightTheme() ? Color.WHITE : Color.rgb(8, 7, 4), 248), alpha(isLightTheme() ? SURFACE_2 : Color.rgb(22, 18, 11), 248), alpha(isLightTheme() ? SURFACE : Color.BLACK, 250)}, GradientDrawable.Orientation.TOP_BOTTOM, 30);
+        bg.setStroke(dp(1), alpha(GOLD_2, isLightTheme() ? 132 : 96));
         bar.setBackground(bg);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) bar.setElevation(dp(15));
         String[][] items = new String[][]{
@@ -2108,7 +2168,7 @@ public class MainActivity extends Activity {
             case "personnel": loadPersonnel(); break;
             case "attendance": loadAttendance(); break;
             case "visitor_dashboard": loadVisitorDashboard(); break;
-            case "visitor_reports": renderVisitorReportsPage(); break;
+            case "visitor_reports": loadVisitorReportsPage(); break;
             case "showcase": loadShowcase("", "all"); break;
             case "cart": renderCartPage(); break;
             case "taxpayers": loadTaxpayers(); break;
@@ -8511,7 +8571,7 @@ public class MainActivity extends Activity {
 
     private void addVisitorRouteCardsPreview(JSONObject data) {
         LinearLayout c = card();
-        c.setBackground(roundedStroke(alpha(Color.rgb(9, 8, 6), 242), 30, alpha(GOLD_2, 115)));
+        c.setBackground(visitorPanel(navAccent("visitor_dashboard"), 30));
         c.addView(visitorSectionTitle("مسیر ویزیت کارت‌محور", "📍", GOLD_2), new LinearLayout.LayoutParams(-1, -2));
         c.addView(text("مشتری‌های مهم امروز را به شکل کارت عملیاتی ببین؛ تماس، ویزیت و شروع سفارش از همین مسیر انجام می‌شود.", 10.4f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
@@ -8545,7 +8605,7 @@ public class MainActivity extends Activity {
         int invoices = sales == null ? 0 : sales.optInt("count", 0);
         int cartCount = visitorCartItems == null ? 0 : visitorCartItems.length();
         LinearLayout c = card();
-        c.setBackground(roundedStroke(alpha(Color.rgb(10, 9, 6), 242), 30, alpha(GOLD, 106)));
+        c.setBackground(visitorPanel(GOLD, 30));
         c.addView(visitorSectionTitle("انگیزه و نشان‌های فروش", "🏅", GOLD_2), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
         addVisitorBadge(row, target > 0 && today >= target ? "قهرمان هدف" : "نزدیک به هدف", target > 0 && today >= target ? "تکمیل" : money(Math.max(0, target - today)), target > 0 && today >= target ? SUCCESS : GOLD);
@@ -8569,7 +8629,7 @@ public class MainActivity extends Activity {
     private void addVisitorEndDaySummaryCard(JSONObject data) {
         JSONObject sales = data == null ? null : data.optJSONObject("sales");
         LinearLayout c = card();
-        c.setBackground(roundedStroke(alpha(Color.rgb(8, 7, 5), 242), 30, alpha(INFO, 95)));
+        c.setBackground(visitorPanel(navAccent("visitor_reports"), 30));
         c.addView(visitorSectionTitle("جمع‌بندی پایان روز", "📋", GOLD_2), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
         row.addView(visitorMetricBox("فروش", money(sales == null ? 0 : sales.opt("total")), GOLD_2), weightedMiniLp());
@@ -8586,7 +8646,7 @@ public class MainActivity extends Activity {
 
     private void addVisitorActivityGrid() {
         LinearLayout c = card();
-        c.setBackground(roundedStroke(alpha(Color.rgb(10, 9, 7), 245), 30, alpha(GOLD, 86)));
+        c.setBackground(visitorPanel(GOLD, 30));
         LinearLayout r1 = new LinearLayout(this); r1.setOrientation(LinearLayout.HORIZONTAL);
         addVisitorActivityTile(r1, "همه فعالیت‌ها", "منوی سه‌بعدی کارها", "✨", GOLD, () -> showVisitorAllActivitiesDialog());
         addVisitorActivityTile(r1, "اطلاع‌رسانی اولیه", "وضعیت و اختیارات شما", "✅", GOLD, () -> Toast.makeText(this, "حساب ویزیتور فعال است.", Toast.LENGTH_SHORT).show());
@@ -8609,7 +8669,7 @@ public class MainActivity extends Activity {
     private void addVisitorActivityTile(LinearLayout row, String title, String sub, String glyph, int accent, final Runnable action) {
         LinearLayout tile = new LinearLayout(this); tile.setOrientation(LinearLayout.VERTICAL); tile.setGravity(Gravity.CENTER); tile.setPadding(dp(10), dp(12), dp(10), dp(10));
         tile.setClickable(true); tile.setFocusable(true); tile.setOnClickListener(v -> { if (action != null) action.run(); }); applyTouchFeedback(tile);
-        tile.setBackground(gradient(new int[]{alpha(Color.rgb(40, 35, 22), 225), alpha(Color.BLACK, 238)}, GradientDrawable.Orientation.TOP_BOTTOM, 24));
+        tile.setBackground(gradient(new int[]{alpha(isLightTheme() ? Color.WHITE : Color.rgb(40, 35, 22), isLightTheme() ? 245 : 225), alpha(isLightTheme() ? SURFACE_2 : Color.BLACK, isLightTheme() ? 235 : 238)}, GradientDrawable.Orientation.TOP_BOTTOM, 24));
         TextView icon = text(glyph, 21, onColorFor(accent), Typeface.BOLD); icon.setGravity(Gravity.CENTER); icon.setBackground(luxuryButtonBg(accent, true, 14));
         tile.addView(icon, new LinearLayout.LayoutParams(dp(54), dp(54)));
         TextView t = text(title, 13.8f, TEXT, Typeface.BOLD); t.setGravity(Gravity.CENTER); t.setSingleLine(false); LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.setMargins(0, dp(8), 0, 0); tile.addView(t, tp);
@@ -8633,7 +8693,7 @@ public class MainActivity extends Activity {
     private void addVisitorRiskDebtorCard(JSONObject data) {
         JSONArray rows = data == null ? null : data.optJSONArray("topDebtors");
         if (rows == null || rows.length() == 0) return;
-        LinearLayout c = card(); c.setBackground(roundedStroke(alpha(Color.BLACK, 240), 30, alpha(GOLD_2, 150)));
+        LinearLayout c = card(); c.setBackground(visitorPanel(DANGER, 30));
         c.addView(visitorSectionTitle("ریسک بدهی — مشتریان بدهکار", "△", DANGER), new LinearLayout.LayoutParams(-1, -2));
         double sum = 0;
         for (int i = 0; i < Math.min(3, rows.length()); i++) { JSONObject r = rows.optJSONObject(i); if (r != null) { sum += r.optDouble("amount", 0); addVisitorRankLine(c, i + 1, r.optString("party", "مشتری"), money(r.opt("amount")), DANGER); } }
@@ -8643,7 +8703,7 @@ public class MainActivity extends Activity {
 
     private void addVisitorChecksFollowCard(JSONObject data) {
         JSONArray rows = data == null ? null : data.optJSONArray("overdueInvoices");
-        LinearLayout c = card(); c.setBackground(roundedStroke(alpha(Color.rgb(9, 8, 6), 244), 30, alpha(GOLD_2, 145)));
+        LinearLayout c = card(); c.setBackground(visitorPanel(WARNING, 30));
         c.addView(visitorSectionTitle("پیگیری چک‌های مشتریان", "▣", WARNING), new LinearLayout.LayoutParams(-1, -2));
         double sum = 0;
         for (int i = 0; rows != null && i < Math.min(3, rows.length()); i++) { JSONObject r = rows.optJSONObject(i); if (r != null) { sum += r.optDouble("amount", 0); addVisitorRankLine(c, i + 1, r.optString("party", "مشتری"), (r.optString("dueDate", "").isEmpty() ? "" : r.optString("dueDate") + " • ") + money(r.opt("amount")), WARNING); } }
@@ -8665,7 +8725,7 @@ public class MainActivity extends Activity {
     private void addVisitorWeeklySalesCard(JSONObject data) {
         JSONObject sales = data == null ? null : data.optJSONObject("sales");
         double total = sales == null ? 0 : sales.optDouble("total", 0);
-        LinearLayout c = card(); c.setBackground(roundedStroke(alpha(Color.rgb(8, 7, 5), 244), 30, alpha(GOLD_2, 145)));
+        LinearLayout c = card(); c.setBackground(visitorPanel(GOLD_2, 30));
         c.addView(visitorSectionTitle("فروش هفتگی", "▮", GOLD_2), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout chart = new LinearLayout(this); chart.setOrientation(LinearLayout.HORIZONTAL); chart.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL); chart.setPadding(dp(10), dp(8), dp(10), dp(4));
         double base = Math.max(1, total);
@@ -8926,9 +8986,11 @@ public class MainActivity extends Activity {
     private void addVisitorShowcaseModeChip(LinearLayout parent, String query, String filter, String key, String label) {
         boolean selected = key.equals(visitorShowcaseMode());
         Button b = themedActionButton(label, selected ? navAccent("showcase") : INFO, selected);
-        b.setTextSize(8.4f);
+        b.setTextSize(compactUi() ? 8.1f : 8.7f);
+        b.setSingleLine(false);
         b.setOnClickListener(v -> setVisitorShowcaseMode(key, query, filter));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(selected ? 92 : 82), dp(36));
+        int w = "gallery".equals(key) ? 94 : ("catalog".equals(key) ? 118 : ("ultra".equals(key) ? 96 : 108));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(compactUi() ? Math.max(86, w - 8) : w), dp(42));
         lp.setMargins(dp(3), 0, dp(3), 0);
         parent.addView(b, lp);
     }
@@ -8940,7 +9002,7 @@ public class MainActivity extends Activity {
         int p2 = countPositive(rows, "قیمت_فروش۲");
         LinearLayout c = card();
         c.setPadding(dp(12), dp(10), dp(12), dp(10));
-        c.setBackground(roundedStroke(alpha(Color.rgb(8, 7, 5), 246), 28, alpha(GOLD_2, 132)));
+        c.setBackground(visitorPanel(navAccent("showcase"), 28));
         LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
         TextView icon = text("🏬", 20, onColorFor(GOLD), Typeface.BOLD); icon.setGravity(Gravity.CENTER); icon.setBackground(luxuryButtonBg(GOLD, true, 16));
         head.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
@@ -8965,7 +9027,7 @@ public class MainActivity extends Activity {
 
         HorizontalScrollView hs = new HorizontalScrollView(this); styleHorizontalScroll(hs); hs.setHorizontalScrollBarEnabled(false);
         LinearLayout chips = new LinearLayout(this); chips.setOrientation(LinearLayout.HORIZONTAL); chips.setGravity(Gravity.CENTER_VERTICAL);
-        String[][] filters = {{"all","همه"},{"stock","موجود"},{"price2","قیمت ۲"},{"top","پرفروش"},{"low","کمبود"}};
+        String[][] filters = {{"all","همه"},{"stock","موجود"},{"price2","قیمت ۲"},{"top","پرفروش"},{"low","کمبود"},{"priced","قیمت‌دار"},{"image","تصویردار"},{"package","بسته‌بندی"}};
         for (String[] opt : filters) addVisitorFilterChip(chips, q, f, opt[0], opt[1]);
         Button addLocal = themedActionButton("کالای دستی", navAccent("cart"), false); addLocal.setTextSize(8.4f); addLocal.setOnClickListener(v -> showVisitorAddProductDialog(q, f));
         LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(dp(92), dp(38)); alp.setMargins(dp(3), 0, dp(3), 0); chips.addView(addLocal, alp);
@@ -8974,22 +9036,31 @@ public class MainActivity extends Activity {
         hs.addView(chips, new FrameLayout.LayoutParams(-2, -2));
         LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2); hp.setMargins(0, dp(9), 0, 0); c.addView(hs, hp);
 
+        LinearLayout modePanel = new LinearLayout(this); modePanel.setOrientation(LinearLayout.VERTICAL); modePanel.setPadding(dp(8), dp(7), dp(8), dp(7));
+        modePanel.setBackground(roundedStroke(alpha(navAccent("showcase"), isLightTheme() ? 16 : 26), 18, alpha(navAccent("showcase"), isLightTheme() ? 72 : 86)));
+        TextView mt = text("نحوه نمایش کالاها", 10.0f, TEXT, Typeface.BOLD); mt.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); modePanel.addView(mt, new LinearLayout.LayoutParams(-1, -2));
+        TextView mh = text("اگر کارت‌ها بزرگ یا کند بود، حالت سریع/روان یا فوق‌سبک را انتخاب کنید.", 8.9f, MUTED, Typeface.NORMAL); mh.setGravity(Gravity.RIGHT); modePanel.addView(mh, new LinearLayout.LayoutParams(-1, -2));
+        HorizontalScrollView modeScroll = new HorizontalScrollView(this); styleHorizontalScroll(modeScroll); modeScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout modes = new LinearLayout(this); modes.setOrientation(LinearLayout.HORIZONTAL); modes.setGravity(Gravity.CENTER_VERTICAL);
-        TextView mt = text("حالت نمایش", 9.2f, MUTED, Typeface.BOLD); mt.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT); modes.addView(mt, new LinearLayout.LayoutParams(0, dp(36), 1f));
         addVisitorShowcaseModeChip(modes, q, f, "gallery", "سه‌بعدی");
         addVisitorShowcaseModeChip(modes, q, f, "catalog", "کاتالوگ خلوت");
         addVisitorShowcaseModeChip(modes, q, f, "compact", "سریع/روان");
         addVisitorShowcaseModeChip(modes, q, f, "ultra", "فوق‌سبک");
-        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.setMargins(0, dp(8), 0, 0); c.addView(modes, mp);
+        modeScroll.addView(modes, new FrameLayout.LayoutParams(-2, -2));
+        LinearLayout.LayoutParams msp = new LinearLayout.LayoutParams(-1, -2); msp.setMargins(0, dp(7), 0, 0); modePanel.addView(modeScroll, msp);
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.setMargins(0, dp(8), 0, 0); c.addView(modePanel, mp);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(10)); content.addView(c, cp);
     }
 
     private void addVisitorFilterChip(LinearLayout parent, String query, String active, String key, String label) {
         boolean selected = key.equals(active);
         Button b = selected ? themedActionButton(label, GOLD, true) : themedActionButton(label, GOLD, false);
-        b.setTextSize(8.8f);
+        b.setTextSize(compactUi() ? 8.2f : 8.7f);
+        b.setMinWidth(0);
+        b.setPadding(dp(8), 0, dp(8), 0);
         b.setOnClickListener(v -> loadShowcase(query, key));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(selected ? 82 : 72), dp(38));
+        int chipW = Math.max(selected ? 88 : 78, label == null ? 78 : (label.length() * 13 + 34));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(Math.min(128, chipW)), dp(40));
         lp.setMargins(dp(3), 0, dp(3), 0);
         parent.addView(b, lp);
     }
@@ -8998,7 +9069,7 @@ public class MainActivity extends Activity {
         for (int i = 0; i < 3; i++) {
             LinearLayout c = card();
             c.setPadding(dp(12), dp(12), dp(12), dp(12));
-            c.setBackground(roundedStroke(alpha(Color.rgb(10, 9, 6), 232), 28, alpha(GOLD_2, 70)));
+            c.setBackground(roundedStroke(alpha(isLightTheme() ? SURFACE : Color.rgb(10, 9, 6), isLightTheme() ? 248 : 232), 28, alpha(GOLD_2, isLightTheme() ? 95 : 70)));
             LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
             TextView img = text("🏷", 22, alpha(GOLD_2, 210), Typeface.BOLD); img.setGravity(Gravity.CENTER); img.setBackground(roundedStroke(alpha(GOLD, 20), 22, alpha(GOLD, 60))); row.addView(img, new LinearLayout.LayoutParams(dp(88), dp(88)));
             LinearLayout bars = new LinearLayout(this); bars.setOrientation(LinearLayout.VERTICAL); bars.setPadding(dp(12), 0, 0, 0);
@@ -9379,7 +9450,7 @@ public class MainActivity extends Activity {
         int accent = price2Ok ? GOLD_2 : vp.accent;
         LinearLayout c = card();
         c.setPadding(dp(8), dp(7), dp(8), dp(7));
-        c.setBackground(roundedStroke(alpha(Color.rgb(8, 7, 5), 244), 22, alpha(selected ? SUCCESS : accent, selected ? 145 : 72)));
+        c.setBackground(roundedStroke(alpha(isLightTheme() ? SURFACE : Color.rgb(8, 7, 5), isLightTheme() ? 252 : 244), 22, alpha(selected ? SUCCESS : accent, selected ? 145 : (isLightTheme() ? 94 : 72))));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) c.setElevation(dp(selected ? 3 : 1));
         c.setClickable(true);
         c.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
@@ -9542,7 +9613,7 @@ public class MainActivity extends Activity {
         int imageDp = 150;
         LinearLayout c = card();
         c.setPadding(dp(11), dp(11), dp(11), dp(11));
-        c.setBackground(roundedStroke(alpha(Color.rgb(10, 9, 6), 246), 30, alpha(price2Ok ? GOLD_2 : GOLD, selected ? 190 : 130)));
+        c.setBackground(roundedStroke(alpha(isLightTheme() ? SURFACE : Color.rgb(10, 9, 6), isLightTheme() ? 252 : 246), 30, alpha(price2Ok ? GOLD_2 : GOLD, selected ? 190 : (isLightTheme() ? 150 : 130))));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) c.setElevation(dp(selected ? 12 : 7));
         LinearLayout top = new LinearLayout(this); top.setOrientation(LinearLayout.HORIZONTAL); top.setGravity(Gravity.CENTER_VERTICAL);
         ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setPadding(dp(3), dp(3), dp(3), dp(3));
@@ -9966,40 +10037,253 @@ public class MainActivity extends Activity {
     private double cartTaxAmount() { return Math.max(0, cartNetBeforeTax() * Math.max(0, visitorCartTaxPercent) / 100d); }
     private double cartTotal() { return cartNetBeforeTax() + cartTaxAmount(); }
 
-    private void renderVisitorReportsPage() {
+    private void loadVisitorReportsPage() {
         content.removeAllViews();
+        addManualRefreshPanel("visitor_reports", "بروزرسانی گزارشات ویزیتور", "گزارش‌ها از جداول پیش‌فاکتور، اقلام، بازدید و فروش خوانده می‌شوند", () -> loadVisitorReportsPage());
+        LinearLayout loading = card(); loading.setBackground(visitorPanel(navAccent("visitor_reports"), 28));
+        loading.addView(visitorSectionTitle("گزارشات هوشمند ویزیتور", "📈", navAccent("visitor_reports")), new LinearLayout.LayoutParams(-1, -2));
+        addLoading(loading, "در حال آماده‌سازی گزارش‌های ضروری ویزیتور…");
+        content.addView(loading, new LinearLayout.LayoutParams(-1, -2));
+        runDb(this::queryVisitorReportsSql, new DbCallback() {
+            @Override public void ok(String body) { try { renderVisitorReportsPage(new JSONObject(body), false); markRefresh("visitor_reports"); } catch (Exception e) { renderVisitorReportsPage(new JSONObject(), true); } }
+            @Override public void fail(Exception e) { renderVisitorReportsPage(new JSONObject(), true); Toast.makeText(MainActivity.this, "گزارش آنلاین در دسترس نیست؛ نمای محلی نمایش داده شد.", Toast.LENGTH_LONG).show(); }
+        });
+    }
+
+    private void renderVisitorReportsPage() { loadVisitorReportsPage(); }
+
+    private String visitorOwnScope(String alias, List<Object> params) {
+        String pfx = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
+        List<String> parts = new ArrayList<>();
+        String user = currentAccountName();
+        if (user != null && !user.trim().isEmpty()) { parts.add("LTRIM(RTRIM(" + pfx + "visitor_username))=?"); params.add(user.trim()); }
+        Integer vid = currentVisitorScopeId();
+        if (vid != null && vid > 0) { parts.add("LTRIM(RTRIM(" + pfx + "visitor_id))=?"); params.add(String.valueOf(vid)); }
+        return parts.isEmpty() ? "" : "(" + join(parts, " OR ") + ")";
+    }
+
+    private String prefactorWindowCondition(String alias, String window) {
+        String pfx = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
+        if ("today".equals(window)) return "CONVERT(date," + pfx + "created_at)=CONVERT(date,SYSDATETIME())";
+        if ("week".equals(window)) return pfx + "created_at>=DATEADD(day,-7,SYSDATETIME())";
+        if ("month".equals(window)) return pfx + "created_at>=DATEADD(day,-30,SYSDATETIME())";
+        return "1=1";
+    }
+
+    private JSONObject queryPrefactorMetric(Connection c, String window) throws Exception {
+        JSONObject o = new JSONObject();
+        List<Object> params = new ArrayList<>(); String where = prefactorScopeWhere("p", params);
+        String and = where.isEmpty() ? " WHERE " : where + " AND ";
+        String sql = "SELECT COUNT_BIG(1), ISNULL(SUM(ISNULL(grand_total,total_amount)),0), " +
+                "SUM(CASE WHEN status=N'draft' THEN 1 ELSE 0 END), SUM(CASE WHEN status=N'pending_approval' THEN 1 ELSE 0 END), " +
+                "SUM(CASE WHEN status IN (N'approved',N'invoiced') THEN 1 ELSE 0 END) FROM dbo.meelano_prefactors p" + and + prefactorWindowCondition("p", window);
+        try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { if (r.next()) { o.put("count", r.getLong(1)); o.put("amount", r.getDouble(2)); o.put("draft", r.getLong(3)); o.put("pending", r.getLong(4)); o.put("approved", r.getLong(5)); } } }
+        return o;
+    }
+
+    private JSONObject queryVisitMetric(Connection c, String window) throws Exception {
+        JSONObject o = new JSONObject();
+        List<Object> params = new ArrayList<>(); String own = visitorOwnScope("v", params);
+        String date = "today".equals(window) ? "CONVERT(date,v.created_at)=CONVERT(date,SYSDATETIME())" : ("week".equals(window) ? "v.created_at>=DATEADD(day,-7,SYSDATETIME())" : "v.created_at>=DATEADD(day,-30,SYSDATETIME())");
+        String where = " WHERE " + date + (own.isEmpty() ? "" : " AND " + own);
+        try (PreparedStatement ps = c.prepareStatement("SELECT COUNT_BIG(1), COUNT(DISTINCT customer_code) FROM dbo.meelano_visit_results v" + where)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { if (r.next()) { o.put("count", r.getLong(1)); o.put("customers", r.getLong(2)); } } }
+        return o;
+    }
+
+    private JSONObject queryPrice2Metric(Connection c, String window) throws Exception {
+        JSONObject o = new JSONObject();
+        List<Object> params = new ArrayList<>(); String where = prefactorScopeWhere("p", params);
+        String and = where.isEmpty() ? " WHERE " : where + " AND ";
+        String sql = "SELECT COUNT_BIG(1), ISNULL(SUM(i.amount),0), ISNULL(SUM(i.qty),0) FROM dbo.meelano_prefactor_items i INNER JOIN dbo.meelano_prefactors p ON p.id=i.prefactor_id" + and + prefactorWindowCondition("p", window) + " AND i.price_tier=N'2'";
+        try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { if (r.next()) { o.put("items", r.getLong(1)); o.put("amount", r.getDouble(2)); o.put("qty", r.getDouble(3)); } } }
+        return o;
+    }
+
+    private JSONArray queryTopPrefactorProducts(Connection c) throws Exception {
+        JSONArray arr = new JSONArray();
+        List<Object> params = new ArrayList<>(); String where = prefactorScopeWhere("p", params);
+        String and = where.isEmpty() ? " WHERE " : where + " AND ";
+        String sql = "SELECT TOP (8) ISNULL(NULLIF(i.product_name,N''),N'کالا'), ISNULL(NULLIF(i.product_code,N''),N'—'), ISNULL(SUM(i.qty),0), ISNULL(SUM(i.amount),0), SUM(CASE WHEN i.price_tier=N'2' THEN 1 ELSE 0 END) " +
+                "FROM dbo.meelano_prefactor_items i INNER JOIN dbo.meelano_prefactors p ON p.id=i.prefactor_id" + and + prefactorWindowCondition("p", "month") + " GROUP BY i.product_name,i.product_code ORDER BY SUM(i.amount) DESC";
+        try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("name", stringOr(r.getString(1), "کالا")); o.put("code", stringOr(r.getString(2), "—")); o.put("qty", r.getDouble(3)); o.put("amount", r.getDouble(4)); o.put("price2", r.getLong(5)); arr.put(o); } } }
+        return arr;
+    }
+
+    private JSONArray queryTopPrefactorCustomers(Connection c) throws Exception {
+        JSONArray arr = new JSONArray();
+        List<Object> params = new ArrayList<>(); String where = prefactorScopeWhere("p", params);
+        String and = where.isEmpty() ? " WHERE " : where + " AND ";
+        String sql = "SELECT TOP (8) ISNULL(NULLIF(p.customer_name,N''),N'مشتری'), ISNULL(NULLIF(p.customer_code,N''),N'—'), COUNT_BIG(1), ISNULL(SUM(ISNULL(p.grand_total,p.total_amount)),0), MAX(TRY_CONVERT(nvarchar(30),p.created_at)) " +
+                "FROM dbo.meelano_prefactors p" + and + prefactorWindowCondition("p", "month") + " GROUP BY p.customer_name,p.customer_code ORDER BY SUM(ISNULL(p.grand_total,p.total_amount)) DESC";
+        try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("name", stringOr(r.getString(1), "مشتری")); o.put("code", stringOr(r.getString(2), "—")); o.put("count", r.getLong(3)); o.put("amount", r.getDouble(4)); o.put("last", stringOr(r.getString(5), "")); arr.put(o); } } }
+        return arr;
+    }
+
+    private JSONArray queryPrefactorStatusReport(Connection c) throws Exception {
+        JSONArray arr = new JSONArray();
+        List<Object> params = new ArrayList<>(); String where = prefactorScopeWhere("p", params);
+        String and = where.isEmpty() ? " WHERE " : where + " AND ";
+        String sql = "SELECT ISNULL(NULLIF(status,N''),N'unknown'), COUNT_BIG(1), ISNULL(SUM(ISNULL(grand_total,total_amount)),0) FROM dbo.meelano_prefactors p" + and + prefactorWindowCondition("p", "month") + " GROUP BY status ORDER BY COUNT_BIG(1) DESC";
+        try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("status", stringOr(r.getString(1), "unknown")); o.put("count", r.getLong(2)); o.put("amount", r.getDouble(3)); arr.put(o); } } }
+        return arr;
+    }
+
+    private JSONObject queryVisitorSailfactReport(Connection c) {
+        JSONObject o = new JSONObject();
+        try {
+            Integer vid = currentVisitorScopeId();
+            if (vid == null || vid <= 0 || !tableExists(c, "sailfact")) return o;
+            Set<String> sf = columns(c, "sailfact");
+            String vis = resolveFlexible(sf, "vis_rdf", "VisitorID", "visid", "visitor", "shvis");
+            String amount = resolveFlexible(sf, "all", "amount", "Total", "mablagh");
+            String date = resolveFlexible(sf, "date", "DATE", "t_date");
+            String shmo = resolveFlexible(sf, "shmo", "SHMO", "CustomerCode");
+            String number = resolveFlexible(sf, "shfacfo", "shfac", "factor_no", "invoice_no", "number", "serial");
+            if (vis == null || amount == null) return o;
+            String latest = date == null ? "" : latestDate(c, "sailfact", date);
+            List<Object> params = new ArrayList<>(); params.add(String.valueOf(vid));
+            String inner = "WHERE TRY_CONVERT(nvarchar(100),x.[" + vis + "])=?" + activeAnd(sf, "x");
+            if (date != null && latest != null && !latest.trim().isEmpty()) { inner += " AND (TRY_CONVERT(nvarchar(30),x.[" + date + "])=? OR LEFT(TRY_CONVERT(nvarchar(30),x.[" + date + "]),10)=LEFT(?,10))"; params.add(latest); params.add(latest); }
+            String soft = softDeleteCondition(sf, "x"); if (!soft.isEmpty()) inner += " AND " + soft;
+            String source = dedupeFactorSource("sailfact", sf, number, "s", inner);
+            String sql = "SELECT COUNT_BIG(1), ISNULL(SUM(" + sqlNumberExpr("s", amount, "decimal(19,2)") + "),0), " + (shmo == null ? "CAST(0 AS bigint)" : "COUNT(DISTINCT s.[" + shmo + "])") + " FROM " + source;
+            try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { if (r.next()) { o.put("count", r.getLong(1)); o.put("amount", r.getDouble(2)); o.put("customers", r.getLong(3)); o.put("date", latest); } } }
+        } catch (Exception ignored) { }
+        return o;
+    }
+
+    private String queryVisitorReportsSql() throws Exception {
+        try (Connection c = openConnection()) {
+            ensurePrefactorTables(c);
+            JSONObject out = new JSONObject();
+            out.put("today", queryPrefactorMetric(c, "today"));
+            out.put("week", queryPrefactorMetric(c, "week"));
+            out.put("month", queryPrefactorMetric(c, "month"));
+            out.put("visitsToday", queryVisitMetric(c, "today"));
+            out.put("visitsWeek", queryVisitMetric(c, "week"));
+            out.put("price2Today", queryPrice2Metric(c, "today"));
+            out.put("price2Month", queryPrice2Metric(c, "month"));
+            out.put("topProducts", queryTopPrefactorProducts(c));
+            out.put("topCustomers", queryTopPrefactorCustomers(c));
+            out.put("status", queryPrefactorStatusReport(c));
+            out.put("sales", queryVisitorSailfactReport(c));
+            out.put("generatedAt", nowText());
+            return out.toString();
+        }
+    }
+
+    private void renderVisitorReportsPage(JSONObject data, boolean offline) {
+        if (data == null) data = new JSONObject();
+        content.removeAllViews();
+        addManualRefreshPanel("visitor_reports", "بروزرسانی گزارشات ویزیتور", "آخرین بروزرسانی: " + (offline ? "نمای محلی" : stringOr(data.optString("generatedAt", ""), lastRefreshText("visitor_reports"))), () -> loadVisitorReportsPage());
+        JSONObject today = data.optJSONObject("today");
+        JSONObject week = data.optJSONObject("week");
+        JSONObject month = data.optJSONObject("month");
+        JSONObject visitsToday = data.optJSONObject("visitsToday");
+        JSONObject visitsWeek = data.optJSONObject("visitsWeek");
+        JSONObject price2Today = data.optJSONObject("price2Today");
+        JSONObject sales = data.optJSONObject("sales");
+
         LinearLayout summary = card();
-        summary.setBackground(roundedStroke(alpha(Color.BLACK, 244), 30, alpha(GOLD_2, 142)));
-        summary.addView(visitorSectionTitle("گزارش سریع امروز", "↗", GOLD_2), new LinearLayout.LayoutParams(-1, -2));
+        summary.setBackground(visitorPanel(navAccent("visitor_reports"), 30));
+        summary.addView(visitorSectionTitle(offline ? "گزارش سریع محلی" : "گزارشات ضروری ویزیتور", "↗", navAccent("visitor_reports")), new LinearLayout.LayoutParams(-1, -2));
+        summary.addView(text(offline ? "اتصال گزارش آنلاین برقرار نشد؛ اطلاعات سبد، صف و پیش‌نویس‌های گوشی نمایش داده می‌شود." : "خلاصه از دیتابیس پیش‌فاکتور، اقلام، بازدیدها و فروش ویزیتور ساخته شده است.", 10.4f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
-        row.addView(visitorMetricBox("اقلام سبد", formatNumber(visitorCartItems.length()), navAccent("cart")), weightedMiniLp());
-        row.addView(visitorMetricBox("ارزش سبد", money(cartTotal()), GOLD_2), weightedMiniLp());
-        row.addView(visitorMetricBox("صف آفلاین", formatNumber(offlineQueue().length()), offlineQueue().length() > 0 ? DANGER : SUCCESS), weightedMiniLp());
+        row.addView(visitorMetricBox("امروز", formatNumber(today == null ? localDraftsTodayCount() : today.optLong("count", 0)), navAccent("cart")), weightedMiniLp());
+        row.addView(visitorMetricBox("مبلغ امروز", money(today == null ? cartTotal() : today.optDouble("amount", 0)), GOLD_2), weightedMiniLp());
+        row.addView(visitorMetricBox("ویزیت", formatNumber((visitsToday == null ? localVisitsTodayCount() : visitsToday.optLong("count", 0)) + localVisitsTodayCount()), navAccent("visitor_dashboard")), weightedMiniLp());
         summary.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
+        row2.addView(visitorMetricBox("قیمت ۲", formatNumber(price2Today == null ? 0 : price2Today.optLong("items", 0)) + " قلم", WARNING), weightedMiniLp());
+        row2.addView(visitorMetricBox("هفته", money(week == null ? 0 : week.optDouble("amount", 0)), SUCCESS), weightedMiniLp());
+        row2.addView(visitorMetricBox("فروش DB", money(sales == null ? 0 : sales.optDouble("amount", 0)), INFO), weightedMiniLp());
+        LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(7), 0, 0); summary.addView(row2, r2p);
         LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
-        Button pref = themedActionButton("فاکتورهای من", navAccent("visitor_reports"), true); pref.setOnClickListener(v -> loadMyPrefactors());
+        Button pref = themedActionButton("پیش‌فاکتورهای من", navAccent("visitor_reports"), true); pref.setOnClickListener(v -> loadMyPrefactors());
         Button day = themedActionButton("جمع‌بندی پایان روز", GOLD, false); day.setOnClickListener(v -> showEndOfDayReportDialog());
         actions.addView(pref, weightedButtonLp()); actions.addView(day, weightedButtonLp());
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(10), 0, 0); summary.addView(actions, ap);
         content.addView(summary, new LinearLayout.LayoutParams(-1, -2));
 
-        LinearLayout offline = card();
-        offline.setBackground(roundedStroke(alpha(Color.rgb(10, 9, 6), 244), 28, alpha(navAccent("cart"), 105)));
-        offline.addView(visitorSectionTitle("همگام‌سازی و ارسال", "▣", navAccent("cart")), new LinearLayout.LayoutParams(-1, -2));
-        offline.addView(text(offlineQueue().length() > 0 ? "چند پیش‌فاکتور در صف آفلاین منتظر ارسال هستند." : "صف آفلاین خالی است؛ همه سفارش‌های ثبت‌شده آماده/ارسال شده‌اند.", 11.5f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        Button sync = themedActionButton(offlineQueue().length() > 0 ? "ارسال صف آفلاین" : "بررسی اتصال و صف", offlineQueue().length() > 0 ? DANGER : SUCCESS, true);
-        sync.setOnClickListener(v -> trySendOfflineQueue());
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, dp(48)); sp.setMargins(0, dp(10), 0, 0); offline.addView(sync, sp);
-        LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(-1, -2); op.setMargins(0, dp(12), 0, dp(12)); content.addView(offline, op);
+        addVisitorReportPerformanceCard(today, week, month, visitsWeek, price2Today, data.optJSONObject("price2Month"), sales);
+        addVisitorReportStatusCard(data.optJSONArray("status"));
+        addVisitorReportTopProducts(data.optJSONArray("topProducts"));
+        addVisitorReportTopCustomers(data.optJSONArray("topCustomers"));
+        addVisitorReportSyncCard();
+    }
 
-        LinearLayout quick = card();
-        quick.setBackground(roundedStroke(alpha(Color.BLACK, 240), 28, alpha(GOLD, 98)));
-        quick.addView(visitorSectionTitle("میانبر گزارش‌ها", "▥", GOLD), new LinearLayout.LayoutParams(-1, -2));
+    private void addVisitorReportPerformanceCard(JSONObject today, JSONObject week, JSONObject month, JSONObject visitsWeek, JSONObject price2Today, JSONObject price2Month, JSONObject sales) {
+        LinearLayout c = card(); c.setBackground(themedSectionBg("visitor_reports", 28));
+        c.addView(visitorSectionTitle("عملکرد و هدف فروش", "◎", navAccent("visitor_reports")), new LinearLayout.LayoutParams(-1, -2));
+        addVisitorProgressLine(c, "پیش‌فاکتور امروز", money(today == null ? 0 : today.optDouble("amount", 0)) + " • " + formatNumber(today == null ? 0 : today.optLong("count", 0)) + " عدد", Math.min(1d, (today == null ? 0 : today.optDouble("amount", 0)) / Math.max(1d, visitorGoalTarget(new JSONObject()))), GOLD_2);
+        addVisitorProgressLine(c, "پوشش هفتگی", formatNumber(visitsWeek == null ? 0 : visitsWeek.optLong("count", 0)) + " بازدید • " + money(week == null ? 0 : week.optDouble("amount", 0)), Math.min(1d, (visitsWeek == null ? 0 : visitsWeek.optLong("count", 0)) / 35d), SUCCESS);
+        addVisitorProgressLine(c, "اقلام قیمت ۲", formatNumber(price2Month == null ? 0 : price2Month.optLong("items", 0)) + " قلم در ۳۰ روز", Math.min(1d, (price2Month == null ? 0 : price2Month.optLong("items", 0)) / 40d), WARNING);
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(visitorMetricBox("۳۰ روز", money(month == null ? 0 : month.optDouble("amount", 0)), GOLD), weightedMiniLp());
+        row.addView(visitorMetricBox("تایید", formatNumber(month == null ? 0 : month.optLong("approved", 0)), SUCCESS), weightedMiniLp());
+        row.addView(visitorMetricBox("آخرین فروش", stringOr(sales == null ? "" : sales.optString("date", ""), "—"), INFO), weightedMiniLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(8), 0, 0); c.addView(row, rp);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, dp(12), 0, dp(12)); content.addView(c, cp);
+    }
+
+    private void addVisitorReportStatusCard(JSONArray rows) {
+        LinearLayout c = card(); c.setBackground(themedSectionBg("cart", 28));
+        c.addView(visitorSectionTitle("وضعیت پیش‌فاکتورها در ۳۰ روز", "▤", navAccent("cart")), new LinearLayout.LayoutParams(-1, -2));
+        if (rows == null || rows.length() == 0) c.addView(text("هنوز وضعیت ثبت‌شده‌ای برای نمایش وجود ندارد.", 10.5f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        for (int i = 0; rows != null && i < rows.length(); i++) {
+            JSONObject r = rows.optJSONObject(i); if (r == null) continue;
+            int accent = prefactorStatusAccent(r.optString("status", ""));
+            addVisitorProgressLine(c, prefactorStatusFa(r.optString("status", "")), money(r.optDouble("amount", 0)) + " • " + formatNumber(r.optLong("count", 0)) + " عدد", Math.min(1d, r.optLong("count", 0) / 12d), accent);
+        }
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
+    }
+
+    private void addVisitorReportTopProducts(JSONArray rows) {
+        LinearLayout c = card(); c.setBackground(themedSectionBg("showcase", 28));
+        c.addView(visitorSectionTitle("کالاهای مهم ویزیتور", "◈", navAccent("showcase")), new LinearLayout.LayoutParams(-1, -2));
+        if (rows == null || rows.length() == 0) c.addView(text("هنوز کالای پرتکرار در پیش‌فاکتورهای ماه ثبت نشده است.", 10.5f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        for (int i = 0; rows != null && i < rows.length(); i++) {
+            JSONObject r = rows.optJSONObject(i); if (r == null) continue;
+            addVisitorReportRankLine(c, i + 1, r.optString("name", "کالا"), "کد " + r.optString("code", "—") + " • تعداد " + formatNumber(r.optDouble("qty", 0)) + " • قیمت۲ " + formatNumber(r.optLong("price2", 0)), money(r.optDouble("amount", 0)), navAccent("showcase"));
+        }
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
+    }
+
+    private void addVisitorReportTopCustomers(JSONArray rows) {
+        LinearLayout c = card(); c.setBackground(themedSectionBg("customers", 28));
+        c.addView(visitorSectionTitle("مشتریان کلیدی ۳۰ روز", "♙", navAccent("customers")), new LinearLayout.LayoutParams(-1, -2));
+        if (rows == null || rows.length() == 0) c.addView(text("هنوز مشتری کلیدی از پیش‌فاکتورهای ماه استخراج نشده است.", 10.5f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        for (int i = 0; rows != null && i < rows.length(); i++) {
+            JSONObject r = rows.optJSONObject(i); if (r == null) continue;
+            addVisitorReportRankLine(c, i + 1, r.optString("name", "مشتری"), "کد " + r.optString("code", "—") + " • " + formatNumber(r.optLong("count", 0)) + " پیش‌فاکتور • آخرین: " + stringOr(r.optString("last", ""), "—"), money(r.optDouble("amount", 0)), navAccent("customers"));
+        }
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
+    }
+
+    private void addVisitorReportRankLine(LinearLayout parent, int rank, String title, String sub, String value, int accent) {
+        LinearLayout line = new LinearLayout(this); line.setOrientation(LinearLayout.HORIZONTAL); line.setGravity(Gravity.CENTER_VERTICAL); line.setPadding(dp(8), dp(7), dp(8), dp(7));
+        line.setBackground(roundedStroke(alpha(accent, isLightTheme() ? 14 : 26), 18, alpha(accent, isLightTheme() ? 68 : 86)));
+        TextView num = text(formatNumber(rank), 10.2f, onColorFor(accent), Typeface.BOLD); num.setGravity(Gravity.CENTER); num.setBackground(luxuryButtonBg(accent, true, 999)); line.addView(num, new LinearLayout.LayoutParams(dp(34), dp(34)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(9), 0, dp(9), 0);
+        TextView tt = text(title, 11.6f, TEXT, Typeface.BOLD); tt.setSingleLine(true); tt.setEllipsize(TextUtils.TruncateAt.END); copy.addView(tt, new LinearLayout.LayoutParams(-1, -2));
+        TextView ss = text(sub, 9.2f, MUTED, Typeface.NORMAL); ss.setSingleLine(true); ss.setEllipsize(TextUtils.TruncateAt.END); copy.addView(ss, new LinearLayout.LayoutParams(-1, -2));
+        line.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView val = text(value, 10.0f, accent, Typeface.BOLD); val.setGravity(Gravity.CENTER); val.setMaxLines(2); line.addView(val, new LinearLayout.LayoutParams(dp(96), -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(7), 0, 0); parent.addView(line, lp);
+    }
+
+    private void addVisitorReportSyncCard() {
+        LinearLayout offline = card();
+        offline.setBackground(themedSectionBg("cart", 28));
+        offline.addView(visitorSectionTitle("همگام‌سازی و ارسال", "▣", navAccent("cart")), new LinearLayout.LayoutParams(-1, -2));
+        offline.addView(text(offlineQueue().length() > 0 ? "چند پیش‌فاکتور در صف آفلاین منتظر ارسال هستند." : "صف آفلاین خالی است؛ همه سفارش‌های ثبت‌شده آماده/ارسال شده‌اند.", 11.0f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout r1 = new LinearLayout(this); r1.setOrientation(LinearLayout.HORIZONTAL);
+        Button sync = themedActionButton(offlineQueue().length() > 0 ? "ارسال صف آفلاین" : "بررسی اتصال و صف", offlineQueue().length() > 0 ? DANGER : SUCCESS, true); sync.setOnClickListener(v -> trySendOfflineQueue());
         Button route = themedActionButton("مسیر ویزیت", navAccent("visitor_dashboard"), false); route.setOnClickListener(v -> loadVisitRoutePage(""));
-        Button cart = themedActionButton("سبد فعلی", navAccent("cart"), true); cart.setOnClickListener(v -> showApp("cart"));
-        r1.addView(route, weightedButtonLp()); r1.addView(cart, weightedButtonLp()); quick.addView(r1, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(-1, -2); qp.setMargins(0, 0, 0, dp(12)); content.addView(quick, qp);
+        Button cart = themedActionButton("سبد فعلی", navAccent("cart"), false); cart.setOnClickListener(v -> showApp("cart"));
+        r1.addView(sync, weightedButtonLp()); r1.addView(route, weightedButtonLp()); r1.addView(cart, weightedButtonLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); offline.addView(r1, rp);
+        LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(-1, -2); op.setMargins(0, 0, 0, dp(12)); content.addView(offline, op);
     }
 
     private TextView cart3dIcon(String glyph, int accent, float sizeSp) {
@@ -10032,7 +10316,7 @@ public class MainActivity extends Activity {
 
     private void addVisitorCartGoldSummary() {
         LinearLayout c = card();
-        c.setBackground(roundedStroke(alpha(Color.rgb(10, 8, 5), 246), 30, alpha(GOLD_2, 150)));
+        c.setBackground(visitorPanel(navAccent("cart"), 30));
         c.addView(visitorSectionTitle("سبد طلایی ویزیتور", "🛒", navAccent("cart")), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
         row.addView(visitorMetricBox("قلم", formatNumber(visitorCartItems.length()), GOLD_2), weightedMiniLp());
