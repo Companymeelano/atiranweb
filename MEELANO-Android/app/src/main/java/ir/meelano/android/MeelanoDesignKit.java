@@ -43,7 +43,7 @@ final class MeelanoDesignKit {
         if ("taxpayers".equals(key)) return "مودیان";
         if ("cameras".equals(key)) return "دوربین";
         if ("alarm".equals(key)) return "دزدگیر";
-        if ("visitor_dashboard".equals(key)) return "ویزیتور";
+        if ("visitor_dashboard".equals(key)) return "ماموریت";
         if ("showcase".equals(key)) return "ویترین";
         if ("cart".equals(key)) return "سبد";
         if ("settings".equals(key)) return "تنظیمات";
@@ -58,7 +58,7 @@ final class MeelanoDesignKit {
         if ("products".equals(key)) return "کارت کالا با تصویر، قیمت و نمودار ریزگردش";
         if ("showcase".equals(key)) return "ویترین مشتری‌محور، سریع و آماده ارائه";
         if ("cart".equals(key)) return "گردش پیش‌فاکتور مرحله‌ای و قابل امضا";
-        if ("visitor_dashboard".equals(key)) return "مسیر ماموریت روزانه ویزیتور";
+        if ("visitor_dashboard".equals(key)) return "ماموریت، مسیر، ویترین و پیش‌فاکتور بدون بخش اضافه";
         if ("personnel".equals(key)) return "پرونده پرسنلی با خلاصه مالی و حضور";
         if ("reports".equals(key)) return "گزارش‌های مدیریتی با خروجی تمیز";
         if ("taxpayers".equals(key)) return "ارسال سازمانی با وضعیت روشن";
