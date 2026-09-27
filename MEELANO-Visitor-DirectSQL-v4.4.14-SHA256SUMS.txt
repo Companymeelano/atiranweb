@@ -1,2 +1,0 @@
-bdcd07b871036c66203fa70898813de5fdc9fabaea9dfecd63b6b57e995b6862  artifacts/MEELANO-Visitor-DirectSQL-v4.4.14-debug.apk
-3eff7dae900d2cf903ffe8b4b59f96e136445654c2b726bcdef22610a8e04204  artifacts/MEELANO-Visitor-DirectSQL-v4.4.14.apk
