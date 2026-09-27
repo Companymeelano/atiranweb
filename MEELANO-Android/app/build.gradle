@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.visitor'
         minSdk 24
         targetSdk 35
-        versionCode 83
-        versionName '4.4.19-bright-blue-visitor-cache-icon'
+        versionCode 84
+        versionName '4.4.20-preload-svg-icons-dashboard'
     }
 
     compileOptions {

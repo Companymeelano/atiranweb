@@ -119,6 +119,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.CountDownLatch;
 
 public class MainActivity extends Activity {
     private static final String PREFS = "meelano_android_direct_sql";
@@ -218,6 +219,7 @@ public class MainActivity extends Activity {
     private int ON_PRIMARY = Color.rgb(20, 16, 10);
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService preloadExecutor = Executors.newFixedThreadPool(3);
     private final NumberFormat numberFormat = NumberFormat.getInstance(new Locale("fa", "IR"));
     private SharedPreferences prefs;
     private FrameLayout stage;
@@ -255,6 +257,9 @@ public class MainActivity extends Activity {
     private String showcaseCacheFilter = "all";
     private int showcaseShownLimit = 24;
     private String visitorDashboardCacheJson = "";
+    private volatile boolean visitorInitialPreloadStarted = false;
+    private volatile boolean visitorInitialPreloadDone = false;
+    private volatile String visitorPreloadSummary = "";
     private final Map<String, String> cartCustomerPickerCache = new HashMap<>();
     private String pendingChatAttachmentKind = "file";
     private String chatSearchQuery = "";
@@ -1717,15 +1722,18 @@ public class MainActivity extends Activity {
             executor.execute(() -> {
                 try {
                     UserSession s = authenticate(u, p);
+                    session = s;
+                    clearUserScopedCaches();
+                    if (VISITOR_EDITION) runOnUiThread(() -> login.setText("دریافت یکباره اطلاعات…"));
+                    preloadVisitorInitialDataBlocking();
                     runOnUiThread(() -> {
                         session = s;
-                        clearUserScopedCaches();
                         prefs.edit().putString(KEY_LAST_USER, u).apply();
                         if (!VISITOR_EDITION) storeQuickSession(s);
                         login.setEnabled(true);
                         login.setText("اتصال و ورود ✦");
                         setConnectionStatus("connected");
-                        Toast.makeText(this, "اتصال موفق بود", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, VISITOR_EDITION ? "اطلاعات اولیه آماده شد" : "اتصال موفق بود", Toast.LENGTH_SHORT).show();
                         showApp("dashboard");
                         if (!VISITOR_EDITION) maybePromptQuickPinSetup();
                     });
@@ -2143,6 +2151,15 @@ public class MainActivity extends Activity {
         try { buildNav(); } catch (Exception ignored) { }
     }
 
+    private int visitorDockIconResource(String key) {
+        if ("visitor_dashboard".equals(key)) return R.drawable.ic_svg_nav_home;
+        if ("visit".equals(key)) return R.drawable.ic_svg_nav_visit;
+        if ("showcase".equals(key)) return R.drawable.ic_svg_nav_products;
+        if ("cart".equals(key)) return R.drawable.ic_svg_nav_cart;
+        if ("visitor_more".equals(key)) return R.drawable.ic_svg_nav_more;
+        return 0;
+    }
+
     private void addVisitorDockItem(LinearLayout parent, String key, String label, String icon) {
         if (!canOpenPage(key)) return;
         boolean center = false;
@@ -2165,17 +2182,30 @@ public class MainActivity extends Activity {
         iconWrap.setClipChildren(false);
         iconWrap.setClipToPadding(false);
         int bubbleAccent = active ? mix(accent, GOLD_2, 0.08f) : mix(accent, SURFACE_2, isLightTheme() ? 0.72f : 0.58f);
-        TextView bubble = text(icon, 16.4f * dockScale, active ? onColorFor(bubbleAccent) : alpha(TEXT, 225), Typeface.BOLD);
-        bubble.setGravity(Gravity.CENTER);
-        bubble.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, isLightTheme() ? 88 : 160));
+        int iconRes = visitorDockIconResource(key);
+        View bubbleView;
+        int iconColor = active ? onColorFor(bubbleAccent) : alpha(TEXT, 225);
+        if (iconRes != 0) {
+            ImageView iv = new ImageView(this);
+            iv.setImageResource(iconRes);
+            iv.setColorFilter(iconColor);
+            iv.setScaleType(ImageView.ScaleType.CENTER);
+            iv.setPadding(dp(11 * dockScale), dp(11 * dockScale), dp(11 * dockScale), dp(11 * dockScale));
+            bubbleView = iv;
+        } else {
+            TextView tv = text(icon, 16.4f * dockScale, iconColor, Typeface.BOLD);
+            tv.setGravity(Gravity.CENTER);
+            tv.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, isLightTheme() ? 88 : 160));
+            bubbleView = tv;
+        }
         GradientDrawable circle = gradient(new int[]{
                 active ? mix(bubbleAccent, Color.WHITE, isLightTheme() ? 0.24f : 0.14f) : mix(SURFACE_2, bubbleAccent, isLightTheme() ? 0.08f : 0.16f),
                 active ? bubbleAccent : mix(SURFACE, bubbleAccent, isLightTheme() ? 0.04f : 0.10f)
         }, GradientDrawable.Orientation.TL_BR, 20);
         circle.setStroke(dp(active ? 3 : 1), active ? alpha(mix(bubbleAccent, Color.WHITE, 0.34f), 200) : alpha(mix(bubbleAccent, Color.WHITE, 0.18f), 76));
-        bubble.setBackground(circle);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) bubble.setElevation(dp(active ? 10 : 4));
-        iconWrap.addView(bubble, new FrameLayout.LayoutParams(bubbleSize, bubbleSize, Gravity.CENTER));
+        bubbleView.setBackground(circle);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) bubbleView.setElevation(dp(active ? 10 : 4));
+        iconWrap.addView(bubbleView, new FrameLayout.LayoutParams(bubbleSize, bubbleSize, Gravity.CENTER));
         if ("cart".equals(key) && cartHasItems()) {
             TextView badge = text(cartCountText(), 9.4f, Color.rgb(24, 14, 3), Typeface.BOLD);
             badge.setGravity(Gravity.CENTER);
@@ -2275,6 +2305,7 @@ public class MainActivity extends Activity {
     }
 
     private boolean getRtlMode() { return prefs == null || prefs.getBoolean("rtl_mode", true); }
+    private boolean visitorEditionRuntime() { return VISITOR_EDITION; }
 
     private void renderActivePage() {
         if (!canOpenPage(activePage)) { activePage = firstAllowedPage(); buildNav(); if (!canOpenPage(activePage)) { content.removeAllViews(); addEmptyTo(content, "بخشی برای نمایش در دسترس نیست."); return; } }
@@ -2840,7 +2871,13 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
         tp.setMargins(0, dp(10), 0, 0);
         c.addView(t, tp);
-        TextView sub = text(VISITOR_EDITION ? "اطلاعات ویزیت، کالا، مشتری و سبد در تجربه آبی Meelano آماده می‌شود…" : "داده‌ها با اتصال امن Meelano آماده می‌شوند؛ لطفاً چند لحظه صبر کنید…", 10.8f, MUTED, Typeface.NORMAL);
+        if (visitorEditionRuntime()) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.setMargins(0, 0, 0, dp(12));
+            parent.addView(c, lp);
+            return;
+        }
+        TextView sub = text("داده‌ها با اتصال امن Meelano آماده می‌شوند؛ لطفاً چند لحظه صبر کنید…", 10.8f, MUTED, Typeface.NORMAL);
         sub.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2);
         sp.setMargins(0, dp(3), 0, dp(12));
@@ -5502,11 +5539,75 @@ public class MainActivity extends Activity {
         return page == null ? "بخش" : page;
     }
 
+    private void preloadVisitorInitialDataBlocking() {
+        if (!VISITOR_EDITION || session == null) return;
+        visitorInitialPreloadStarted = true;
+        visitorInitialPreloadDone = false;
+        visitorPreloadSummary = "";
+        CountDownLatch latch = new CountDownLatch(4);
+        preloadExecutor.execute(() -> {
+            try {
+                String body = queryProducts("", "all");
+                synchronized (MainActivity.this) {
+                    showcaseCacheJson = body;
+                    showcaseCacheQuery = "";
+                    showcaseCacheFilter = "all";
+                    showcaseShownLimit = visitorShowcasePageSize();
+                    productsCacheJson = body;
+                    productsCacheQuery = "";
+                    productsCacheFilter = "all";
+                }
+                markRefresh("showcase");
+                markRefresh("products");
+            } catch (Exception e) { appendVisitorPreloadIssue("کالا"); }
+            finally { latch.countDown(); }
+        });
+        preloadExecutor.execute(() -> {
+            try {
+                String body = queryCustomers("", "all");
+                synchronized (MainActivity.this) {
+                    customersCacheJson = body;
+                    customersCacheQuery = "";
+                    customersCacheFilter = "all";
+                    customersCacheAllRows = true;
+                    customersSortOrder = defaultCustomerSort("all");
+                }
+                markRefresh("customers");
+            } catch (Exception e) { appendVisitorPreloadIssue("مشتری"); }
+            finally { latch.countDown(); }
+        });
+        preloadExecutor.execute(() -> {
+            try {
+                String body = queryVisitorDashboardSql();
+                synchronized (MainActivity.this) { visitorDashboardCacheJson = body; }
+                markRefresh("visitor_dashboard");
+            } catch (Exception e) { appendVisitorPreloadIssue("خانه"); }
+            finally { latch.countDown(); }
+        });
+        preloadExecutor.execute(() -> {
+            try {
+                String body = queryVisitorReportsSql();
+                synchronized (MainActivity.this) { reportsCacheJson = body; }
+                markRefresh("visitor_reports");
+            } catch (Exception e) { appendVisitorPreloadIssue("گزارش"); }
+            finally { latch.countDown(); }
+        });
+        try { latch.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); appendVisitorPreloadIssue("توقف"); }
+        visitorInitialPreloadDone = true;
+    }
+
+    private synchronized void appendVisitorPreloadIssue(String section) {
+        String s = section == null ? "بخش" : section;
+        if (visitorPreloadSummary == null || visitorPreloadSummary.trim().isEmpty()) visitorPreloadSummary = s;
+        else if (!visitorPreloadSummary.contains(s)) visitorPreloadSummary += "، " + s;
+    }
+
     private void clearUserScopedCaches() {
-        dashboardCacheJson = ""; reportsCacheJson = ""; customersCacheJson = ""; productsCacheJson = ""; showcaseCacheJson = "";
+        dashboardCacheJson = ""; reportsCacheJson = ""; customersCacheJson = ""; productsCacheJson = ""; showcaseCacheJson = ""; visitorDashboardCacheJson = "";
+        visitorInitialPreloadStarted = false; visitorInitialPreloadDone = false; visitorPreloadSummary = "";
         customersCacheQuery = ""; customersCacheFilter = "all"; customersCacheAllRows = false; customersSortOrder = "smart";
         productsCacheQuery = ""; productsCacheFilter = "all"; showcaseCacheQuery = ""; showcaseCacheFilter = "all"; showcaseShownLimit = 24;
-        customerLedgerCache.clear(); taxCurrentInvoices = new JSONArray();
+        customerLedgerCache.clear(); cartCustomerPickerCache.clear(); taxCurrentInvoices = new JSONArray();
         if (prefs != null) prefs.edit().remove(KEY_CACHE_DASHBOARD).remove(KEY_CACHE_REPORTS).apply();
     }
 
@@ -8747,8 +8848,9 @@ public class MainActivity extends Activity {
         LinearLayout c = card();
         c.setBackground(themedSectionBg("visitor_dashboard", 30));
         c.addView(visitorSectionTitle("امروز در یک نگاه", "◆", accent), new LinearLayout.LayoutParams(-1, -2));
-        TextView hint = text("اعداد اصلی بدون شلوغی؛ برای جزئیات و گزارش‌ها از «بیشتر» استفاده کن.", 10.3f, MUTED, Typeface.BOLD);
+        TextView hint = text("نمای زنده امروز؛ خلاصه و قابل تصمیم‌گیری.", 10.3f, MUTED, Typeface.BOLD);
         c.addView(hint, new LinearLayout.LayoutParams(-1, -2));
+        addVisitorOverviewVisual(c, amount, prefCount, visits, target, remain);
 
         LinearLayout row1 = new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL);
         row1.addView(visitorMetricBox("پیش‌فاکتور", formatNumber(prefCount), navAccent("cart")), weightedMiniLp());
@@ -8767,6 +8869,36 @@ public class MainActivity extends Activity {
 
         if (target > 0) addVisitorProgressLine(c, "فقط اطلاع‌رسانی هدف", money(amount) + " ثبت‌شده / " + money(target), Math.min(1d, amount / Math.max(1d, target)), target > 0 && remain <= 0 ? SUCCESS : GOLD_2);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
+    }
+
+    private void addVisitorOverviewVisual(LinearLayout parent, double amount, long prefCount, long visits, double target, double remain) {
+        if (parent == null) return;
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.HORIZONTAL);
+        panel.setGravity(Gravity.CENTER_VERTICAL);
+        panel.setPadding(dp(9), dp(9), dp(9), dp(9));
+        int accent = navAccent("visitor_dashboard");
+        panel.setBackground(gradient(new int[]{alpha(accent, isLightTheme() ? 24 : 38), alpha(GOLD_2, isLightTheme() ? 20 : 34), alpha(SURFACE, 246)}, GradientDrawable.Orientation.TL_BR, 26));
+        double progress = target > 0 ? Math.min(1d, amount / Math.max(1d, target)) : (amount > 0 ? .62d : .18d);
+        String pct = target > 0 ? formatNumber(Math.round(progress * 100)) + "٪" : formatNumber(prefCount);
+        VisitorGoalRingView ring = new VisitorGoalRingView(this, progress, pct, target > 0 ? "هدف" : "پیش‌فاکتور");
+        panel.addView(ring, new LinearLayout.LayoutParams(dp(132), dp(132)));
+        LinearLayout right = new LinearLayout(this);
+        right.setOrientation(LinearLayout.VERTICAL);
+        right.setPadding(dp(9), 0, dp(4), 0);
+        right.addView(text("نبض امروز", 13.2f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        right.addView(text(target > 0 ? ("مانده هدف: " + money(remain)) : "هدف ثبت نشده؛ عملکرد لحظه‌ای نمایش داده می‌شود.", 9.4f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        JSONArray bars = new JSONArray();
+        try {
+            bars.put(new JSONObject().put("label", "ویزیت").put("value", Math.max(0, visits)));
+            bars.put(new JSONObject().put("label", "پیش‌فاکتور").put("value", Math.max(0, prefCount)));
+            bars.put(new JSONObject().put("label", "مبلغ").put("value", Math.max(0, amount)));
+            bars.put(new JSONObject().put("label", "سبد").put("value", Math.max(0, cartTotal())));
+        } catch (Exception ignored) { }
+        BarChartView chart = new BarChartView(this, bars, GOLD_2);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, dp(100)); cp.setMargins(0, dp(6), 0, 0); right.addView(chart, cp);
+        panel.addView(right, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(10), 0, 0); parent.addView(panel, lp);
     }
 
     private void addVisitorHomeCharts(JSONObject data) {
@@ -10678,20 +10810,25 @@ public class MainActivity extends Activity {
     private String cartCountText() { double q = cartTotalQty(); return q > 0 ? formatNumber(q) : formatNumber(cartLineCount()); }
     private String cartCountSummary() { return cartCountText() + " عدد" + (cartLineCount() > 0 ? " / " + formatNumber(cartLineCount()) + " قلم" : ""); }
 
-    private void loadVisitorReportsPage() {
+    private void loadVisitorReportsPage() { loadVisitorReportsPage(false); }
+
+    private void loadVisitorReportsPage(boolean force) {
+        if (VISITOR_EDITION && !force && reportsCacheJson != null && !reportsCacheJson.trim().isEmpty()) {
+            try { renderVisitorReportsPage(new JSONObject(reportsCacheJson), false); return; } catch (Exception ignored) { }
+        }
         content.removeAllViews();
-        addManualRefreshPanel("visitor_reports", "بروزرسانی گزارشات ویزیتور", "گزارش‌ها از جداول پیش‌فاکتور، اقلام، بازدید و فروش خوانده می‌شوند", () -> loadVisitorReportsPage());
+        addManualRefreshPanel("visitor_reports", "بروزرسانی گزارشات ویزیتور", "گزارش‌ها فقط با دکمه بروزرسانی دوباره خوانده می‌شوند", () -> loadVisitorReportsPage(true));
         LinearLayout loading = card(); loading.setBackground(visitorPanel(navAccent("visitor_reports"), 28));
-        loading.addView(visitorSectionTitle("گزارشات هوشمند ویزیتور", "📈", navAccent("visitor_reports")), new LinearLayout.LayoutParams(-1, -2));
-        addLoading(loading, "در حال آماده‌سازی گزارش‌های ضروری ویزیتور…");
+        loading.addView(visitorSectionTitle("گزارشات ویزیتور", "↗", navAccent("visitor_reports")), new LinearLayout.LayoutParams(-1, -2));
+        addLoading(loading, "دریافت گزارش‌ها…");
         content.addView(loading, new LinearLayout.LayoutParams(-1, -2));
         runDb(this::queryVisitorReportsSql, new DbCallback() {
-            @Override public void ok(String body) { try { renderVisitorReportsPage(new JSONObject(body), false); markRefresh("visitor_reports"); } catch (Exception e) { renderVisitorReportsPage(new JSONObject(), true); } }
-            @Override public void fail(Exception e) { renderVisitorReportsPage(new JSONObject(), true); Toast.makeText(MainActivity.this, "گزارش آنلاین در دسترس نیست؛ نمای محلی نمایش داده شد.", Toast.LENGTH_LONG).show(); }
+            @Override public void ok(String body) { try { reportsCacheJson = body; renderVisitorReportsPage(new JSONObject(body), false); markRefresh("visitor_reports"); } catch (Exception e) { renderVisitorReportsPage(new JSONObject(), true); } }
+            @Override public void fail(Exception e) { showPageError("گزارشات ویزیتور", e, () -> loadVisitorReportsPage(true)); }
         });
     }
 
-    private void renderVisitorReportsPage() { loadVisitorReportsPage(); }
+    private void renderVisitorReportsPage() { loadVisitorReportsPage(false); }
 
     private String visitorOwnScope(String alias, List<Object> params) {
         String pfx = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
@@ -10816,7 +10953,7 @@ public class MainActivity extends Activity {
     private void renderVisitorReportsPage(JSONObject data, boolean offline) {
         if (data == null) data = new JSONObject();
         content.removeAllViews();
-        addManualRefreshPanel("visitor_reports", "بروزرسانی گزارشات ویزیتور", "آخرین بروزرسانی: " + (offline ? "نمای محلی" : stringOr(data.optString("generatedAt", ""), lastRefreshText("visitor_reports"))), () -> loadVisitorReportsPage());
+        addManualRefreshPanel("visitor_reports", "بروزرسانی گزارشات ویزیتور", "آخرین بروزرسانی: " + (offline ? "نمای محلی" : stringOr(data.optString("generatedAt", ""), lastRefreshText("visitor_reports"))), () -> loadVisitorReportsPage(true));
         JSONObject today = data.optJSONObject("today");
         JSONObject week = data.optJSONObject("week");
         JSONObject month = data.optJSONObject("month");
@@ -11406,6 +11543,9 @@ public class MainActivity extends Activity {
     private void showCartCustomerPicker(String search, boolean force) {
         String q = search == null ? "" : search.trim();
         String key = normalizeDigits(q).toLowerCase(Locale.US);
+        if (!force && customersCacheJson != null && !customersCacheJson.trim().isEmpty()) {
+            try { renderCartCustomerPicker(q, cartCustomerRowsFromCachedCustomers(q)); return; } catch (Exception ignored) { }
+        }
         if (!force && cartCustomerPickerCache.containsKey(key)) {
             try { renderCartCustomerPicker(q, new JSONArray(cartCustomerPickerCache.get(key))); return; } catch (Exception ignored) { }
         }
@@ -11435,6 +11575,31 @@ public class MainActivity extends Activity {
         JSONArray out = new JSONArray();
         if (rows == null) return out;
         for (int i = 0; i < rows.length(); i++) { JSONObject r = rows.optJSONObject(i); if (cartCustomerMatchesQuick(r, filter)) out.put(r); }
+        return out;
+    }
+
+    private JSONArray cartCustomerRowsFromCachedCustomers(String search) {
+        JSONArray out = new JSONArray();
+        try {
+            JSONArray cached = new JSONArray(customersCacheJson == null || customersCacheJson.trim().isEmpty() ? "[]" : customersCacheJson);
+            JSONArray filtered = customerSearchFilteredRows(cached, search);
+            for (int i = 0; i < filtered.length(); i++) {
+                JSONObject r = filtered.optJSONObject(i); if (r == null) continue;
+                JSONObject o = new JSONObject();
+                o.put("code", safeDisplayText(r.opt("کد"), ""));
+                o.put("name", safeDisplayText(r.opt("نام"), "مشتری"));
+                o.put("balance", r.optDouble("مانده", 0));
+                o.put("phone", firstPhone(r));
+                o.put("invoiceCount", r.optInt("تعداد_فاکتور", 0));
+                o.put("totalSales", r.optDouble("جمع_فروش", 0));
+                o.put("lastSale", r.optString("آخرین_خرید", ""));
+                o.put("creditLimit", r.optDouble("اعتبار", 0));
+                o.put("address", cleanCustomerAddress(r.optString("نشانی", "")));
+                o.put("blocked", false);
+                o.put("route", r.optString("مسیر", ""));
+                out.put(o);
+            }
+        } catch (Exception ignored) { }
         return out;
     }
 
@@ -17452,6 +17617,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         executor.shutdownNow();
+        preloadExecutor.shutdownNow();
         if (tts != null) {
             try { tts.stop(); tts.shutdown(); } catch (Exception ignored) {}
         }
