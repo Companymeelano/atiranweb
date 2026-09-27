@@ -11214,6 +11214,10 @@ public class MainActivity extends Activity {
         String name; String type; boolean nullable; boolean identity; boolean computed; boolean hasDefault;
     }
 
+    private static class NativePrefactorTarget {
+        String headerTable; String detailTable; String noCol; String refCol; String productCol; String qtyCol; String priceCol; String amountCol; String uuidCol; boolean baseSales; String note;
+    }
+
     private String qi(String name) { return "[" + (name == null ? "" : name.replace("]", "]]")) + "]"; }
     private String dbo(String table) { return "dbo." + qi(table); }
 
@@ -11270,6 +11274,74 @@ public class MainActivity extends Activity {
         return best;
     }
 
+    private NativePrefactorTarget discoverNativePrefactorTarget(Connection c) {
+        NativePrefactorTarget base = buildNativePrefactorTarget(c, "sailfact", "subsailfact", true, "جدول اصلی فروش آتیران با نشانگر پیش‌فاکتور");
+        if (base != null && nativePrefactorMarkerColumn(columns(c, base.headerTable)) != null) return base;
+        String header = resolveNativeTable(c, "sailfact_pish", "sailfactpish", "sailfact_p", "sailfactp", "sail_pish", "sailpish", "pish_sailfact", "pishsailfact", "pre_sailfact", "presailfact", "sailfact_pre", "sailfactpre", "pishfact", "pish_factor", "pishfactor", "preinvoice", "proforma", "prefactor", "پیش_فاکتور", "پيش_فاکتور");
+        String detail = resolveNativeTable(c, "subsailfact_pish", "subsailfactpish", "subsailfact_p", "subsailfactp", "sub_sailfact_pish", "subsail_pish", "subpish_sailfact", "pish_subsailfact", "pishsubsailfact", "subpishfact", "sub_pish_factor", "subpishfactor", "preinvoice_items", "proforma_items", "prefactor_items", "ریز_پیش_فاکتور");
+        NativePrefactorTarget dedicated = buildNativePrefactorTarget(c, header, detail, false, "جدول اختصاصی پیش‌فاکتور آتیران");
+        if (dedicated != null) return dedicated;
+        if (base != null && nativeWeakPrefactorMarkerColumn(columns(c, base.headerTable)) != null) return base;
+        return null;
+    }
+
+    private NativePrefactorTarget buildNativePrefactorTarget(Connection c, String header, String detail, boolean baseSales, String note) {
+        if (c == null || header == null || detail == null || !tableExists(c, header) || !tableExists(c, detail)) return null;
+        Set<String> hCols = columns(c, header); Set<String> dCols = columns(c, detail);
+        String noCol = nativePrefactorNumberColumn(hCols);
+        String refCol = noCol == null ? null : resolveFlexible(dCols, noCol, "shfacfo", "SHFACFO", "shfac", "shfacpish", "shfac_pish", "shpish", "sh_pish", "pish_no", "pish_number", "factor_no", "FactorNo", "fac_no", "No", "no", "number", "Number", "serial", "Serial", "shomare", "شماره");
+        String productCol = resolveFlexible(dCols, "SHKA", "shka", "shkala", "KalaCode", "kala_code", "product_code", "ProductCode", "item_code", "code", "Code", "kala", "code_kala", "کد_کالا");
+        String qtyCol = resolveFlexible(dCols, "tedad", "TEDAD", "TEDVAH", "qty", "Qty", "quantity", "Quantity", "meghdar", "Meghdar", "meghdar1", "amount_qty", "مقدار", "تعداد");
+        if (noCol == null || refCol == null || productCol == null || qtyCol == null) return null;
+        NativePrefactorTarget t = new NativePrefactorTarget();
+        t.headerTable = header; t.detailTable = detail; t.noCol = noCol; t.refCol = refCol; t.productCol = productCol; t.qtyCol = qtyCol; t.baseSales = baseSales; t.note = note;
+        t.priceCol = resolveFlexible(dCols, "fi", "FI", "fee", "Fee", "price", "Price", "nerkh", "Nerkh", "gheymat", "unit_price", "قیمت", "فی");
+        t.amountCol = resolveFlexible(dCols, "LINESUM", "LineSum", "line_sum", "amount", "Amount", "mablagh", "total", "Total", "all", "line_total", "جمع");
+        t.uuidCol = resolveFlexible(hCols, "client_uuid", "mobile_uuid", "uuid", "app_uuid", "external_id", "external_code", "source_id", "meelano_id");
+        return t;
+    }
+
+    private String nativePrefactorMarkerColumn(Set<String> cols) {
+        return resolveFlexible(cols,
+                "is_pish", "isPish", "pish", "Pish", "pishfactor", "pish_factor", "is_pishfactor", "is_prefactor", "prefactor", "is_preinvoice", "preinvoice", "pre_invoice", "proforma", "is_proforma",
+                "pish_noe", "pish_type", "factor_pish", "pish_flag", "پیش_فاکتور", "پيش_فاکتور", "پیشفاکتور", "پيشفاکتور", "پرفاکتور", "پروفورما");
+    }
+
+    private String nativeWeakPrefactorMarkerColumn(Set<String> cols) {
+        String strong = nativePrefactorMarkerColumn(cols);
+        if (strong != null) return strong;
+        return resolveFlexible(cols, "factor_type", "FactorType", "type_factor", "typefac", "fact_type", "doc_type", "doctype", "sanad_type", "noe", "Noe", "kind", "Kind", "نوع_سند", "نوع_فاکتور");
+    }
+
+    private void putNativePrefactorMarkers(Map<String, Object> values, Map<String, SqlColumnMeta> meta, Set<String> cols) {
+        putNativeMarker(values, meta, cols, nativePrefactorMarkerColumn(cols));
+        putNativeMarker(values, meta, cols, nativeWeakPrefactorMarkerColumn(cols));
+    }
+
+    private void putNativeMarker(Map<String, Object> values, Map<String, SqlColumnMeta> meta, Set<String> cols, String col) {
+        if (col == null || values == null || values.containsKey(col)) return;
+        SqlColumnMeta m = meta == null ? null : meta.get(col);
+        values.put(col, nativePrefactorMarkerValue(m, col));
+    }
+
+    private Object nativePrefactorMarkerValue(SqlColumnMeta m, String col) {
+        String t = m == null ? "" : stringOr(m.type, "").toLowerCase(Locale.US);
+        if (t.contains("bit")) return 1;
+        if (isNumericSqlType(t)) return 1;
+        String n = normalizeColumnName(col);
+        if (containsAny(n, "status", "state", "vaziat", "وضعیت")) return NATIVE_PREF_STATUS_TEXT;
+        return "پیش فاکتور";
+    }
+
+    private Object nativeExternalIdValue(SqlColumnMeta m, long id) {
+        String v = "MEELANO-APP-" + id;
+        String t = m == null ? "" : stringOr(m.type, "").toLowerCase(Locale.US);
+        if (t.contains("uniqueidentifier")) return java.util.UUID.nameUUIDFromBytes(v.getBytes()).toString();
+        return v;
+    }
+
+    private String nativeExternalIdText(SqlColumnMeta m, long id) { return String.valueOf(nativeExternalIdValue(m, id)); }
+
     private String nativePrefactorNumberColumn(Set<String> cols) {
         String c = resolveFlexible(cols, "shfacfo", "SHFACFO", "shfac", "shfacpish", "shfac_pish", "shpish", "sh_pish", "pish_no", "pish_number", "factor_no", "FactorNo", "fac_no", "No", "no", "number", "Number", "serial", "Serial", "shomare", "شماره");
         if (c != null) return c;
@@ -11288,6 +11360,31 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { return ""; }
     }
 
+    private String currentNativePrefactorTable(Connection c, long id) {
+        if (id <= 0) return "";
+        try (PreparedStatement ps = c.prepareStatement("SELECT TOP (1) ISNULL(native_prefactor_table,N'') FROM dbo.meelano_prefactors WHERE id=?")) {
+            ps.setLong(1, id);
+            try (ResultSet r = ps.executeQuery()) { return r.next() ? stringOr(r.getString(1), "") : ""; }
+        } catch (Exception ignored) { return ""; }
+    }
+
+    private boolean nativeHeaderRowExists(Connection c, NativePrefactorTarget target, String nativeNo, long id) {
+        if (c == null || target == null || nativeNo == null || nativeNo.trim().isEmpty()) return false;
+        try (PreparedStatement ps = c.prepareStatement("SELECT TOP (1) 1 FROM " + dbo(target.headerTable) + " WHERE TRY_CONVERT(nvarchar(120)," + qi(target.noCol) + ")=?")) {
+            ps.setString(1, nativeNo.trim());
+            try (ResultSet r = ps.executeQuery()) { if (r.next()) return true; }
+        } catch (Exception ignored) { }
+        return false;
+    }
+
+    private String findExistingNativePrefactorNo(Connection c, NativePrefactorTarget target, long id) {
+        if (c == null || target == null || id <= 0 || target.uuidCol == null) return "";
+        try (PreparedStatement ps = c.prepareStatement("SELECT TOP (1) TRY_CONVERT(nvarchar(120)," + qi(target.noCol) + ") FROM " + dbo(target.headerTable) + " WHERE TRY_CONVERT(nvarchar(220)," + qi(target.uuidCol) + ")=? ORDER BY " + qi(target.noCol) + " DESC")) {
+            ps.setString(1, nativeExternalIdText(sqlColumnMeta(c, target.headerTable).get(target.uuidCol), id));
+            try (ResultSet r = ps.executeQuery()) { return r.next() ? stringOr(r.getString(1), "") : ""; }
+        } catch (Exception ignored) { return ""; }
+    }
+
     private void updateNativePrefactorSync(Connection c, long id, String table, String no, String note) {
         if (c == null || id <= 0) return;
         try (PreparedStatement ps = c.prepareStatement("UPDATE dbo.meelano_prefactors SET native_prefactor_table=?, native_prefactor_no=?, native_sync_at=SYSDATETIME(), system_convert_note=?, updated_at=SYSDATETIME() WHERE id=?")) {
@@ -11295,68 +11392,105 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { }
     }
 
+    private String nativeAtiranToday(Connection c) {
+        for (String fn : new String[]{"date_alan", "Date_Alan", "tarikh_alan", "Tarikh_Alan", "today_shamsi", "Today_Shamsi"}) {
+            if (!hasFunction(c, fn)) continue;
+            try (Statement st = c.createStatement(); ResultSet r = st.executeQuery("SELECT TRY_CONVERT(nvarchar(30),dbo." + qi(fn) + "())")) {
+                if (r.next()) { String v = stringOr(r.getString(1), "").trim(); if (!v.isEmpty()) return v; }
+            } catch (Exception ignored) { }
+        }
+        return jalaliTodayText();
+    }
+
+    private String jalaliTodayText() {
+        try {
+            Calendar cal = Calendar.getInstance();
+            int gy = cal.get(Calendar.YEAR); int gm = cal.get(Calendar.MONTH) + 1; int gd = cal.get(Calendar.DAY_OF_MONTH);
+            int[] gdm = {0,31,28,31,30,31,30,31,31,30,31,30,31};
+            int gy2 = gy - 1600; int gm2 = gm - 1; int gd2 = gd - 1;
+            long gDayNo = 365L * gy2 + (gy2 + 3) / 4 - (gy2 + 99) / 100 + (gy2 + 399) / 400;
+            for (int i = 1; i <= gm2; ++i) gDayNo += gdm[i];
+            if (gm > 2 && ((gy % 4 == 0 && gy % 100 != 0) || (gy % 400 == 0))) gDayNo++;
+            gDayNo += gd2;
+            long jDayNo = gDayNo - 79;
+            long jNp = jDayNo / 12053; jDayNo %= 12053;
+            int jy = (int)(979 + 33 * jNp + 4 * (jDayNo / 1461)); jDayNo %= 1461;
+            if (jDayNo >= 366) { jy += (int)((jDayNo - 1) / 365); jDayNo = (jDayNo - 1) % 365; }
+            int jm, jd;
+            if (jDayNo < 186) { jm = 1 + (int)(jDayNo / 31); jd = 1 + (int)(jDayNo % 31); }
+            else { jm = 7 + (int)((jDayNo - 186) / 30); jd = 1 + (int)((jDayNo - 186) % 30); }
+            return String.format(Locale.US, "%04d/%02d/%02d", jy, jm, jd);
+        } catch (Exception ignored) { return todayDateText(); }
+    }
+
     private void syncNativeAtiranPrefactor(Connection c, long id, JSONObject snap, JSONArray items) {
         if (c == null || id <= 0 || snap == null) return;
         String st = snap.optString("status", "sent");
         if ("draft".equals(st)) { updateNativePrefactorSync(c, id, "", "", "پیش‌نویس است و هنوز برای تبدیل به فاکتور فروش ارسال نشده."); return; }
-        if (!currentNativePrefactorNo(c, id).trim().isEmpty()) return;
         java.sql.Savepoint sp = null;
         boolean startedTx = false;
         try {
+            NativePrefactorTarget target = discoverNativePrefactorTarget(c);
+            if (target == null) { updateNativePrefactorSync(c, id, "", "", "هیچ جدول/ساختار قابل اطمینان پیش‌فاکتور آتیران در دیتابیس تشخیص داده نشد؛ رکورد اختصاصی Meelano آماده تبدیل باقی ماند."); return; }
+            String existingNo = currentNativePrefactorNo(c, id).trim();
+            String existingTable = currentNativePrefactorTable(c, id).trim();
+            if (!existingNo.isEmpty() && existingTable.equalsIgnoreCase(target.headerTable) && nativeHeaderRowExists(c, target, existingNo, id)) return;
+            String alreadyInTarget = findExistingNativePrefactorNo(c, target, id);
+            if (!alreadyInTarget.trim().isEmpty()) { updateNativePrefactorSync(c, id, target.headerTable, alreadyInTarget.trim(), "رکورد قبلی Meelano در جدول " + target.headerTable + " پیدا شد و برای مسیر «فاکتور فروش ← از پیش فاکتور» ثبت شد."); return; }
+
             boolean auto = c.getAutoCommit();
             if (auto) { c.setAutoCommit(false); startedTx = true; }
             else sp = c.setSavepoint("meelano_native_prefactor");
-            String headerTable = resolveNativeTable(c, "sailfact_pish", "sailfactpish", "sailfact_p", "sailfactp", "sail_pish", "sailpish", "pish_sailfact", "pishsailfact", "pre_sailfact", "presailfact", "sailfact_pre", "sailfactpre", "pishfact", "pish_factor", "prefactor");
-            String detailTable = resolveNativeTable(c, "subsailfact_pish", "subsailfactpish", "subsailfact_p", "subsailfactp", "sub_sailfact_pish", "subsail_pish", "subpish_sailfact", "pish_subsailfact", "pishsubsailfact", "subpishfact", "sub_pish_factor", "prefactor_items");
-            if (headerTable == null || detailTable == null) { updateNativePrefactorSync(c, id, "", "", "جدول پیش‌فاکتور آتیران پیدا نشد؛ نسخه اختصاصی Meelano آماده تبدیل باقی ماند."); if (startedTx) c.commit(); return; }
-            Set<String> hCols = columns(c, headerTable); Set<String> dCols = columns(c, detailTable);
-            String noCol = nativePrefactorNumberColumn(hCols);
-            if (noCol == null) { updateNativePrefactorSync(c, id, headerTable, "", "ستون شماره پیش‌فاکتور در جدول آتیران تشخیص داده نشد."); if (startedTx) c.commit(); return; }
-            long nativeNo = nextNativeNumber(c, headerTable, noCol, id);
+
+            Set<String> hCols = columns(c, target.headerTable); Set<String> dCols = columns(c, target.detailTable);
+            Map<String, SqlColumnMeta> hMeta = sqlColumnMeta(c, target.headerTable);
+            Map<String, SqlColumnMeta> dMeta = sqlColumnMeta(c, target.detailTable);
+            long nativeNo = nextNativeNumber(c, target.headerTable, target.noCol, id);
+            String nativeDate = nativeAtiranToday(c);
             Map<String, Object> hv = new LinkedHashMap<>();
-            hv.put(noCol, nativeNo);
+            hv.put(target.noCol, nativeNo);
             putResolved(hv, hCols, snap.optString("customerCode", ""), "shmo", "SHMO", "customer", "customer_code", "cust_code", "code_moshtari", "کد_مشتری");
             putResolved(hv, hCols, snap.optString("customerName", ""), "moname", "MONAME", "customer_name", "CustomerName", "name", "Name", "نام");
-            putResolved(hv, hCols, nowText().split(" ")[0], "date", "DATE", "tarikh", "Date", "تاریخ");
-            putResolved(hv, hCols, snap.optString("deliveryDate", ""), "t_date", "tasvieh_date", "delivery_date", "DeliveryDate", "sarresid", "due_date");
+            putResolved(hv, hCols, nativeDate, "date", "DATE", "tarikh", "Date", "tarikh_factor", "تاریخ");
+            putResolved(hv, hCols, stringOr(snap.optString("deliveryDate", ""), nativeDate), "t_date", "tasvieh_date", "delivery_date", "DeliveryDate", "sarresid", "due_date", "تاریخ_تحویل");
             putResolved(hv, hCols, snap.optDouble("grandTotal", 0), "all", "All", "total", "Total", "grand_total", "amount", "mablagh", "kol", "jamkol", "جمع");
             putResolved(hv, hCols, snap.optDouble("subtotal", 0), "subtotal", "sub_total", "sum", "sum_price", "jam", "جمع_خام");
             putResolved(hv, hCols, snap.optDouble("globalDiscount", 0) + snap.optDouble("lineDiscount", 0), "tafif", "takhfif", "discount", "Discount", "تخفیف");
             putResolved(hv, hCols, snap.optDouble("taxAmount", 0), "tax", "Tax", "maliat", "Maliat", "vat", "VAT", "مالیات");
             putResolved(hv, hCols, snap.optDouble("taxPercent", 0), "tax_percent", "TaxPercent", "darsad_maliat", "درصد_مالیات");
             putResolved(hv, hCols, currentAccountName(), "visitor", "Visitor", "visitor_username", "user", "username", "karbar", "کاربر");
-            putResolved(hv, hCols, snap.optString("visitorId", ""), "visitor_id", "VisitorId", "shv", "shvaz", "visitor_code", "کد_ویزیتور");
-            putResolved(hv, hCols, "MEELANO-APP-" + id, "client_uuid", "mobile_uuid", "uuid", "app_uuid", "external_id");
+            putResolved(hv, hCols, snap.optString("visitorId", ""), "visitor_id", "VisitorId", "vis_rdf", "VIS_RDF", "shv", "shvaz", "visitor_code", "کد_ویزیتور");
+            String extCol = resolveFlexible(hCols, "client_uuid", "mobile_uuid", "uuid", "app_uuid", "external_id", "external_code", "source_id", "meelano_id");
+            if (extCol != null && !hv.containsKey(extCol)) hv.put(extCol, nativeExternalIdValue(hMeta.get(extCol), id));
             putResolved(hv, hCols, snap.optString("notes", ""), "tozihat", "Tozihat", "description", "Description", "note", "notes", "memo", "شرح", "توضیحات");
             putResolved(hv, hCols, snap.optString("settlement", ""), "tasvieh", "Tasvieh", "settlement", "payment_type", "نوع_تسویه");
             putResolved(hv, hCols, NATIVE_PREF_STATUS_TEXT, "status", "Status", "state", "State", "vaziat", "Vaziat", "وضعیت");
             putResolved(hv, hCols, 0, "converted", "is_converted", "convert", "Convert", "tabdil", "Tabdil", "invoiced", "is_invoiced", "invoice_done");
-            putResolved(hv, hCols, 1, "is_pish", "pish", "Pish", "prefactor", "is_prefactor", "pishfactor", "پیش_فاکتور");
-            putResolved(hv, hCols, 0, "is_deleted", "deleted", "Delete", "Deleted", "حذف");
+            putResolved(hv, hCols, 1, "ready", "ready_for_invoice", "for_invoice", "can_invoice", "آماده_فاکتور");
+            putNativePrefactorMarkers(hv, hMeta, hCols);
+            putResolved(hv, hCols, 0, "is_deleted", "deleted", "Delete", "Deleted", "del", "حذف");
             putResolved(hv, hCols, 1, "active", "Active", "is_active", "enable", "enabled");
-            insertFlexibleRow(c, headerTable, hv);
-            String refCol = resolveFlexible(dCols, noCol, "shfacfo", "SHFACFO", "shfac", "shfacpish", "shfac_pish", "shpish", "sh_pish", "pish_no", "pish_number", "factor_no", "FactorNo", "fac_no", "No", "no", "number", "Number", "serial", "Serial", "shomare", "شماره");
-            String productCol = resolveFlexible(dCols, "SHKA", "shka", "shkala", "KalaCode", "kala_code", "product_code", "ProductCode", "item_code", "code", "Code", "kala", "code_kala", "کد_کالا");
-            String qtyCol = resolveFlexible(dCols, "tedad", "TEDAD", "qty", "Qty", "quantity", "Quantity", "meghdar", "Meghdar", "meghdar1", "amount_qty", "مقدار", "تعداد");
-            String priceCol = resolveFlexible(dCols, "fi", "FI", "fee", "Fee", "price", "Price", "nerkh", "Nerkh", "gheymat", "unit_price", "قیمت", "فی");
-            String amountCol = resolveFlexible(dCols, "LINESUM", "LineSum", "line_sum", "amount", "Amount", "mablagh", "total", "Total", "all", "line_total", "جمع");
-            if (refCol == null || productCol == null || qtyCol == null) throw new IllegalStateException("ستون‌های اصلی اقلام پیش‌فاکتور آتیران تشخیص داده نشد.");
-            for (int i = 0; items != null && i < items.length(); i++) {
+            insertFlexibleRow(c, target.headerTable, hv);
+
+            if (items == null || items.length() == 0) throw new IllegalStateException("اقلام پیش‌فاکتور برای ثبت در آتیران خالی است.");
+            for (int i = 0; i < items.length(); i++) {
                 JSONObject it = items.optJSONObject(i); if (it == null) continue;
                 Map<String, Object> dv = new LinkedHashMap<>();
-                dv.put(refCol, nativeNo); dv.put(productCol, it.optString("code", "")); dv.put(qtyCol, it.optDouble("qty", 0));
-                if (priceCol != null) dv.put(priceCol, it.optDouble("price", 0));
-                if (amountCol != null) dv.put(amountCol, cartItemNet(it));
+                dv.put(target.refCol, nativeNo); dv.put(target.productCol, it.optString("code", "")); dv.put(target.qtyCol, it.optDouble("qty", 0));
+                if (target.priceCol != null) dv.put(target.priceCol, it.optDouble("price", 0));
+                if (target.amountCol != null) dv.put(target.amountCol, cartItemNet(it));
                 putResolved(dv, dCols, i + 1, "radif", "Radif", "row", "row_no", "ردیف");
                 putResolved(dv, dCols, it.optString("name", ""), "naka", "NAKA", "product_name", "ProductName", "name", "Name", "نام_کالا");
                 putResolved(dv, dCols, it.optString("unit", ""), "vahed", "unit", "Unit", "unit_name", "واحد");
                 putResolved(dv, dCols, it.optDouble("lineDiscount", 0), "tafif", "takhfif", "discount", "Discount", "تخفیف");
                 putResolved(dv, dCols, it.optString("note", ""), "tozihat", "note", "notes", "memo", "شرح", "توضیحات");
+                putResolved(dv, dCols, nativeDate, "date", "DATE", "tarikh", "Date", "تاریخ");
                 putResolved(dv, dCols, 0, "converted", "is_converted", "invoiced", "is_invoiced");
-                putResolved(dv, dCols, 0, "is_deleted", "deleted", "Delete", "Deleted", "حذف"); putResolved(dv, dCols, 1, "active", "Active", "is_active", "enable", "enabled");
-                insertFlexibleRow(c, detailTable, dv);
+                putNativePrefactorMarkers(dv, dMeta, dCols);
+                putResolved(dv, dCols, 0, "is_deleted", "deleted", "Delete", "Deleted", "del", "حذف"); putResolved(dv, dCols, 1, "active", "Active", "is_active", "enable", "enabled");
+                insertFlexibleRow(c, target.detailTable, dv);
             }
-            updateNativePrefactorSync(c, id, headerTable, String.valueOf(nativeNo), "در جدول " + headerTable + " ثبت شد و باید در مسیر «فاکتور فروش ← از پیش فاکتور» قابل انتخاب باشد.");
+            updateNativePrefactorSync(c, id, target.headerTable, String.valueOf(nativeNo), "در جدول " + target.headerTable + " / " + target.detailTable + " با تاریخ " + nativeDate + " ثبت شد (" + stringOr(target.note, "ساختار آتیران") + ") و باید در مسیر «فاکتور فروش ← از پیش فاکتور» قابل انتخاب باشد.");
             if (startedTx) c.commit();
         } catch (Exception ex) {
             try { if (startedTx) c.rollback(); else if (sp != null) c.rollback(sp); } catch (Exception ignored) { }
@@ -11366,12 +11500,13 @@ public class MainActivity extends Activity {
     }
 
 
+
     private void repairUnsyncedNativePrefactors(Connection c) {
         if (c == null) return;
         try {
             if (!tableExists(c, "meelano_prefactors") || !tableExists(c, "meelano_prefactor_items")) return;
-            String sql = "SELECT TOP (20) id,client_uuid,visitor_username,visitor_id,customer_code,customer_name,notes,signature_data,ISNULL(grand_total,total_amount),status,delivery_date,delivery_address,settlement_type,payment_ref,subtotal_amount,global_discount,tax_percent,tax_amount,approval_reason " +
-                    "FROM dbo.meelano_prefactors WHERE ISNULL(status,N'')<>N'draft' AND NULLIF(ISNULL(native_prefactor_no,N''),N'') IS NULL ORDER BY id DESC";
+            String sql = "SELECT TOP (40) id,client_uuid,visitor_username,visitor_id,customer_code,customer_name,notes,signature_data,ISNULL(grand_total,total_amount),status,delivery_date,delivery_address,settlement_type,payment_ref,subtotal_amount,global_discount,tax_percent,tax_amount,approval_reason " +
+                    "FROM dbo.meelano_prefactors WHERE ISNULL(status,N'')<>N'draft' AND (NULLIF(ISNULL(native_prefactor_no,N''),N'') IS NULL OR native_sync_at IS NULL OR created_at>=DATEADD(day,-14,SYSDATETIME())) ORDER BY id DESC";
             JSONArray pending = new JSONArray();
             try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
                 while (r.next()) {

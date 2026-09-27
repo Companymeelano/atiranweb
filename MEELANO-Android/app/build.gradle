@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.visitor'
         minSdk 24
         targetSdk 35
-        versionCode 79
-        versionName '4.4.15-showcase-price-preview-theme'
+        versionCode 80
+        versionName '4.4.16-atiran-prefactor-sync-audit'
     }
 
     compileOptions {
