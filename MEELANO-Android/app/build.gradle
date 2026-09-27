@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.visitor'
         minSdk 24
         targetSdk 35
-        versionCode 78
-        versionName '4.4.14-prefactor-dock-icon-repair'
+        versionCode 79
+        versionName '4.4.15-showcase-price-preview-theme'
     }
 
     compileOptions {

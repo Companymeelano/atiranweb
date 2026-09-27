@@ -9543,14 +9543,17 @@ public class MainActivity extends Activity {
         meta.setSingleLine(true);
         meta.setEllipsize(TextUtils.TruncateAt.END);
         copy.addView(meta, new LinearLayout.LayoutParams(-1, -2));
-        TextView saleLine = text("قیمت فروش ۱: " + (price1Ok ? compactMoney(r.opt("قیمت_فروش")) : "—") + "  •  قیمت فروش ۲: " + (price2Ok ? compactMoney(r.opt("قیمت_فروش۲")) : "—"), 9.7f, TEXT, Typeface.BOLD);
-        saleLine.setSingleLine(true); saleLine.setEllipsize(TextUtils.TruncateAt.END);
+        TextView saleLine = text("قیمت فروش ۱: " + (price1Ok ? moneyOrDash(r, "قیمت_فروش") : "—") + "  •  قیمت فروش ۲: " + (price2Ok ? moneyOrDash(r, "قیمت_فروش۲") : "—"), 9.3f, TEXT, Typeface.BOLD);
+        saleLine.setSingleLine(false); saleLine.setMaxLines(2); saleLine.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, -2); slp.setMargins(0, dp(4), 0, 0); copy.addView(saleLine, slp);
         LinearLayout prices = new LinearLayout(this);
         prices.setOrientation(LinearLayout.HORIZONTAL);
         prices.setGravity(Gravity.CENTER_VERTICAL);
-        prices.addView(pill("فروش۱: " + (price1Ok ? compactMoney(r.opt("قیمت_فروش")) : "—"), price1Ok ? SUCCESS : MUTED, false), new LinearLayout.LayoutParams(0, -2, 1f));
-        TextView p2 = pill((price2Computed(r) ? "+۶٪ " : "") + "فروش۲: " + (price2Ok ? compactMoney(r.opt("قیمت_فروش۲")) : "—"), price2Ok ? WARNING : MUTED, price2Ok);
+        TextView p1 = pill("فروش۱: " + (price1Ok ? moneyOrDash(r, "قیمت_فروش") : "—"), price1Ok ? SUCCESS : MUTED, false);
+        p1.setTextSize(8.0f); p1.setSingleLine(false); p1.setMaxLines(2); p1.setEllipsize(TextUtils.TruncateAt.END);
+        prices.addView(p1, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView p2 = pill((price2Computed(r) ? "+۶٪ " : "") + "فروش۲: " + (price2Ok ? moneyOrDash(r, "قیمت_فروش۲") : "—"), price2Ok ? WARNING : MUTED, price2Ok);
+        p2.setTextSize(8.0f); p2.setSingleLine(false); p2.setMaxLines(2); p2.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams p2p = new LinearLayout.LayoutParams(0, -2, 1f); p2p.setMargins(dp(5), 0, 0, 0); prices.addView(p2, p2p);
         LinearLayout.LayoutParams prp = new LinearLayout.LayoutParams(-1, -2); prp.setMargins(0, dp(5), 0, 0); copy.addView(prices, prp);
         row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -11012,20 +11015,143 @@ public class MainActivity extends Activity {
     }
 
     private void showPrefactorPreviewDialogWithCheck(JSONObject snap, JSONObject check, boolean offline) {
-        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(12), dp(10), dp(12), dp(6));
-        box.addView(text("پیش‌نمایش نهایی پیش‌فاکتور", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        if (snap == null) snap = new JSONObject();
+        if (check == null) check = new JSONObject();
+        int accent = navAccent("cart");
+        ScrollView scroll = new ScrollView(this);
+        styleVerticalScroll(scroll);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(12), dp(10), dp(12), dp(8));
+        scroll.addView(box, new ScrollView.LayoutParams(-1, -2));
+
+        LinearLayout hero = card();
+        hero.setPadding(dp(12), dp(11), dp(12), dp(11));
+        hero.setBackground(unifiedCardBg(accent, 28, false));
+        hero.addView(text("پیش‌نمایش نهایی پیش‌فاکتور", 16.4f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        hero.addView(text("رنگ‌بندی، جدول اقلام و جمع کل با تم سبد و ویترین هماهنگ شده است.", 9.8f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2); hp.setMargins(0, 0, 0, dp(8)); box.addView(hero, hp);
+
         String status = snap.optString("status", "sent");
-        box.addView(text("مشتری: " + snap.optString("customerName", "—") + "\nنوع تسویه: " + snap.optString("settlement", "—") + " • تاریخ تحویل: " + stringOr(snap.optString("deliveryDate"), "—") + "\nوضعیت ارسال: " + prefactorStatusFa(status), 11.3f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        box.addView(text("جمع خام: " + money(snap.optDouble("subtotal",0)) + "\nتخفیف: " + money(snap.optDouble("lineDiscount",0)+snap.optDouble("globalDiscount",0)) + "\nمالیات: " + money(snap.optDouble("taxAmount",0)) + "\nقابل پرداخت: " + money(snap.optDouble("grandTotal",0)), 11.0f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
-        String reason = snap.optString("approvalReason", ""); if (!reason.trim().isEmpty()) box.addView(text("نیازمند تایید: " + reason, 10.5f, WARNING, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout info = card();
+        info.setPadding(dp(10), dp(9), dp(10), dp(9));
+        info.setBackground(unifiedInnerBg(accent, 22));
+        addPreviewInfoLine(info, "مشتری", stringOr(snap.optString("customerName", ""), "—"), accent);
+        addPreviewInfoLine(info, "تسویه", stringOr(snap.optString("settlement", ""), "—"), INFO);
+        addPreviewInfoLine(info, "تحویل", stringOr(snap.optString("deliveryDate"), "—"), SUCCESS);
+        addPreviewInfoLine(info, "وضعیت", prefactorStatusFa(status), prefactorStatusAccent(status));
+        LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(-1, -2); ip.setMargins(0, 0, 0, dp(8)); box.addView(info, ip);
+
+        addPrefactorPreviewItemsTable(box, snap.optJSONArray("items"), accent);
+
+        LinearLayout totals = card();
+        totals.setPadding(dp(10), dp(9), dp(10), dp(9));
+        totals.setBackground(unifiedCardBg(GOLD_2, 24, false));
+        totals.addView(text("جمع‌بندی مبلغ", 14.2f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        addPreviewAmountLine(totals, "جمع خام", money(snap.optDouble("subtotal", 0)), MUTED, false);
+        addPreviewAmountLine(totals, "تخفیف", money(snap.optDouble("lineDiscount", 0) + snap.optDouble("globalDiscount", 0)), WARNING, false);
+        addPreviewAmountLine(totals, "مالیات", money(snap.optDouble("taxAmount", 0)), INFO, false);
+        addPreviewAmountLine(totals, "قابل پرداخت", money(snap.optDouble("grandTotal", 0)), SUCCESS, true);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.setMargins(0, dp(1), 0, dp(8)); box.addView(totals, tp);
+
+        String reason = snap.optString("approvalReason", "");
+        if (!reason.trim().isEmpty()) addPreviewNotice(box, "نیازمند تایید: " + reason, WARNING);
         JSONArray warnings = check.optJSONArray("warnings");
-        if (offline) box.addView(text("کنترل آنلاین موجودی انجام نشد؛ می‌توانید در صف آفلاین نگه دارید یا دوباره تلاش کنید.", 10.4f, DANGER, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        else if (check.optBoolean("fast", false)) box.addView(text("ارسال سریع فعال است؛ کنترل سنگین موجودی در این مرحله حذف شد تا ثبت پیش‌فاکتور بدون تاخیر انجام شود.", 10.4f, SUCCESS, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        else if (warnings != null && warnings.length() > 0) for (int i=0;i<warnings.length();i++) box.addView(text("• " + warnings.optString(i), 10.2f, check.optBoolean("blocked", false)?DANGER:WARNING, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
-        else box.addView(text("کنترل نهایی موجودی و قیمت با موفقیت انجام شد.", 10.4f, SUCCESS, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بازگشت", null).setPositiveButton(offline ? "ذخیره در صف" : "تایید و ارسال", null).create();
-        dlg.setOnShowListener(d -> { styleMeelanoDialog(dlg, navAccent("cart")); Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE); if (ok != null) ok.setOnClickListener(v -> { ok.setEnabled(false); ok.setText("در حال ثبت…"); dlg.dismiss(); if (offline) { saveOfflinePrefactor(snap, check.optString("message", "offline")); renderCartPage(); } else submitCartSnapshot(snap, snap.optString("status", "sent"), true); }); });
+        if (offline) addPreviewNotice(box, "کنترل آنلاین موجودی انجام نشد؛ می‌توانید در صف آفلاین نگه دارید یا دوباره تلاش کنید.", DANGER);
+        else if (check.optBoolean("fast", false)) addPreviewNotice(box, "ارسال سریع فعال است؛ کنترل سنگین موجودی در این مرحله حذف شد تا ثبت پیش‌فاکتور بدون تاخیر انجام شود.", SUCCESS);
+        else if (warnings != null && warnings.length() > 0) for (int i = 0; i < warnings.length(); i++) addPreviewNotice(box, "• " + warnings.optString(i), check.optBoolean("blocked", false) ? DANGER : WARNING);
+        else addPreviewNotice(box, "کنترل نهایی موجودی و قیمت با موفقیت انجام شد.", SUCCESS);
+
+        final JSONObject finalSnap = snap;
+        final JSONObject finalCheck = check;
+        AlertDialog dlg = new AlertDialog.Builder(this).setView(scroll).setNegativeButton("بازگشت", null).setPositiveButton(offline ? "ذخیره در صف" : "تایید و ارسال", null).create();
+        dlg.setOnShowListener(d -> {
+            try { if (dlg.getWindow() != null) dlg.getWindow().setBackgroundDrawable(premiumPanel(accent, 30)); } catch (Exception ignored) { }
+            Button neg = dlg.getButton(AlertDialog.BUTTON_NEGATIVE);
+            if (neg != null) { neg.setTextColor(MUTED); neg.setAllCaps(false); applyTouchFeedback(neg); }
+            Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE);
+            if (ok != null) {
+                ok.setTextColor(accent); ok.setAllCaps(false); ok.setTypeface(Typeface.DEFAULT, Typeface.BOLD); applyTouchFeedback(ok);
+                ok.setOnClickListener(v -> { ok.setEnabled(false); ok.setText("در حال ثبت…"); dlg.dismiss(); if (offline) { saveOfflinePrefactor(finalSnap, finalCheck.optString("message", "offline")); renderCartPage(); } else submitCartSnapshot(finalSnap, finalSnap.optString("status", "sent"), true); });
+            }
+        });
         dlg.show();
+    }
+
+    private void addPrefactorPreviewItemsTable(LinearLayout parent, JSONArray items, int accent) {
+        LinearLayout table = card();
+        table.setPadding(dp(8), dp(8), dp(8), dp(8));
+        table.setBackground(unifiedCardBg(accent, 24, false));
+        table.addView(text("جدول اقلام", 14.0f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout head = previewTableRow(mix(accent, GOLD_2, 0.18f), true);
+        addPreviewTableCell(head, "کالا", 1.45f, onColorFor(accent), Typeface.BOLD, Gravity.RIGHT | Gravity.CENTER_VERTICAL, true);
+        addPreviewTableCell(head, "تعداد", .50f, onColorFor(accent), Typeface.BOLD, Gravity.CENTER, true);
+        addPreviewTableCell(head, "فی", .92f, onColorFor(accent), Typeface.BOLD, Gravity.CENTER, true);
+        addPreviewTableCell(head, "مبلغ", .98f, onColorFor(accent), Typeface.BOLD, Gravity.CENTER, true);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2); hp.setMargins(0, dp(7), 0, dp(5)); table.addView(head, hp);
+        int count = items == null ? 0 : items.length();
+        for (int i = 0; i < count && i < 8; i++) {
+            JSONObject it = items.optJSONObject(i); if (it == null) continue;
+            int rowAccent = (i % 2 == 0) ? accent : GOLD_2;
+            LinearLayout row = previewTableRow(rowAccent, false);
+            addPreviewTableCell(row, safeDisplayText(it.optString("name", ""), "کالا"), 1.45f, TEXT, Typeface.BOLD, Gravity.RIGHT | Gravity.CENTER_VERTICAL, false);
+            addPreviewTableCell(row, formatNumber(it.optDouble("qty", 0)), .50f, MUTED, Typeface.BOLD, Gravity.CENTER, false);
+            addPreviewTableCell(row, money(it.optDouble("price", 0)), .92f, INFO, Typeface.BOLD, Gravity.CENTER, false);
+            addPreviewTableCell(row, money(cartItemNet(it)), .98f, SUCCESS, Typeface.BOLD, Gravity.CENTER, false);
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(4), 0, 0); table.addView(row, rp);
+        }
+        if (count > 8) {
+            TextView more = text("+ " + formatNumber(count - 8) + " قلم دیگر در پیش‌فاکتور وجود دارد.", 9.2f, MUTED, Typeface.BOLD);
+            more.setGravity(Gravity.CENTER); more.setPadding(dp(7), dp(5), dp(7), dp(5));
+            more.setBackground(roundedStroke(alpha(accent, 12), 14, alpha(accent, 52)));
+            LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.setMargins(0, dp(6), 0, 0); table.addView(more, mp);
+        }
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(8)); parent.addView(table, lp);
+    }
+
+    private LinearLayout previewTableRow(int accent, boolean header) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(4), dp(header ? 5 : 4), dp(4), dp(header ? 5 : 4));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) row.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+        row.setBackground(header ? luxuryButtonBg(accent, true, 18) : roundedStroke(alpha(accent, isLightTheme() ? 12 : 20), 16, alpha(accent, 54)));
+        return row;
+    }
+
+    private void addPreviewTableCell(LinearLayout row, String value, float weight, int color, int style, int gravity, boolean header) {
+        TextView t = text(stringOr(value, "—"), header ? 8.6f : 8.2f, color, style);
+        t.setGravity(gravity);
+        t.setMaxLines(header ? 1 : 2);
+        t.setEllipsize(TextUtils.TruncateAt.END);
+        t.setPadding(dp(3), dp(2), dp(3), dp(2));
+        row.addView(t, new LinearLayout.LayoutParams(0, -2, weight));
+    }
+
+    private void addPreviewInfoLine(LinearLayout parent, String label, String value, int accent) {
+        LinearLayout row = previewTableRow(accent, false);
+        TextView l = text(label, 9.0f, accent, Typeface.BOLD); l.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); l.setSingleLine(true);
+        TextView v = text(stringOr(value, "—"), 10.1f, TEXT, Typeface.BOLD); v.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL); v.setSingleLine(true); v.setEllipsize(TextUtils.TruncateAt.END);
+        row.addView(l, new LinearLayout.LayoutParams(0, -2, .65f));
+        row.addView(v, new LinearLayout.LayoutParams(0, -2, 1.45f));
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(4), 0, 0); parent.addView(row, rp);
+    }
+
+    private void addPreviewAmountLine(LinearLayout parent, String label, String value, int accent, boolean strong) {
+        LinearLayout row = previewTableRow(accent, strong);
+        TextView l = text(label, 9.6f, strong ? onColorFor(accent) : alpha(TEXT, 225), Typeface.BOLD); l.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        TextView v = text(stringOr(value, "—"), strong ? 11.4f : 10.2f, strong ? onColorFor(accent) : accent, Typeface.BOLD); v.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL); v.setSingleLine(true); v.setEllipsize(TextUtils.TruncateAt.END);
+        row.addView(l, new LinearLayout.LayoutParams(0, -2, .85f));
+        row.addView(v, new LinearLayout.LayoutParams(0, -2, 1.35f));
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(5), 0, 0); parent.addView(row, rp);
+    }
+
+    private void addPreviewNotice(LinearLayout parent, String message, int accent) {
+        TextView n = text(stringOr(message, ""), 10.1f, accent, Typeface.BOLD);
+        n.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        n.setPadding(dp(9), dp(7), dp(9), dp(7));
+        n.setBackground(roundedStroke(alpha(accent, isLightTheme() ? 13 : 22), 18, alpha(accent, 64)));
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(-1, -2); np.setMargins(0, dp(2), 0, dp(6)); parent.addView(n, np);
     }
 
     private String preflightCartSnapshot(JSONObject snap) throws Exception {
