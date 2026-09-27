@@ -1183,8 +1183,8 @@ public class MainActivity extends Activity {
         String t = title == null ? "" : title.trim();
         if (t.contains("Meelano")) return "ماموریت امروز";
         if (t.contains("ویترین")) return "ویترین فروش سریع";
-        if (t.contains("سبد")) return "سبد و پیش‌فاکتور";
-        if (t.contains("مشتری")) return "باشگاه مشتریان مسیر";
+        if (t.contains("سبد")) return "سبد فروش";
+        if (t.contains("مشتری")) return "مشتریان";
         if (t.contains("حضور")) return "حضور و وضعیت روز";
         if (t.contains("گفتگو")) return "گفتگوی تیم فروش";
         if (t.contains("تنظیمات")) return "تنظیمات سبک ویزیتور";
@@ -1871,17 +1871,21 @@ public class MainActivity extends Activity {
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
+            bar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            bar.setTextDirection(View.TEXT_DIRECTION_RTL);
+        }
         bar.setPadding(dp(8), dp(8), dp(8), dp(7));
         GradientDrawable bg = gradient(new int[]{alpha(Color.rgb(8, 7, 4), 248), alpha(Color.rgb(22, 18, 11), 248), alpha(Color.BLACK, 250)}, GradientDrawable.Orientation.TOP_BOTTOM, 30);
         bg.setStroke(dp(1), alpha(GOLD_2, 96));
         bar.setBackground(bg);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) bar.setElevation(dp(15));
         String[][] items = new String[][]{
-                {"visitor_reports", "گزارشات", "📈"},
-                {"customers", "مشتری", "👤"},
-                {"cart", "سبد", "🛒"},
+                {"visitor_dashboard", "خانه", "🏠"},
                 {"showcase", "ویترین", "🏬"},
-                {"visitor_dashboard", "خانه", "🏠"}
+                {"cart", "سبد", "🛒"},
+                {"customers", "مشتری", "👤"},
+                {"visitor_reports", "گزارشات", "📈"}
         };
         for (String[] item : items) addVisitorDockItem(bar, item[0], item[1], item[2]);
         FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-1, dp(96), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
@@ -7084,7 +7088,7 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) { }
         }
         content.removeAllViews();
-        addHero("مشتریان", "اطلاعات مشتریان ثابت می‌ماند؛ برای داده جدید از تازه‌سازی دستی استفاده کنید." + (isLatifiCustomer08Account() ? " • محدوده latifi: فقط نام‌های دارای 08" : ""));
+        if (!VISITOR_EDITION) addHero("مشتریان", "اطلاعات مشتریان ثابت می‌ماند؛ برای داده جدید از تازه‌سازی دستی استفاده کنید." + (isLatifiCustomer08Account() ? " • محدوده latifi: فقط نام‌های دارای 08" : ""));
         addManualRefreshPanel("customers", "بروزرسانی دستی مشتریان", "بازگشت از گردش حساب دیگر لیست را دوباره فراخوانی نمی‌کند", () -> loadCustomers(q, f, true));
         addSearchBox("جستجوی مشتری…", q, qq -> loadCustomers(qq, f, true));
         addCustomerFilterChips(q, f, new JSONArray());
@@ -7109,7 +7113,7 @@ public class MainActivity extends Activity {
 
     private void renderCustomersFromJson(JSONArray rows, String query, String filter) {
         content.removeAllViews();
-        addHero("مشتریان", "فیلتر هوشمند بدهکاران، بستانکاران، بدون خرید و پرخریدها" + (isLatifiCustomer08Account() ? " • فقط مشتریان دارای 08 در نام" : ""));
+        if (!VISITOR_EDITION) addHero("مشتریان", "فیلتر هوشمند بدهکاران، بستانکاران، بدون خرید و پرخریدها" + (isLatifiCustomer08Account() ? " • فقط مشتریان دارای 08 در نام" : ""));
         addManualRefreshPanel("customers", "بروزرسانی دستی مشتریان", "آخرین لیست ثابت نگه داشته شده است", () -> loadCustomers(query, filter, true));
         addSearchBox("جستجوی مشتری…", query, q -> loadCustomers(q, filter, true));
         JSONArray allRows = rows == null ? new JSONArray() : rows;
@@ -8097,8 +8101,10 @@ public class MainActivity extends Activity {
 
     private void loadVisitorDashboard() {
         content.removeAllViews();
-        addHero("داشبورد ویزیتور", "فروش روزانه، اهداف، وضعیت مشتریان و مسیر اقدام سریع برای ویزیتور");
-        addManualRefreshPanel("visitor_dashboard", "بروزرسانی داشبورد ویزیتور", "اطلاعات اختصاصی کاربر فعلی", () -> loadVisitorDashboard());
+        if (!VISITOR_EDITION) {
+            addHero("داشبورد ویزیتور", "فروش روزانه، اهداف، وضعیت مشتریان و مسیر اقدام سریع برای ویزیتور");
+            addManualRefreshPanel("visitor_dashboard", "بروزرسانی داشبورد ویزیتور", "اطلاعات اختصاصی کاربر فعلی", () -> loadVisitorDashboard());
+        }
         addLoading(content, "در حال ساخت داشبورد ویزیتور…");
         runDb(this::queryVisitorDashboardSql, new DbCallback() {
             @Override public void ok(String body) {
@@ -8170,7 +8176,6 @@ public class MainActivity extends Activity {
     private void renderVisitorEditionDashboard(JSONObject data) {
         if (data == null) data = new JSONObject();
         content.removeAllViews();
-        addVisitorAtiranHeader(data);
         addVisitorPulseTodayCard(data);
         addVisitorRouteCardsPreview(data);
         addVisitorActivityGrid();
@@ -9365,7 +9370,6 @@ public class MainActivity extends Activity {
 
     private void renderVisitorReportsPage() {
         content.removeAllViews();
-        addHero("گزارشات ویزیتور", "فاکتورهای من، صف آفلاین، جمع‌بندی پایان روز و پیگیری‌های فروش در سبک طلایی ویزیتور");
         LinearLayout summary = card();
         summary.setBackground(roundedStroke(alpha(Color.BLACK, 244), 30, alpha(GOLD_2, 142)));
         summary.addView(visitorSectionTitle("گزارش سریع امروز", "↗", GOLD_2), new LinearLayout.LayoutParams(-1, -2));
@@ -9403,7 +9407,7 @@ public class MainActivity extends Activity {
     private void renderCartPage() {
         if (!canUsePermission("cart")) { redirectToAllowedPage("cart"); return; }
         content.removeAllViews();
-        addHero("سبد خرید و پیش‌فاکتور", "انتخاب مشتری، مرور اقلام، توضیحات، امضا و ارسال پیش‌فاکتور");
+        if (!VISITOR_EDITION) addHero("سبد خرید و پیش‌فاکتور", "انتخاب مشتری، مرور اقلام، توضیحات، امضا و ارسال پیش‌فاکتور");
         if (VISITOR_EDITION) addVisitorCartGoldSummary();
         addCartWizardStepper();
         addManualRefreshPanel("cart", "بروزرسانی سبد", "اقلام فعلی: " + formatNumber(visitorCartItems.length()), () -> renderCartPage());
@@ -14000,7 +14004,7 @@ public class MainActivity extends Activity {
         LinearLayout about = card();
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Visit v4.4.1\nمحدوده مشتریان latifi روی نام‌های دارای 08 تنظیم شد و آیکن برنامه با مونگرام لوکس‌تر سفید/طلایی ارتقا یافت.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Visit v4.4.2\nسکشن‌های توضیحی بالای خانه، مشتریان، گزارشات و سبد حذف شد و چیدمان dock از سمت راست با خانه شروع می‌شود.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f); about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
     }
@@ -14054,7 +14058,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Visit v4.4.1\nنسخه ویزیتور با محدودسازی مشتریان latifi، ویترین هوشمند، داشبورد هدف و آیکن سفید/طلایی جذاب‌تر.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Visit v4.4.2\nنسخه ویزیتور با صفحه‌های خلوت‌تر، خانه سمت راست در dock، محدودسازی latifi و ویترین/سبد سریع‌تر.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
