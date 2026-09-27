@@ -11274,7 +11274,7 @@ public class MainActivity extends Activity {
         return best;
     }
 
-    private NativePrefactorTarget discoverNativePrefactorTarget(Connection c) {
+    private NativePrefactorTarget discoverNativePrefactorTarget(Connection c) throws Exception {
         NativePrefactorTarget base = buildNativePrefactorTarget(c, "sailfact", "subsailfact", true, "جدول اصلی فروش آتیران با نشانگر پیش‌فاکتور");
         if (base != null && nativePrefactorMarkerColumn(columns(c, base.headerTable)) != null) return base;
         String header = resolveNativeTable(c, "sailfact_pish", "sailfactpish", "sailfact_p", "sailfactp", "sail_pish", "sailpish", "pish_sailfact", "pishsailfact", "pre_sailfact", "presailfact", "sailfact_pre", "sailfactpre", "pishfact", "pish_factor", "pishfactor", "preinvoice", "proforma", "prefactor", "پیش_فاکتور", "پيش_فاکتور");
@@ -11285,7 +11285,7 @@ public class MainActivity extends Activity {
         return null;
     }
 
-    private NativePrefactorTarget buildNativePrefactorTarget(Connection c, String header, String detail, boolean baseSales, String note) {
+    private NativePrefactorTarget buildNativePrefactorTarget(Connection c, String header, String detail, boolean baseSales, String note) throws Exception {
         if (c == null || header == null || detail == null || !tableExists(c, header) || !tableExists(c, detail)) return null;
         Set<String> hCols = columns(c, header); Set<String> dCols = columns(c, detail);
         String noCol = nativePrefactorNumberColumn(hCols);
