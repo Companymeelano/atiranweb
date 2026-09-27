@@ -189,6 +189,7 @@ public class MainActivity extends Activity {
     private static final int REQ_CHAT_ATTACHMENT = 9404;
     private static final int REQ_WIFI_PERMISSION = 9405;
     private static final int REQ_PRODUCT_IMAGE = 9406;
+    private static final String NATIVE_PREF_STATUS_TEXT = "ثبت شده";
 
     private static final int[] S_HOST = {122, 126, 103, 120, 125, 122, 103, 120, 125, 126, 103, 120, 112};
     private static final int[] S_USER = {8, 45, 36, 32, 39, 8, 39};
@@ -317,9 +318,24 @@ public class MainActivity extends Activity {
     private boolean compactUi() {
         if (prefs != null && prefs.getBoolean(KEY_COMPACT_UI, false)) return true;
         try {
-            float widthDp = getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density;
+            float widthDp = screenWidthDp();
             return widthDp > 0 && widthDp < 370;
         } catch (Exception ignored) { return false; }
+    }
+
+    private float screenWidthDp() {
+        try { return getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density; }
+        catch (Exception ignored) { return 390f; }
+    }
+
+    private float visitorDockScale() {
+        float w = screenWidthDp();
+        if (w <= 0) return 1f;
+        if (w < 350) return 0.82f;
+        if (w < 370) return 0.88f;
+        if (w < 395) return 0.94f;
+        if (w > 460) return 1.06f;
+        return 1f;
     }
 
     private boolean isLightTheme() {
@@ -974,9 +990,10 @@ public class MainActivity extends Activity {
         tools.setOrientation(LinearLayout.HORIZONTAL);
         tools.setGravity(Gravity.CENTER_VERTICAL);
         tools.setPadding(dp(2), 0, dp(2), 0);
-        if (!VISITOR_EDITION) addHeaderTool(tools, "⌕", "جستجوی سراسری", INFO, v -> showGlobalSearchDialog());
-        if (VISITOR_EDITION) addHeaderTool(tools, "◎", "ماموریت امروز ویزیتور", mix(SUCCESS, GOLD, 0.30f), v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("visitor_dashboard"); });
-        else addHeaderTool(tools, "♛", "مدیریت دسترسی کاربران", mix(INFO, GOLD, 0.34f), v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("management"); });
+        if (!VISITOR_EDITION) {
+            addHeaderTool(tools, "⌕", "جستجوی سراسری", INFO, v -> showGlobalSearchDialog());
+            addHeaderTool(tools, "♛", "مدیریت دسترسی کاربران", mix(INFO, GOLD, 0.34f), v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("management"); });
+        }
         addHeaderTool(tools, "✺", "انتخاب تم", GOLD_2, v -> showThemeChooser());
         addHeaderTool(tools, "⚙", "تنظیمات", SUCCESS, v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings"); });
         addHeaderTool(tools, "⎋", "خروج", DANGER, v -> { if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید."); else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید."); });
@@ -2019,13 +2036,14 @@ public class MainActivity extends Activity {
         navStrip.removeAllViews();
         navStrip.setOrientation(LinearLayout.VERTICAL);
         navStrip.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        navStrip.setPadding(dp(0), dp(2), dp(0), dp(8));
+        float dockScale = visitorDockScale();
+        navStrip.setPadding(dp(0), dp(2 * dockScale), dp(0), dp(7 * dockScale));
         navStrip.setBackground(gradient(new int[]{alpha(Color.TRANSPARENT, 0), alpha(mix(SURFACE_2, currentPageAccent(), isLightTheme() ? 0.05f : 0.10f), isLightTheme() ? 150 : 190), alpha(mix(SURFACE, currentPageAccent(), isLightTheme() ? 0.03f : 0.08f), 244)}, GradientDrawable.Orientation.TOP_BOTTOM, 0));
         int accent = currentPageAccent();
         FrameLayout dock = new FrameLayout(this);
         dock.setClipChildren(false);
         dock.setClipToPadding(false);
-        dock.setPadding(dp(10), dp(8), dp(10), 0);
+        dock.setPadding(dp(8 * dockScale), dp(7 * dockScale), dp(8 * dockScale), 0);
 
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
@@ -2034,7 +2052,7 @@ public class MainActivity extends Activity {
             bar.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
             bar.setTextDirection(View.TEXT_DIRECTION_RTL);
         }
-        bar.setPadding(dp(8), dp(8), dp(8), dp(7));
+        bar.setPadding(dp(7 * dockScale), dp(7 * dockScale), dp(7 * dockScale), dp(6 * dockScale));
         int dockAccent = mix(accent, GOLD_2, isLightTheme() ? 0.10f : 0.16f);
         GradientDrawable bg = gradient(new int[]{
                 alpha(mix(SURFACE, dockAccent, isLightTheme() ? 0.035f : 0.09f), 250),
@@ -2052,15 +2070,15 @@ public class MainActivity extends Activity {
                 {"visitor_reports", "گزارشات", "📈"}
         };
         for (String[] item : items) addVisitorDockItem(bar, item[0], item[1], item[2]);
-        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-1, dp(96), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        bp.setMargins(dp(0), dp(14), dp(0), dp(0));
+        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-1, dp(94 * dockScale), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        bp.setMargins(dp(0), dp(12 * dockScale), dp(0), dp(0));
         dock.addView(bar, bp);
 
         TextView glow = text(" ", 1, Color.TRANSPARENT, Typeface.NORMAL);
         glow.setBackground(gradient(new int[]{alpha(mix(accent, GOLD_2, 0.35f), 75), alpha(Color.TRANSPARENT, 0)}, GradientDrawable.Orientation.TOP_BOTTOM, 999));
-        FrameLayout.LayoutParams gp = new FrameLayout.LayoutParams(dp(110), dp(24), Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        FrameLayout.LayoutParams gp = new FrameLayout.LayoutParams(dp(104 * dockScale), dp(22 * dockScale), Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         dock.addView(glow, gp);
-        navStrip.addView(dock, new LinearLayout.LayoutParams(-1, dp(116)));
+        navStrip.addView(dock, new LinearLayout.LayoutParams(-1, dp(112 * dockScale)));
     }
 
     private void refreshVisitorCartBadge() {
@@ -2073,10 +2091,15 @@ public class MainActivity extends Activity {
         boolean center = "cart".equals(key);
         boolean active = key.equals(activePage) || ("visitor_dashboard".equals(key) && ("settings".equals(activePage) || "health".equals(activePage)));
         int accent = navAccent(key);
+        float dockScale = visitorDockScale();
+        int bubbleSize = dp((center ? 62f : 50f) * dockScale);
+        int wrapW = dp((center ? 68f : 54f) * dockScale);
+        int wrapH = dp((center ? 66f : 54f) * dockScale);
+        int itemH = dp((center ? 86f : 78f) * dockScale);
         LinearLayout item = new LinearLayout(this);
         item.setOrientation(LinearLayout.VERTICAL);
         item.setGravity(Gravity.CENTER);
-        item.setPadding(dp(3), 0, dp(3), 0);
+        item.setPadding(dp(2 * dockScale), 0, dp(2 * dockScale), 0);
         item.setClickable(true);
         item.setFocusable(true);
         item.setOnClickListener(v -> showApp(key));
@@ -2085,7 +2108,7 @@ public class MainActivity extends Activity {
         iconWrap.setClipChildren(false);
         iconWrap.setClipToPadding(false);
         int bubbleAccent = active || center ? mix(accent, GOLD_2, center ? 0.18f : 0.08f) : mix(accent, SURFACE_2, isLightTheme() ? 0.72f : 0.58f);
-        TextView bubble = text(icon, center ? 24f : 17.5f, active || center ? onColorFor(bubbleAccent) : alpha(TEXT, 225), Typeface.BOLD);
+        TextView bubble = text(icon, (center ? 23.0f : 16.4f) * dockScale, active || center ? onColorFor(bubbleAccent) : alpha(TEXT, 225), Typeface.BOLD);
         bubble.setGravity(Gravity.CENTER);
         bubble.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, isLightTheme() ? 88 : 160));
         GradientDrawable circle = gradient(new int[]{
@@ -2095,7 +2118,7 @@ public class MainActivity extends Activity {
         circle.setStroke(dp(active ? 3 : 1), active || center ? alpha(mix(bubbleAccent, Color.WHITE, 0.34f), 200) : alpha(mix(bubbleAccent, Color.WHITE, 0.18f), 76));
         bubble.setBackground(circle);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) bubble.setElevation(dp(active || center ? 12 : 4));
-        iconWrap.addView(bubble, new FrameLayout.LayoutParams(dp(center ? 64 : 54), dp(center ? 64 : 54), Gravity.CENTER));
+        iconWrap.addView(bubble, new FrameLayout.LayoutParams(bubbleSize, bubbleSize, Gravity.CENTER));
         if ("cart".equals(key) && cartHasItems()) {
             TextView badge = text(cartCountText(), 9.4f, Color.rgb(24, 14, 3), Typeface.BOLD);
             badge.setGravity(Gravity.CENTER);
@@ -2104,20 +2127,20 @@ public class MainActivity extends Activity {
             int cartAccent = navAccent("cart");
             badge.setBackground(gradient(new int[]{mix(cartAccent, Color.WHITE, 0.34f), mix(cartAccent, GOLD_2, 0.28f), cartAccent}, GradientDrawable.Orientation.TOP_BOTTOM, 999));
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) badge.setElevation(dp(16));
-            FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(28), dp(22), Gravity.TOP | Gravity.RIGHT);
-            bp.setMargins(0, -dp(2), -dp(1), 0);
+            FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(27 * dockScale), dp(21 * dockScale), Gravity.TOP | Gravity.RIGHT);
+            bp.setMargins(0, -dp(2 * dockScale), -dp(1 * dockScale), 0);
             iconWrap.addView(badge, bp);
         }
-        item.addView(iconWrap, new LinearLayout.LayoutParams(dp(center ? 70 : 58), dp(center ? 68 : 58)));
+        item.addView(iconWrap, new LinearLayout.LayoutParams(wrapW, wrapH));
         String dockLabel = "cart".equals(key) && cartHasItems() ? "سبد " + cartCountText() : label;
-        TextView title = text(dockLabel, active ? 11.2f : 10.2f, active ? mix(accent, GOLD_2, 0.18f) : alpha(TEXT, 205), Typeface.BOLD);
+        TextView title = text(dockLabel, (active ? 10.8f : 9.7f) * dockScale, active ? mix(accent, GOLD_2, 0.18f) : alpha(TEXT, 205), Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         title.setSingleLine(true);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
-        tp.setMargins(0, dp(center ? 0 : 2), 0, 0);
+        tp.setMargins(0, dp((center ? 0 : 2) * dockScale), 0, 0);
         item.addView(title, tp);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, center ? dp(88) : dp(82), center ? 1.16f : 1f);
-        lp.setMargins(dp(2), center ? 0 : dp(4), dp(2), 0);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, itemH, center ? 1.12f : 1f);
+        lp.setMargins(dp(1.5f * dockScale), center ? 0 : dp(3 * dockScale), dp(1.5f * dockScale), 0);
         parent.addView(item, lp);
     }
 
@@ -9520,11 +9543,14 @@ public class MainActivity extends Activity {
         meta.setSingleLine(true);
         meta.setEllipsize(TextUtils.TruncateAt.END);
         copy.addView(meta, new LinearLayout.LayoutParams(-1, -2));
+        TextView saleLine = text("قیمت فروش ۱: " + (price1Ok ? compactMoney(r.opt("قیمت_فروش")) : "—") + "  •  قیمت فروش ۲: " + (price2Ok ? compactMoney(r.opt("قیمت_فروش۲")) : "—"), 9.7f, TEXT, Typeface.BOLD);
+        saleLine.setSingleLine(true); saleLine.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, -2); slp.setMargins(0, dp(4), 0, 0); copy.addView(saleLine, slp);
         LinearLayout prices = new LinearLayout(this);
         prices.setOrientation(LinearLayout.HORIZONTAL);
         prices.setGravity(Gravity.CENTER_VERTICAL);
-        prices.addView(pill("۱: " + compactMoney(r.opt("قیمت_فروش")), price1Ok ? SUCCESS : MUTED, false), new LinearLayout.LayoutParams(0, -2, 1f));
-        TextView p2 = pill((price2Computed(r) ? "+۶٪ " : "") + "۲: " + (price2Ok ? compactMoney(r.opt("قیمت_فروش۲")) : "—"), price2Ok ? WARNING : MUTED, price2Ok);
+        prices.addView(pill("فروش۱: " + (price1Ok ? compactMoney(r.opt("قیمت_فروش")) : "—"), price1Ok ? SUCCESS : MUTED, false), new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView p2 = pill((price2Computed(r) ? "+۶٪ " : "") + "فروش۲: " + (price2Ok ? compactMoney(r.opt("قیمت_فروش۲")) : "—"), price2Ok ? WARNING : MUTED, price2Ok);
         LinearLayout.LayoutParams p2p = new LinearLayout.LayoutParams(0, -2, 1f); p2p.setMargins(dp(5), 0, 0, 0); prices.addView(p2, p2p);
         LinearLayout.LayoutParams prp = new LinearLayout.LayoutParams(-1, -2); prp.setMargins(0, dp(5), 0, 0); copy.addView(prices, prp);
         row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -10677,7 +10703,22 @@ public class MainActivity extends Activity {
         if (canUsePermission("cart_draft")) { Button draft = secondaryButton("ذخیره پیش‌نویس"); draft.setOnClickListener(v -> { syncCartFormInputs(); saveCartDraftOnly(); }); row.addView(draft, weightedButtonLp()); }
         if (canUsePermission("cart_submit")) { Button send = primaryButton("پیش‌نمایش و ارسال"); send.setOnClickListener(v -> { syncCartFormInputs(); showPrefactorPreviewDialog(); }); row.addView(send, weightedButtonLp()); }
         if (row.getChildCount() > 0) { LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(9), 0, 0); c.addView(row, rp); }
+        Button clear = themedActionButton("حذف کامل پیش‌فاکتور فعلی", DANGER, false);
+        clear.setTextSize(9.2f);
+        clear.setOnClickListener(v -> confirmDeleteCurrentCartPrefactor());
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-1, dp(42)); clp.setMargins(0, dp(9), 0, 0); c.addView(clear, clp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
+    }
+
+    private void confirmDeleteCurrentCartPrefactor() {
+        boolean empty = !cartHasItems() && visitorCartCustomer == null && (visitorCartNotes == null || visitorCartNotes.trim().isEmpty());
+        if (empty) { Toast.makeText(this, "پیش‌فاکتور فعالی برای حذف وجود ندارد.", Toast.LENGTH_SHORT).show(); return; }
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(12), dp(10), dp(12), dp(6));
+        box.addView(text("حذف کامل پیش‌فاکتور", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        box.addView(text("همه اقلام، مشتری، یادداشت، امضا و پیش‌نویس محلی همین سبد حذف می‌شود. این کار روی پیش‌فاکتورهای ثبت‌شده قبلی اثر ندارد.", 10.8f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("انصراف", null).setPositiveButton("حذف کامل", null).create();
+        dlg.setOnShowListener(d -> { styleMeelanoDialog(dlg, DANGER); Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE); if (ok != null) { ok.setTextColor(DANGER); ok.setOnClickListener(v -> { String draftId = visitorCartDraftId == null ? "" : visitorCartDraftId; if (!draftId.trim().isEmpty()) removeLocalDraft(draftId); if (prefs != null) prefs.edit().remove(KEY_CART_DRAFT).apply(); resetCartState(); Toast.makeText(this, "پیش‌فاکتور فعلی کامل حذف شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); renderCartPage(); }); } });
+        dlg.show();
     }
 
     private void addCartDraftsAndOfflineCard() {
@@ -11069,11 +11110,42 @@ public class MainActivity extends Activity {
 
     private String resolveNativeTable(Connection c, String... candidates) {
         for (String t : candidates) if (t != null && tableExists(c, t)) return t;
-        return null;
+        boolean detail = false;
+        if (candidates != null) for (String t : candidates) {
+            String n = normalizeColumnName(t);
+            if (containsAny(n, "sub", "detail", "item", "radif", "ریز", "اقلام")) { detail = true; break; }
+        }
+        return findNativePrefactorTable(c, detail);
+    }
+
+    private String findNativePrefactorTable(Connection c, boolean detail) {
+        String best = null; int bestScore = 0;
+        try (PreparedStatement ps = c.prepareStatement("SELECT t.name FROM sys.tables t JOIN sys.schemas s ON s.schema_id=t.schema_id WHERE s.name=N'dbo'")) {
+            try (ResultSet r = ps.executeQuery()) {
+                while (r.next()) {
+                    String name = r.getString(1); String n = normalizeColumnName(name);
+                    if (n.startsWith("meelano") || n.contains("meelano")) continue;
+                    boolean pref = containsAny(n, "pish", "prefactor", "preinvoice", "proforma", "پیش", "پرفاکتور", "پروفورما");
+                    boolean sale = containsAny(n, "sail", "sale", "sales", "forosh", "forush", "foroosh", "factor", "fact", "invoice", "فروش", "فاکتور", "فاكتور");
+                    boolean sub = containsAny(n, "sub", "detail", "details", "item", "items", "radif", "line", "ریز", "اقلام", "ردیف");
+                    if (!pref || !sale) continue;
+                    if (detail != sub && !(detail && containsAny(n, "subsail", "subfactor", "factoritem", "factitem"))) continue;
+                    int score = 20;
+                    if (n.contains("sail")) score += 6;
+                    if (n.contains("forosh") || n.contains("فروش")) score += 5;
+                    if (n.contains("pish")) score += 5;
+                    if (n.contains("prefactor")) score += 4;
+                    if (detail && sub) score += 6;
+                    if (!detail && !sub) score += 4;
+                    if (score > bestScore) { bestScore = score; best = name; }
+                }
+            }
+        } catch (Exception ignored) { }
+        return best;
     }
 
     private String nativePrefactorNumberColumn(Set<String> cols) {
-        String c = resolveFlexible(cols, "shfacfo", "SHFACFO", "shfac", "factor_no", "FactorNo", "fac_no", "No", "no", "number", "Number", "serial", "Serial", "shomare", "شماره");
+        String c = resolveFlexible(cols, "shfacfo", "SHFACFO", "shfac", "shfacpish", "shfac_pish", "shpish", "sh_pish", "pish_no", "pish_number", "factor_no", "FactorNo", "fac_no", "No", "no", "number", "Number", "serial", "Serial", "shomare", "شماره");
         if (c != null) return c;
         for (String col : cols) {
             String n = normalizeColumnName(col);
@@ -11103,15 +11175,17 @@ public class MainActivity extends Activity {
         if ("draft".equals(st)) { updateNativePrefactorSync(c, id, "", "", "پیش‌نویس است و هنوز برای تبدیل به فاکتور فروش ارسال نشده."); return; }
         if (!currentNativePrefactorNo(c, id).trim().isEmpty()) return;
         java.sql.Savepoint sp = null;
+        boolean startedTx = false;
         try {
             boolean auto = c.getAutoCommit();
-            if (!auto) sp = c.setSavepoint("meelano_native_prefactor");
-            String headerTable = resolveNativeTable(c, "sailfact_pish", "sailfactpish", "sail_pish", "pish_sailfact", "pishfact", "prefactor");
-            String detailTable = resolveNativeTable(c, "subsailfact_pish", "subsailfactpish", "sub_sailfact_pish", "pish_subsailfact", "subpishfact", "prefactor_items");
-            if (headerTable == null || detailTable == null) { updateNativePrefactorSync(c, id, "", "", "جدول پیش‌فاکتور آتیران پیدا نشد؛ نسخه اختصاصی Meelano آماده تبدیل باقی ماند."); return; }
+            if (auto) { c.setAutoCommit(false); startedTx = true; }
+            else sp = c.setSavepoint("meelano_native_prefactor");
+            String headerTable = resolveNativeTable(c, "sailfact_pish", "sailfactpish", "sailfact_p", "sailfactp", "sail_pish", "sailpish", "pish_sailfact", "pishsailfact", "pre_sailfact", "presailfact", "sailfact_pre", "sailfactpre", "pishfact", "pish_factor", "prefactor");
+            String detailTable = resolveNativeTable(c, "subsailfact_pish", "subsailfactpish", "subsailfact_p", "subsailfactp", "sub_sailfact_pish", "subsail_pish", "subpish_sailfact", "pish_subsailfact", "pishsubsailfact", "subpishfact", "sub_pish_factor", "prefactor_items");
+            if (headerTable == null || detailTable == null) { updateNativePrefactorSync(c, id, "", "", "جدول پیش‌فاکتور آتیران پیدا نشد؛ نسخه اختصاصی Meelano آماده تبدیل باقی ماند."); if (startedTx) c.commit(); return; }
             Set<String> hCols = columns(c, headerTable); Set<String> dCols = columns(c, detailTable);
             String noCol = nativePrefactorNumberColumn(hCols);
-            if (noCol == null) { updateNativePrefactorSync(c, id, headerTable, "", "ستون شماره پیش‌فاکتور در جدول آتیران تشخیص داده نشد."); return; }
+            if (noCol == null) { updateNativePrefactorSync(c, id, headerTable, "", "ستون شماره پیش‌فاکتور در جدول آتیران تشخیص داده نشد."); if (startedTx) c.commit(); return; }
             long nativeNo = nextNativeNumber(c, headerTable, noCol, id);
             Map<String, Object> hv = new LinkedHashMap<>();
             hv.put(noCol, nativeNo);
@@ -11129,13 +11203,17 @@ public class MainActivity extends Activity {
             putResolved(hv, hCols, "MEELANO-APP-" + id, "client_uuid", "mobile_uuid", "uuid", "app_uuid", "external_id");
             putResolved(hv, hCols, snap.optString("notes", ""), "tozihat", "Tozihat", "description", "Description", "note", "notes", "memo", "شرح", "توضیحات");
             putResolved(hv, hCols, snap.optString("settlement", ""), "tasvieh", "Tasvieh", "settlement", "payment_type", "نوع_تسویه");
-            putResolved(hv, hCols, 0, "is_deleted", "deleted", "حذف"); putResolved(hv, hCols, 1, "active", "Active", "is_active");
+            putResolved(hv, hCols, NATIVE_PREF_STATUS_TEXT, "status", "Status", "state", "State", "vaziat", "Vaziat", "وضعیت");
+            putResolved(hv, hCols, 0, "converted", "is_converted", "convert", "Convert", "tabdil", "Tabdil", "invoiced", "is_invoiced", "invoice_done");
+            putResolved(hv, hCols, 1, "is_pish", "pish", "Pish", "prefactor", "is_prefactor", "pishfactor", "پیش_فاکتور");
+            putResolved(hv, hCols, 0, "is_deleted", "deleted", "Delete", "Deleted", "حذف");
+            putResolved(hv, hCols, 1, "active", "Active", "is_active", "enable", "enabled");
             insertFlexibleRow(c, headerTable, hv);
-            String refCol = resolveFlexible(dCols, noCol, "shfacfo", "SHFACFO", "shfac", "factor_no", "FactorNo", "fac_no", "No", "no", "number", "Number", "serial", "Serial", "shomare", "شماره");
-            String productCol = resolveFlexible(dCols, "SHKA", "shka", "product_code", "ProductCode", "kala", "code_kala", "کد_کالا");
-            String qtyCol = resolveFlexible(dCols, "tedad", "TEDAD", "qty", "Qty", "quantity", "Quantity", "meghdar", "Meghdar", "مقدار", "تعداد");
-            String priceCol = resolveFlexible(dCols, "fi", "FI", "fee", "Fee", "price", "Price", "nerkh", "Nerkh", "gheymat", "قیمت", "فی");
-            String amountCol = resolveFlexible(dCols, "LINESUM", "LineSum", "line_sum", "amount", "Amount", "mablagh", "total", "Total", "all", "جمع");
+            String refCol = resolveFlexible(dCols, noCol, "shfacfo", "SHFACFO", "shfac", "shfacpish", "shfac_pish", "shpish", "sh_pish", "pish_no", "pish_number", "factor_no", "FactorNo", "fac_no", "No", "no", "number", "Number", "serial", "Serial", "shomare", "شماره");
+            String productCol = resolveFlexible(dCols, "SHKA", "shka", "shkala", "KalaCode", "kala_code", "product_code", "ProductCode", "item_code", "code", "Code", "kala", "code_kala", "کد_کالا");
+            String qtyCol = resolveFlexible(dCols, "tedad", "TEDAD", "qty", "Qty", "quantity", "Quantity", "meghdar", "Meghdar", "meghdar1", "amount_qty", "مقدار", "تعداد");
+            String priceCol = resolveFlexible(dCols, "fi", "FI", "fee", "Fee", "price", "Price", "nerkh", "Nerkh", "gheymat", "unit_price", "قیمت", "فی");
+            String amountCol = resolveFlexible(dCols, "LINESUM", "LineSum", "line_sum", "amount", "Amount", "mablagh", "total", "Total", "all", "line_total", "جمع");
             if (refCol == null || productCol == null || qtyCol == null) throw new IllegalStateException("ستون‌های اصلی اقلام پیش‌فاکتور آتیران تشخیص داده نشد.");
             for (int i = 0; items != null && i < items.length(); i++) {
                 JSONObject it = items.optJSONObject(i); if (it == null) continue;
@@ -11148,14 +11226,54 @@ public class MainActivity extends Activity {
                 putResolved(dv, dCols, it.optString("unit", ""), "vahed", "unit", "Unit", "unit_name", "واحد");
                 putResolved(dv, dCols, it.optDouble("lineDiscount", 0), "tafif", "takhfif", "discount", "Discount", "تخفیف");
                 putResolved(dv, dCols, it.optString("note", ""), "tozihat", "note", "notes", "memo", "شرح", "توضیحات");
-                putResolved(dv, dCols, 0, "is_deleted", "deleted", "حذف"); putResolved(dv, dCols, 1, "active", "Active", "is_active");
+                putResolved(dv, dCols, 0, "converted", "is_converted", "invoiced", "is_invoiced");
+                putResolved(dv, dCols, 0, "is_deleted", "deleted", "Delete", "Deleted", "حذف"); putResolved(dv, dCols, 1, "active", "Active", "is_active", "enable", "enabled");
                 insertFlexibleRow(c, detailTable, dv);
             }
             updateNativePrefactorSync(c, id, headerTable, String.valueOf(nativeNo), "در جدول " + headerTable + " ثبت شد و باید در مسیر «فاکتور فروش ← از پیش فاکتور» قابل انتخاب باشد.");
+            if (startedTx) c.commit();
         } catch (Exception ex) {
-            try { if (sp != null) c.rollback(sp); } catch (Exception ignored) { }
+            try { if (startedTx) c.rollback(); else if (sp != null) c.rollback(sp); } catch (Exception ignored) { }
             updateNativePrefactorSync(c, id, "", "", "همگام‌سازی با پیش‌فاکتور آتیران کامل نشد: " + shortError(ex));
-        }
+            try { if (startedTx) c.commit(); } catch (Exception ignored) { }
+        } finally { try { if (startedTx) c.setAutoCommit(true); } catch (Exception ignored) { } }
+    }
+
+
+    private void repairUnsyncedNativePrefactors(Connection c) {
+        if (c == null) return;
+        try {
+            if (!tableExists(c, "meelano_prefactors") || !tableExists(c, "meelano_prefactor_items")) return;
+            String sql = "SELECT TOP (20) id,client_uuid,visitor_username,visitor_id,customer_code,customer_name,notes,signature_data,ISNULL(grand_total,total_amount),status,delivery_date,delivery_address,settlement_type,payment_ref,subtotal_amount,global_discount,tax_percent,tax_amount,approval_reason " +
+                    "FROM dbo.meelano_prefactors WHERE ISNULL(status,N'')<>N'draft' AND NULLIF(ISNULL(native_prefactor_no,N''),N'') IS NULL ORDER BY id DESC";
+            JSONArray pending = new JSONArray();
+            try (PreparedStatement ps = c.prepareStatement(sql); ResultSet r = ps.executeQuery()) {
+                while (r.next()) {
+                    long id = r.getLong(1);
+                    JSONObject snap = new JSONObject();
+                    snap.put("repairId", id);
+                    snap.put("clientUuid", stringOr(r.getString(2), "")); snap.put("visitor", stringOr(r.getString(3), "")); snap.put("visitorId", stringOr(r.getString(4), ""));
+                    snap.put("customerCode", stringOr(r.getString(5), "")); snap.put("customerName", stringOr(r.getString(6), "")); snap.put("notes", stringOr(r.getString(7), "")); snap.put("signature", stringOr(r.getString(8), ""));
+                    snap.put("grandTotal", r.getDouble(9)); snap.put("status", stringOr(r.getString(10), "sent")); snap.put("deliveryDate", stringOr(r.getString(11), "")); snap.put("address", stringOr(r.getString(12), ""));
+                    snap.put("settlement", stringOr(r.getString(13), "")); snap.put("paymentRef", stringOr(r.getString(14), "")); snap.put("subtotal", r.getDouble(15)); snap.put("globalDiscount", r.getDouble(16));
+                    snap.put("taxPercent", r.getDouble(17)); snap.put("taxAmount", r.getDouble(18)); snap.put("approvalReason", stringOr(r.getString(19), ""));
+                    pending.put(snap);
+                }
+            }
+            for (int pidx = 0; pidx < pending.length(); pidx++) {
+                JSONObject snap = pending.optJSONObject(pidx); if (snap == null) continue;
+                long id = snap.optLong("repairId", 0);
+                JSONArray items = new JSONArray();
+                try (PreparedStatement ip = c.prepareStatement("SELECT product_code,product_name,unit,qty,price,amount,stock_snapshot,pack_count,price_tier,line_discount,line_note FROM dbo.meelano_prefactor_items WHERE prefactor_id=? ORDER BY id")) {
+                    ip.setLong(1, id);
+                    try (ResultSet ir = ip.executeQuery()) {
+                        while (ir.next()) { JSONObject it = new JSONObject(); it.put("code", stringOr(ir.getString(1), "")); it.put("name", stringOr(ir.getString(2), "")); it.put("unit", stringOr(ir.getString(3), "")); it.put("qty", ir.getDouble(4)); it.put("price", ir.getDouble(5)); it.put("amount", ir.getDouble(6)); it.put("stock", ir.getDouble(7)); it.put("pack", ir.getDouble(8)); it.put("priceTier", stringOr(ir.getString(9), "1")); it.put("lineDiscount", ir.getDouble(10)); it.put("note", stringOr(ir.getString(11), "")); items.put(it); }
+                    }
+                }
+                snap.put("items", items);
+                if (items.length() > 0) syncNativeAtiranPrefactor(c, id, snap, items);
+            }
+        } catch (Exception ignored) { }
     }
 
     private void putResolved(Map<String, Object> values, Set<String> cols, Object value, String... candidates) {
@@ -11224,8 +11342,8 @@ public class MainActivity extends Activity {
         if (c == null || id <= 0) return;
         try {
             String st = status == null ? "" : status;
-            boolean ready = "sent".equals(st) || "approved".equals(st);
-            String invoiceStatus = ready ? "ready" : ("pending_approval".equals(st) ? "awaiting_approval" : "not_ready");
+            boolean ready = "sent".equals(st) || "approved".equals(st) || "pending_approval".equals(st);
+            String invoiceStatus = ready ? "ready" : "not_ready";
             try (PreparedStatement ps = c.prepareStatement("UPDATE dbo.meelano_prefactors SET ready_for_invoice=?, invoice_status=?, system_convert_note=CASE WHEN NULLIF(system_convert_note,N'') IS NULL THEN ? ELSE system_convert_note END, updated_at=SYSDATETIME() WHERE id=?")) {
                 ps.setBoolean(1, ready); ps.setString(2, invoiceStatus); ps.setString(3, ready ? "آماده تبدیل به فاکتور در سیستم از جدول/نمای meelano_prefactors_ready_for_invoice" : "پس از تایید/ارسال آماده تبدیل می‌شود"); ps.setLong(4, id); ps.executeUpdate();
             }
@@ -11386,6 +11504,7 @@ public class MainActivity extends Activity {
     private String queryMyPrefactorsSql() throws Exception {
         try (Connection c = openConnection()) {
             ensurePrefactorTables(c);
+            repairUnsyncedNativePrefactors(c);
             List<Object> params = new ArrayList<>(); String where = prefactorScopeWhere("p", params);
             String sql = "SELECT TOP (100) p.id, TRY_CONVERT(nvarchar(30),p.created_at), p.status, p.customer_code, p.customer_name, ISNULL(p.grand_total,p.total_amount), p.settlement_type, p.delivery_date, p.approval_reason, ISNULL(x.cnt,0), ISNULL(p.ready_for_invoice,0), ISNULL(p.invoice_status,N''), ISNULL(p.invoice_number,N'') FROM dbo.meelano_prefactors p OUTER APPLY (SELECT COUNT_BIG(1) cnt FROM dbo.meelano_prefactor_items i WHERE i.prefactor_id=p.id) x" + where + " ORDER BY p.created_at DESC, p.id DESC";
             JSONArray arr = new JSONArray();
@@ -15384,7 +15503,7 @@ public class MainActivity extends Activity {
         LinearLayout c = card();
         c.setBackground(gradient(new int[]{alpha(INFO, 26), alpha(SUCCESS, 18), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 26));
         c.addView(text("Meelano Connection Health", 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        c.addView(text("وضعیت فعلی: " + (connectionIndicator == null ? "—" : "نمایشگر بالای صفحه"), 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("نمایشگر اتصال از بالای برنامه حذف شده است؛ وضعیت اتصال فقط هنگام عملیات‌ها و خطاها نمایش داده می‌شود.", 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         c.addView(text("آخرین اتصال موفق: " + prefs.getString(KEY_LAST_CONNECTION_OK, "ثبت نشده"), 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         c.addView(text("آخرین خطا: " + prefs.getString(KEY_LAST_CONNECTION_ERROR, "ندارد"), 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         TextView safe = text("جزئیات فنی اتصال و رمزها طبق سیاست Meelano مخفی است؛ فقط وضعیت کاربردی به کاربر نمایش داده می‌شود.", 10.6f, alpha(TEXT, 220), Typeface.BOLD);
