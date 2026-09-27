@@ -150,6 +150,7 @@ public class MainActivity extends Activity {
     private static final String KEY_CART_DRAFTS = "visitor_cart_drafts_json";
     private static final String KEY_OFFLINE_PREF_QUEUE = "visitor_prefactor_offline_queue_json";
     private static final String KEY_VISIT_RESULTS_LOCAL = "visitor_visit_results_local_json";
+    private static final String KEY_VISITOR_LOCAL_PRODUCTS = "visitor_local_products_json";
     private static final String KEY_WIDGET_SUMMARY = "widget_summary";
     private static final String KEY_LAST_CONNECTION_OK = "last_connection_ok";
     private static final String KEY_LAST_CONNECTION_ERROR = "last_connection_error";
@@ -185,6 +186,7 @@ public class MainActivity extends Activity {
     private static final int REQ_TTS_CHECK = 9403;
     private static final int REQ_CHAT_ATTACHMENT = 9404;
     private static final int REQ_WIFI_PERMISSION = 9405;
+    private static final int REQ_PRODUCT_IMAGE = 9406;
 
     private static final int[] S_HOST = {122, 126, 103, 120, 125, 122, 103, 120, 125, 126, 103, 120, 112};
     private static final int[] S_USER = {8, 45, 36, 32, 39, 8, 39};
@@ -267,6 +269,8 @@ public class MainActivity extends Activity {
     private String visitorCartPaymentRef = "";
     private double visitorCartGlobalDiscount = 0;
     private double visitorCartTaxPercent = 0;
+    private String pendingProductImageKey = "";
+    private String pendingProductImageName = "";
     private EditText cartNotesInput;
     private EditText cartDiscountInput;
     private EditText cartTaxInput;
@@ -7308,6 +7312,8 @@ public class MainActivity extends Activity {
         if ("credit".equals(filter)) return "بستانکار";
         if ("settled".equals(filter)) return "بدون حساب";
         if ("no_buy".equals(filter)) return "بدون خرید";
+        if ("inactive".equals(filter)) return "کم‌تحرک";
+        if ("route_today".equals(filter)) return "مسیر امروز";
         if ("top".equals(filter)) return "پرخرید";
         return "همه";
     }
@@ -7320,6 +7326,8 @@ public class MainActivity extends Activity {
         if ("no_buy".equals(filter)) return new String[][]{{"smart","فرصت فروش"},{"debt_desc","مانده بالاتر"},{"risk_desc","ریسک بیشتر"},{"name_asc","الفبایی"},{"latest_sale","آخرین تعامل"}};
         if ("settled".equals(filter)) return new String[][]{{"smart","آماده فروش"},{"latest_sale","جدیدترین خرید"},{"sales_desc","بیشترین فروش"},{"invoice_desc","فاکتور بیشتر"},{"name_asc","الفبایی"}};
         if ("top".equals(filter)) return new String[][]{{"smart","ارزشمندترین"},{"sales_desc","بیشترین فروش"},{"invoice_desc","فاکتور بیشتر"},{"latest_sale","جدیدترین خرید"},{"debt_desc","مانده بدهی"},{"risk_desc","ریسک بیشتر"}};
+        if ("inactive".equals(filter)) return new String[][]{{"smart","بازفعال‌سازی"},{"oldest_sale","قدیمی‌ترین خرید"},{"sales_desc","ارزشمندتر"},{"debt_desc","مانده بدهی"},{"name_asc","الفبایی"}};
+        if ("route_today".equals(filter)) return new String[][]{{"smart","اولویت مسیر"},{"debt_desc","وصول مسیر"},{"sales_desc","ارزش مسیر"},{"latest_sale","تعامل جدید"},{"name_asc","الفبایی"}};
         return new String[][]{{"smart","پیشنهاد میلو"},{"name_asc","الفبایی"},{"debt_desc","بیشترین بدهی"},{"latest_sale","جدیدترین خرید"},{"sales_desc","بیشترین فروش"},{"risk_desc","ریسک بیشتر"}};
     }
 
@@ -7345,6 +7353,8 @@ public class MainActivity extends Activity {
         if ("credit".equals(filter)) return "نمایش " + formatNumber(count) + " بستانکار؛ برای تسویه یا تهاتر سریع مرتب کنید.";
         if ("no_buy".equals(filter)) return "نمایش " + formatNumber(count) + " مشتری بدون خرید؛ مناسب کمپین تماس و بازفعال‌سازی.";
         if ("top".equals(filter)) return "نمایش " + formatNumber(count) + " مشتری پرخرید؛ مناسب نگهداشت و پیشنهاد اختصاصی.";
+        if ("inactive".equals(filter)) return "نمایش " + formatNumber(count) + " مشتری کم‌تحرک یا بدون خرید اخیر؛ مناسب بازفعال‌سازی.";
+        if ("route_today".equals(filter)) return "نمایش " + formatNumber(count) + " مشتری مسیر امروز: " + todayRouteName() + "؛ اگر ستون مسیر نباشد، مسیر پیشنهادی از کد مشتری ساخته می‌شود.";
         if ("settled".equals(filter)) return "نمایش " + formatNumber(count) + " مشتری بدون مانده؛ مناسب فروش مجدد بدون ریسک وصول.";
         return "نمایش " + formatNumber(count) + " مشتری؛ مرتب‌سازی بدون بارگذاری دوباره انجام می‌شود.";
     }
@@ -7381,6 +7391,8 @@ public class MainActivity extends Activity {
 
     private int compareCustomersSmart(JSONObject a, JSONObject b, String filter) {
         if ("top".equals(filter)) return chain(compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareInt(b.optInt("تعداد_فاکتور",0), a.optInt("تعداد_فاکتور",0)), compareLong(customerLastSaleValue(b), customerLastSaleValue(a)), compareName(a,b));
+        if ("inactive".equals(filter)) return chain(compareLong(customerLastSaleValue(a), customerLastSaleValue(b)), compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareName(a,b));
+        if ("route_today".equals(filter)) return chain(compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareName(a,b));
         if ("credit".equals(filter)) return chain(compareDouble(customerCreditAmount(b), customerCreditAmount(a)), compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareLong(customerLastSaleValue(b), customerLastSaleValue(a)), compareName(a,b));
         if ("no_buy".equals(filter)) return chain(compareInt(customerRiskScore(b), customerRiskScore(a)), compareDouble(customerPositiveBalance(b), customerPositiveBalance(a)), compareName(a,b));
         if ("settled".equals(filter)) return chain(compareDouble(num(b,"جمع_فروش"), num(a,"جمع_فروش")), compareLong(customerLastSaleValue(b), customerLastSaleValue(a)), compareName(a,b));
@@ -7399,7 +7411,7 @@ public class MainActivity extends Activity {
     private String txt(JSONObject r, String key) { return r == null ? "" : stringOr(r.optString(key, ""), ""); }
 
     private long customerLastSaleValue(JSONObject r) {
-        String raw = r == null ? "" : r.optString("آخرین_خرید", "");
+        String raw = r == null ? "" : r.optString("آخرین_خرید", r.optString("lastSale", ""));
         String norm = normalizeDigits(raw);
         StringBuilder digits = new StringBuilder();
         for (int i = 0; i < norm.length(); i++) { char ch = norm.charAt(i); if (ch >= '0' && ch <= '9') digits.append(ch); }
@@ -7428,6 +7440,47 @@ public class MainActivity extends Activity {
         return out;
     }
 
+    private String todayRouteName() {
+        int dow = Calendar.getInstance().get(Calendar.DAY_OF_WEEK);
+        if (dow == Calendar.SATURDAY) return "شنبه";
+        if (dow == Calendar.SUNDAY) return "یکشنبه";
+        if (dow == Calendar.MONDAY) return "دوشنبه";
+        if (dow == Calendar.TUESDAY) return "سه‌شنبه";
+        if (dow == Calendar.WEDNESDAY) return "چهارشنبه";
+        if (dow == Calendar.THURSDAY) return "پنجشنبه";
+        return "جمعه";
+    }
+
+    private int todayRouteIndex() {
+        int dow = Calendar.getInstance().get(Calendar.DAY_OF_WEEK);
+        if (dow == Calendar.SATURDAY) return 0; if (dow == Calendar.SUNDAY) return 1; if (dow == Calendar.MONDAY) return 2; if (dow == Calendar.TUESDAY) return 3; if (dow == Calendar.WEDNESDAY) return 4; if (dow == Calendar.THURSDAY) return 5; return 6;
+    }
+
+    private boolean customerIsInactive(JSONObject r) {
+        if (r == null) return false;
+        if (r.optInt("تعداد_فاکتور", r.optInt("invoiceCount", 0)) <= 0) return true;
+        long last = customerLastSaleValue(r);
+        if (last <= 0) return true;
+        return last < 14040000L;
+    }
+
+    private boolean customerOnTodayRoute(JSONObject r) {
+        if (r == null) return false;
+        String route = stringOr(r.optString("مسیر", r.optString("route", "")), "").trim();
+        String normalized = normalizeDigits(route).replace('ي','ی').replace('ك','ک');
+        String today = todayRouteName();
+        if (!normalized.isEmpty()) {
+            if (normalized.contains(today)) return true;
+            String idx = String.valueOf(todayRouteIndex() + 1);
+            if (normalized.equals(idx) || normalized.contains("روز " + idx) || normalized.contains("مسیر " + idx) || normalized.contains("مسير " + idx)) return true;
+            return false;
+        }
+        String code = normalizeDigits(r.optString("کد", r.optString("code", "")));
+        int lastDigit = -1;
+        for (int i = code.length() - 1; i >= 0; i--) { char ch = code.charAt(i); if (ch >= '0' && ch <= '9') { lastDigit = ch - '0'; break; } }
+        return lastDigit >= 0 && (lastDigit % 6) == (todayRouteIndex() % 6);
+    }
+
     private JSONArray customerFilteredRows(JSONArray rows, String filter) {
         JSONArray out = new JSONArray();
         if (rows == null) return out;
@@ -7452,6 +7505,8 @@ public class MainActivity extends Activity {
         if ("credit".equals(f)) return balance < -0.0001;
         if ("settled".equals(f)) return Math.abs(balance) <= 0.0001;
         if ("no_buy".equals(f)) return r.optInt("تعداد_فاکتور", 0) <= 0;
+        if ("inactive".equals(f)) return customerIsInactive(r);
+        if ("route_today".equals(f)) return customerOnTodayRoute(r);
         if ("top".equals(f)) return r.optDouble("جمع_فروش", 0) > 0 || r.optInt("تعداد_فاکتور", 0) > 0;
         return true;
     }
@@ -7481,7 +7536,7 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
         final JSONArray rowsForFilter = allRows == null ? new JSONArray() : allRows;
-        String[][] filters = {{"all","همه"},{"debt","بدهکار"},{"credit","بستانکار"},{"settled","بدون حساب"},{"no_buy","بدون خرید"},{"top","پرخرید"}};
+        String[][] filters = {{"all","همه"},{"debt","بدهکار"},{"top","پرخرید"},{"inactive","کم‌تحرک"},{"route_today","مسیر امروز"},{"no_buy","بدون خرید"},{"credit","بستانکار"},{"settled","بدون حساب"}};
         for (String[] f : filters) {
             final String nextFilter = f[0];
             String label = f[1] + " " + formatNumber(customerFilterCount(rowsForFilter, nextFilter));
@@ -7522,6 +7577,7 @@ public class MainActivity extends Activity {
             String vis = resolve(cols, "vis_rdf", "VisitorID", "visid");
             String economic = resolve(cols, "eghtesadi", "EconomicCode", "codeeghtesadi");
             String national = resolve(cols, "meli", "NationalCode", "codemeli");
+            String route = resolveFlexible(cols, "route", "Route", "masir", "Masir", "مسیر", "مسير", "day", "Day", "visit_day", "VisitDay", "rooz", "Rooz", "روز");
 
             List<String> select = new ArrayList<>();
             select.add("c.[" + shmo + "] AS کد");
@@ -7534,6 +7590,7 @@ public class MainActivity extends Activity {
             select.add(creditExpr + " AS اعتبار");
             select.add(economic == null ? "CAST(NULL AS nvarchar(100)) AS اقتصادی" : "TRY_CONVERT(nvarchar(100),c.[" + economic + "]) AS اقتصادی");
             select.add(national == null ? "CAST(NULL AS nvarchar(100)) AS ملی" : "TRY_CONVERT(nvarchar(100),c.[" + national + "]) AS ملی");
+            select.add(route == null ? "CAST(NULL AS nvarchar(100)) AS مسیر" : "TRY_CONVERT(nvarchar(100),c.[" + route + "]) AS مسیر");
             select.add(vis == null ? "CAST(NULL AS int) AS کد_ویزیتور" : "TRY_CONVERT(int,c.[" + vis + "]) AS کد_ویزیتور");
             select.add("ISNULL(sf.sales_total,0) AS جمع_فروش");
             select.add("ISNULL(sf.sales_count,0) AS تعداد_فاکتور");
@@ -8244,8 +8301,36 @@ public class MainActivity extends Activity {
             out.put("overdueInvoices", queryOverdueInvoices(c));
             out.put("inactiveCustomers", queryInactiveCustomers(c));
             out.put("goals", queryVisitorGoals(c, vid));
+            out.put("dailyScore", queryVisitorDailyScore(c, vid, sales));
             return out.toString();
         }
+    }
+
+    private JSONObject queryVisitorDailyScore(Connection c, Integer vid, JSONObject sales) {
+        JSONObject o = new JSONObject();
+        try {
+            o.put("salesAmount", sales == null ? 0 : sales.optDouble("total", 0));
+            o.put("salesInvoices", sales == null ? 0 : sales.optInt("count", 0));
+            o.put("salesCustomers", sales == null ? 0 : sales.optInt("customers", 0));
+            ensurePrefactorTables(c);
+            String user = currentAccountName();
+            String vidText = vid == null ? "" : String.valueOf(vid);
+            long prefactors = 0, visits = 0, price2Items = 0; double prefactorAmount = 0;
+            try (PreparedStatement ps = c.prepareStatement("SELECT COUNT_BIG(1), ISNULL(SUM(ISNULL(grand_total,total_amount)),0) FROM dbo.meelano_prefactors WHERE CONVERT(date,created_at)=CONVERT(date,SYSDATETIME()) AND (visitor_username=? OR visitor_id=?)")) {
+                ps.setString(1, user); ps.setString(2, vidText);
+                try (ResultSet r = ps.executeQuery()) { if (r.next()) { prefactors = r.getLong(1); prefactorAmount = r.getDouble(2); } }
+            }
+            try (PreparedStatement ps = c.prepareStatement("SELECT COUNT_BIG(1) FROM dbo.meelano_visit_results WHERE CONVERT(date,created_at)=CONVERT(date,SYSDATETIME()) AND (visitor_username=? OR visitor_id=?)")) {
+                ps.setString(1, user); ps.setString(2, vidText);
+                try (ResultSet r = ps.executeQuery()) { if (r.next()) visits = r.getLong(1); }
+            }
+            try (PreparedStatement ps = c.prepareStatement("SELECT COUNT_BIG(1) FROM dbo.meelano_prefactor_items i INNER JOIN dbo.meelano_prefactors p ON p.id=i.prefactor_id WHERE CONVERT(date,p.created_at)=CONVERT(date,SYSDATETIME()) AND (p.visitor_username=? OR p.visitor_id=?) AND i.price_tier=N'2'")) {
+                ps.setString(1, user); ps.setString(2, vidText);
+                try (ResultSet r = ps.executeQuery()) { if (r.next()) price2Items = r.getLong(1); }
+            }
+            o.put("visits", visits); o.put("prefactors", prefactors); o.put("prefactorAmount", prefactorAmount); o.put("price2Items", price2Items);
+        } catch (Exception ignored) { }
+        return o;
     }
 
     private JSONArray queryVisitorGoals(Connection c, Integer vid) {
@@ -8269,6 +8354,7 @@ public class MainActivity extends Activity {
         if (data == null) data = new JSONObject();
         content.removeAllViews();
         addVisitorPulseTodayCard(data);
+        addVisitorDailyScoreCard(data);
         addVisitorRouteCardsPreview(data);
         addVisitorActivityGrid();
         addVisitorGamificationCard(data);
@@ -8358,6 +8444,53 @@ public class MainActivity extends Activity {
         t.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         t.setPadding(dp(4), 0, dp(4), dp(8));
         return t;
+    }
+
+    private int localDraftsTodayCount() {
+        int count = 0; String today = todayDateText(); JSONArray rows = localDrafts();
+        for (int i = 0; i < rows.length(); i++) { JSONObject r = rows.optJSONObject(i); if (r != null && r.optString("savedAt", r.optString("createdLocal", "")).startsWith(today)) count++; }
+        return count;
+    }
+
+    private void addVisitorDailyScoreCard(JSONObject data) {
+        JSONObject sales = data == null ? null : data.optJSONObject("sales");
+        JSONObject score = data == null ? null : data.optJSONObject("dailyScore");
+        double salesAmount = sales == null ? 0 : sales.optDouble("total", 0);
+        double prefAmount = score == null ? 0 : score.optDouble("prefactorAmount", 0);
+        int visits = (score == null ? 0 : score.optInt("visits", 0)) + localVisitsTodayCount();
+        int prefactors = score == null ? 0 : score.optInt("prefactors", 0);
+        int p2 = score == null ? 0 : score.optInt("price2Items", 0);
+        int drafts = localDraftsTodayCount();
+        double target = visitorGoalTarget(data);
+        double progress = target <= 0 ? 0 : Math.max(salesAmount, prefAmount) / target;
+        int scorePct = Math.max(0, Math.min(100, (int)Math.round(Math.min(1d, progress) * 55d + Math.min(1d, visits / 8d) * 18d + Math.min(1d, (prefactors + drafts) / 4d) * 20d + Math.min(1d, p2 / 6d) * 7d)));
+        int accent = scorePct >= 80 ? SUCCESS : (scorePct >= 45 ? GOLD : WARNING);
+        LinearLayout c = card();
+        c.setBackground(gradient(new int[]{alpha(accent, isLightTheme() ? 36 : 54), alpha(navAccent("cart"), isLightTheme() ? 18 : 30), alpha(Color.rgb(10,9,6), isLightTheme() ? 32 : 238)}, GradientDrawable.Orientation.TL_BR, 30));
+        c.addView(visitorSectionTitle("امتیاز روزانه ویزیتور", "★", accent), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(new VisitorGoalRingView(this, scorePct / 100d, formatNumber(scorePct) + "٪", "امتیاز"), new LinearLayout.LayoutParams(dp(110), dp(110)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(12), 0, dp(4), 0);
+        copy.addView(text("هدف امروز: " + money(target), 13.6f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text("ویزیت، پیش‌فاکتور، مبلغ، اقلام قیمت ۲ و هدف روزانه با هم امتیاز می‌سازند.", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f)); c.addView(head, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout r1 = new LinearLayout(this); r1.setOrientation(LinearLayout.HORIZONTAL);
+        r1.addView(visitorMetricBox("ویزیت", formatNumber(visits), navAccent("visitor_dashboard")), weightedMiniLp());
+        r1.addView(visitorMetricBox("پیش‌فاکتور", formatNumber(prefactors + drafts), navAccent("cart")), weightedMiniLp());
+        r1.addView(visitorMetricBox("مبلغ", money(Math.max(salesAmount, prefAmount)), GOLD_2), weightedMiniLp());
+        LinearLayout.LayoutParams r1p = new LinearLayout.LayoutParams(-1, -2); r1p.setMargins(0, dp(8), 0, 0); c.addView(r1, r1p);
+        LinearLayout r2 = new LinearLayout(this); r2.setOrientation(LinearLayout.HORIZONTAL);
+        r2.addView(visitorMetricBox("قیمت ۲", formatNumber(p2) + " قلم", WARNING), weightedMiniLp());
+        r2.addView(visitorMetricBox("سبد فعال", formatNumber(visitorCartItems == null ? 0 : visitorCartItems.length()), navAccent("cart")), weightedMiniLp());
+        r2.addView(visitorMetricBox("پیشرفت هدف", formatNumber(Math.round(Math.min(1d, progress) * 100d)) + "٪", accent), weightedMiniLp());
+        LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(6), 0, 0); c.addView(r2, r2p);
+        addVisitorProgressLine(c, "هدف مبلغی", money(Math.max(salesAmount, prefAmount)) + " از " + money(target), progress, accent);
+        LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button route = themedActionButton("ثبت ویزیت", navAccent("visitor_dashboard"), false); route.setOnClickListener(v -> loadVisitRoutePage(""));
+        Button pref = themedActionButton("پیش‌فاکتورهای من", navAccent("visitor_reports"), true); pref.setOnClickListener(v -> loadMyPrefactors());
+        actions.addView(route, weightedButtonLp()); actions.addView(pref, weightedButtonLp());
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); c.addView(actions, ap);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
     }
 
     private void addVisitorProgressLine(LinearLayout parent, String title, String sub, double progress, int accent) {
@@ -8772,19 +8905,20 @@ public class MainActivity extends Activity {
 
     private String visitorShowcaseMode() {
         String mode = prefs == null ? "catalog" : prefs.getString("visitor_showcase_mode", "catalog");
-        if (!"compact".equals(mode) && !"gallery".equals(mode)) mode = "catalog";
+        if (!"compact".equals(mode) && !"gallery".equals(mode) && !"ultra".equals(mode)) mode = "catalog";
         return mode;
     }
 
     private int visitorShowcasePageSize() {
         String mode = visitorShowcaseMode();
         if ("gallery".equals(mode)) return compactUi() ? 6 : 8;
+        if ("ultra".equals(mode)) return compactUi() ? 24 : 32;
         if ("compact".equals(mode)) return compactUi() ? 14 : 18;
         return compactUi() ? 9 : 12;
     }
 
     private void setVisitorShowcaseMode(String mode, String query, String filter) {
-        String m = "compact".equals(mode) || "gallery".equals(mode) ? mode : "catalog";
+        String m = "compact".equals(mode) || "gallery".equals(mode) || "ultra".equals(mode) ? mode : "catalog";
         if (prefs != null) prefs.edit().putString("visitor_showcase_mode", m).apply();
         rerenderShowcaseFast(query, filter);
     }
@@ -8833,6 +8967,8 @@ public class MainActivity extends Activity {
         LinearLayout chips = new LinearLayout(this); chips.setOrientation(LinearLayout.HORIZONTAL); chips.setGravity(Gravity.CENTER_VERTICAL);
         String[][] filters = {{"all","همه"},{"stock","موجود"},{"price2","قیمت ۲"},{"top","پرفروش"},{"low","کمبود"}};
         for (String[] opt : filters) addVisitorFilterChip(chips, q, f, opt[0], opt[1]);
+        Button addLocal = themedActionButton("کالای دستی", navAccent("cart"), false); addLocal.setTextSize(8.4f); addLocal.setOnClickListener(v -> showVisitorAddProductDialog(q, f));
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(dp(92), dp(38)); alp.setMargins(dp(3), 0, dp(3), 0); chips.addView(addLocal, alp);
         Button refresh = themedActionButton("تازه‌سازی", GOLD_2, false); refresh.setTextSize(8.7f); refresh.setOnClickListener(v -> loadShowcase(q, f, true));
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(86), dp(38)); rp.setMargins(dp(3), 0, dp(3), 0); chips.addView(refresh, rp);
         hs.addView(chips, new FrameLayout.LayoutParams(-2, -2));
@@ -8843,6 +8979,7 @@ public class MainActivity extends Activity {
         addVisitorShowcaseModeChip(modes, q, f, "gallery", "سه‌بعدی");
         addVisitorShowcaseModeChip(modes, q, f, "catalog", "کاتالوگ خلوت");
         addVisitorShowcaseModeChip(modes, q, f, "compact", "سریع/روان");
+        addVisitorShowcaseModeChip(modes, q, f, "ultra", "فوق‌سبک");
         LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.setMargins(0, dp(8), 0, 0); c.addView(modes, mp);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(10)); content.addView(c, cp);
     }
@@ -8913,16 +9050,134 @@ public class MainActivity extends Activity {
         dlg.show();
     }
 
+    private JSONArray visitorLocalProducts() {
+        try {
+            String raw = prefs == null ? "" : prefs.getString(KEY_VISITOR_LOCAL_PRODUCTS, "");
+            return raw == null || raw.trim().isEmpty() ? new JSONArray() : new JSONArray(raw);
+        } catch (Exception ignored) { return new JSONArray(); }
+    }
+
+    private void saveVisitorLocalProducts(JSONArray arr) {
+        if (prefs != null) prefs.edit().putString(KEY_VISITOR_LOCAL_PRODUCTS, arr == null ? "[]" : arr.toString()).apply();
+    }
+
+    private boolean localProductMatches(JSONObject p, String query, String filter) {
+        if (p == null) return false;
+        String q = query == null ? "" : query.trim();
+        if (!q.isEmpty()) {
+            String hay = normalizeDigits((p.optString("نام", "") + " " + p.optString("کد", "") + " " + p.optString("بارکد", "") + " " + p.optString("گروه", "")).toLowerCase(Locale.US));
+            String needle = normalizeDigits(q.toLowerCase(Locale.US));
+            if (!hay.contains(needle)) return false;
+        }
+        String f = filter == null ? "all" : filter;
+        if ("stock".equals(f)) return jsonDouble(p, "موجودی", 0) > 0;
+        if ("price2".equals(f)) return jsonDouble(p, "قیمت_فروش۲", 0) > 0;
+        if ("low".equals(f)) return jsonDouble(p, "موجودی", 0) <= 0;
+        if ("priced".equals(f)) return jsonDouble(p, "قیمت_فروش", 0) > 0 || jsonDouble(p, "قیمت_فروش۲", 0) > 0;
+        return true;
+    }
+
+    private void applyVisitorPrice2Fallback(JSONArray rows) {
+        if (rows == null) return;
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject r = rows.optJSONObject(i); if (r == null) continue;
+            double p1 = jsonDouble(r, "قیمت_فروش", 0), p2 = jsonDouble(r, "قیمت_فروش۲", 0);
+            if (p2 <= 0 && p1 > 0) { try { r.put("قیمت_فروش۲", Math.round(p1 * 1.06d)); r.put("قیمت_فروش۲_محاسباتی", 1); } catch (Exception ignored) { } }
+        }
+    }
+
+    private JSONArray mergeVisitorLocalProducts(JSONArray rows, String query, String filter) {
+        JSONArray out = new JSONArray();
+        JSONArray locals = visitorLocalProducts();
+        for (int i = locals.length() - 1; i >= 0; i--) {
+            JSONObject p = locals.optJSONObject(i);
+            if (localProductMatches(p, query, filter)) out.put(p);
+        }
+        for (int i = 0; rows != null && i < rows.length(); i++) out.put(rows.optJSONObject(i));
+        return out;
+    }
+
+    private void showVisitorAddProductDialog(String query, String filter) {
+        int accent = navAccent("showcase");
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(12), dp(10), dp(12), dp(8));
+        box.addView(text("افزودن کالای دستی ویزیتور", 16.2f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        box.addView(text("برای کالاهای اضطراری یا اصلاح سریع؛ قیمت ۲ اگر خالی بماند ۶٪ بالاتر از قیمت ۱ محاسبه می‌شود. تصویر را بعد از ثبت از جزئیات کالا می‌توانید انتخاب کنید.", 10.1f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        EditText name = input("نام کالا", "", false);
+        EditText code = input("کد/بارکد اختیاری", "LOCAL-" + System.currentTimeMillis(), false);
+        EditText unit = input("واحد شمارش", "عدد", false);
+        EditText stock = input("موجودی تقریبی", "0", false); stock.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText price1 = input("قیمت فروش ۱", "", false); price1.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText price2 = input("قیمت فروش ۲ / خالی = ۶٪ بالاتر", "", false); price2.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText qty = input("تعداد برای افزودن به سبد", "1", false); qty.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        for (EditText e : new EditText[]{name, code, unit, stock, price1, price2, qty}) { LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, dp(48)); ep.setMargins(0, dp(7), 0, 0); box.addView(e, ep); }
+        AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).setPositiveButton("ثبت و افزودن", null).create();
+        dlg.setOnShowListener(d -> { styleMeelanoDialog(dlg, accent); Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE); if (ok != null) ok.setOnClickListener(v -> {
+            double p1 = Math.max(0, parseNumber(price1.getText().toString(), 0));
+            if (name.getText().toString().trim().isEmpty() || p1 <= 0) { Toast.makeText(this, "نام کالا و قیمت فروش ۱ را وارد کنید.", Toast.LENGTH_SHORT).show(); return; }
+            double p2 = parseNumber(price2.getText().toString(), 0); if (p2 <= 0) p2 = Math.round(p1 * 1.06d);
+            JSONObject product = new JSONObject();
+            try {
+                product.put("کد", code.getText().toString().trim().isEmpty() ? "LOCAL-" + System.currentTimeMillis() : code.getText().toString().trim());
+                product.put("نام", name.getText().toString().trim()); product.put("بارکد", ""); product.put("گروه", "افزوده ویزیتور");
+                product.put("قیمت_فروش", p1); product.put("قیمت_فروش۲", p2); product.put("قیمت_فروش۲_محاسباتی", 1);
+                product.put("موجودی", Math.max(0, parseNumber(stock.getText().toString(), 0))); product.put("واحد", unit.getText().toString().trim()); product.put("تعداد_در_بسته", 1);
+                product.put("_local", true); product.put("_localBy", currentAccountName()); product.put("_localAt", nowText());
+                JSONArray locals = visitorLocalProducts(); locals.put(product); saveVisitorLocalProducts(locals);
+                addOrUpdateCartItem(product, qty.getText().toString(), 2);
+                Toast.makeText(this, "کالا ثبت و به سبد اضافه شد.", Toast.LENGTH_SHORT).show();
+                dlg.dismiss(); showcaseCacheJson = ""; loadShowcase(query, filter, true);
+            } catch (Exception ignored) { }
+        }); });
+        dlg.show();
+    }
+
+    private void showVisitorEditProductDialog(JSONObject source, String query, String filter) {
+        if (source == null) return;
+        int accent = navAccent("showcase");
+        LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(12), dp(10), dp(12), dp(8));
+        box.addView(text("ویرایش/ذخیره کالای دستی", 16.2f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        box.addView(text("این ویرایش در گوشی ویزیتور ذخیره می‌شود و روی داده اصلی آتیران دست نمی‌زند؛ تصویر هم ۵۱۲×۵۱۲ نگهداری می‌شود.", 10.1f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        EditText name = input("نام کالا", safeDisplayText(source.opt("نام"), ""), false);
+        EditText code = input("کد/بارکد", safeDisplayText(source.opt("کد"), "LOCAL-" + System.currentTimeMillis()), false);
+        EditText unit = input("واحد شمارش", unitOrDash(source).replace("—", "عدد"), false);
+        EditText stock = input("موجودی تقریبی", String.valueOf(jsonDouble(source, "موجودی", 0)), false); stock.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText price1 = input("قیمت فروش ۱", String.valueOf(jsonDouble(source, "قیمت_فروش", 0)), false); price1.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        EditText price2 = input("قیمت فروش ۲ / خالی = ۶٪ بالاتر", jsonDouble(source, "قیمت_فروش۲", 0) > 0 ? String.valueOf(jsonDouble(source, "قیمت_فروش۲", 0)) : "", false); price2.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        for (EditText e : new EditText[]{name, code, unit, stock, price1, price2}) { LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, dp(48)); ep.setMargins(0, dp(7), 0, 0); box.addView(e, ep); }
+        AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).setNeutralButton("انتخاب عکس", null).setPositiveButton("ذخیره", null).create();
+        dlg.setOnShowListener(d -> { styleMeelanoDialog(dlg, accent); Button img = dlg.getButton(AlertDialog.BUTTON_NEUTRAL); if (img != null) img.setOnClickListener(v -> { dlg.dismiss(); pickVisitorProductImage(source); }); Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE); if (ok != null) ok.setOnClickListener(v -> {
+            double p1 = Math.max(0, parseNumber(price1.getText().toString(), 0));
+            if (name.getText().toString().trim().isEmpty() || p1 <= 0) { Toast.makeText(this, "نام کالا و قیمت فروش ۱ را وارد کنید.", Toast.LENGTH_SHORT).show(); return; }
+            double p2 = parseNumber(price2.getText().toString(), 0); if (p2 <= 0) p2 = Math.round(p1 * 1.06d);
+            String cde = code.getText().toString().trim().isEmpty() ? safeDisplayText(source.opt("کد"), "LOCAL-" + System.currentTimeMillis()) : code.getText().toString().trim();
+            JSONObject product = new JSONObject();
+            try {
+                product.put("کد", cde); product.put("نام", name.getText().toString().trim()); product.put("بارکد", safeDisplayText(source.opt("بارکد"), "")); product.put("گروه", "ویرایش ویزیتور");
+                product.put("قیمت_فروش", p1); product.put("قیمت_فروش۲", p2); product.put("قیمت_فروش۲_محاسباتی", price2.getText().toString().trim().isEmpty() ? 1 : 0);
+                product.put("موجودی", Math.max(0, parseNumber(stock.getText().toString(), 0))); product.put("واحد", unit.getText().toString().trim()); product.put("تعداد_در_بسته", jsonDouble(source, "تعداد_در_بسته", 1));
+                product.put("_local", true); product.put("_localBy", currentAccountName()); product.put("_localAt", nowText());
+                JSONArray locals = visitorLocalProducts(); JSONArray out = new JSONArray(); boolean done = false;
+                String oldKey = safeDisplayText(source.opt("کد"), cde);
+                for (int i = 0; i < locals.length(); i++) { JSONObject o = locals.optJSONObject(i); if (o == null) continue; String okc = safeDisplayText(o.opt("کد"), ""); if (okc.equals(cde) || okc.equals(oldKey)) { if (!done) { out.put(product); done = true; } } else out.put(o); }
+                if (!done) out.put(product); saveVisitorLocalProducts(out);
+                Toast.makeText(this, "ویرایش کالا در گوشی ذخیره شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); showcaseCacheJson = ""; loadShowcase(query, filter, true);
+            } catch (Exception ignored) { }
+        }); });
+        dlg.show();
+    }
+
     private void renderShowcaseProducts(JSONArray rows, String query, String filter) {
         int initialLimit = VISITOR_EDITION ? visitorShowcasePageSize() : (compactUi() ? 18 : 24);
         renderShowcaseProducts(rows, query, filter, initialLimit);
     }
 
     private void renderShowcaseProducts(JSONArray rows, String query, String filter, int requestedLimit) {
+        if (VISITOR_EDITION) rows = mergeVisitorLocalProducts(rows, query, filter);
+        if (VISITOR_EDITION) applyVisitorPrice2Fallback(rows);
         content.removeAllViews();
         if (VISITOR_EDITION) {
             addVisitorShowcaseSmartControls(rows, query, filter, false);
-            if (visitorCartItems.length() > 0 && !"compact".equals(visitorShowcaseMode())) addVisitorSmartOfferBar(rows, query, filter);
+            if (visitorCartItems.length() > 0 && !"compact".equals(visitorShowcaseMode()) && !"ultra".equals(visitorShowcaseMode())) addVisitorSmartOfferBar(rows, query, filter);
         } else {
             addHero("ویترین محصولات", "نمایش سریع کالاها با قیمت فروش ۱ و قیمت فروش ۲، بدون بارگذاری اضافه");
             addManualRefreshPanel("showcase", "بروزرسانی ویترین", "آخرین بروزرسانی: " + lastRefreshText("showcase"), () -> loadShowcase(query, filter, true));
@@ -9012,6 +9267,17 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams op = new LinearLayout.LayoutParams(-1, dp(44)); op.setMargins(0, dp(8), 0, 0); c.addView(only, op);
         }
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(10)); content.addView(c, cp);
+    }
+
+    private boolean price2Computed(JSONObject r) { return jsonDouble(r, "قیمت_فروش۲_محاسباتی", 0) > 0; }
+
+    private String price2QualityText(JSONObject r) {
+        double p1 = jsonDouble(r, "قیمت_فروش", 0), p2 = jsonDouble(r, "قیمت_فروش۲", 0);
+        if (p2 <= 0) return "";
+        if (price2Computed(r)) return "قیمت فروش ۲ به‌صورت خودکار ۶٪ بالاتر از قیمت فروش ۱ محاسبه شده است.";
+        if (p1 > 0 && p2 < p1) return "هشدار: قیمت فروش ۲ از قیمت فروش ۱ کمتر است؛ قبل از ثبت سفارش بررسی شود.";
+        if (p1 > 0 && p2 > p1 * 1.35d) return "هشدار: فاصله قیمت فروش ۲ با قیمت فروش ۱ غیرعادی است.";
+        return "";
     }
 
     private int countPositive(JSONArray rows, String key) {
@@ -9144,7 +9410,7 @@ public class MainActivity extends Activity {
         prices.setOrientation(LinearLayout.HORIZONTAL);
         prices.setGravity(Gravity.CENTER_VERTICAL);
         prices.addView(pill("۱: " + compactMoney(r.opt("قیمت_فروش")), price1Ok ? SUCCESS : MUTED, false), new LinearLayout.LayoutParams(0, -2, 1f));
-        TextView p2 = pill("۲: " + (price2Ok ? compactMoney(r.opt("قیمت_فروش۲")) : "—"), price2Ok ? WARNING : MUTED, price2Ok);
+        TextView p2 = pill((price2Computed(r) ? "+۶٪ " : "") + "۲: " + (price2Ok ? compactMoney(r.opt("قیمت_فروش۲")) : "—"), price2Ok ? WARNING : MUTED, price2Ok);
         LinearLayout.LayoutParams p2p = new LinearLayout.LayoutParams(0, -2, 1f); p2p.setMargins(dp(5), 0, 0, 0); prices.addView(p2, p2p);
         LinearLayout.LayoutParams prp = new LinearLayout.LayoutParams(-1, -2); prp.setMargins(0, dp(5), 0, 0); copy.addView(prices, prp);
         row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -9232,6 +9498,13 @@ public class MainActivity extends Activity {
         priceRow.addView(showcaseMetric("فروش ۱", moneyOrDash(r, "قیمت_فروش"), SUCCESS, true), showcaseCellLp(1f, 58));
         priceRow.addView(showcaseMetric("موجودی", stockWithUnit(r), inStock ? SUCCESS : DANGER, false), showcaseCellLp(1f, 58));
         LinearLayout.LayoutParams prp = new LinearLayout.LayoutParams(-1, -2); prp.setMargins(0, dp(9), 0, 0); c.addView(priceRow, prp);
+        String p2q = price2QualityText(r);
+        if (!p2q.isEmpty()) {
+            TextView warn = text(p2q, 9.2f, price2Computed(r) ? INFO : WARNING, Typeface.BOLD);
+            warn.setGravity(Gravity.CENTER); warn.setPadding(dp(7), dp(5), dp(7), dp(5));
+            warn.setBackground(roundedStroke(alpha(price2Computed(r) ? INFO : WARNING, 16), 14, alpha(price2Computed(r) ? INFO : WARNING, 62)));
+            LinearLayout.LayoutParams wlp = new LinearLayout.LayoutParams(-1, -2); wlp.setMargins(0, dp(7), 0, 0); c.addView(warn, wlp);
+        }
 
         if (canOpenPage("cart")) {
             LinearLayout actions = new LinearLayout(this);
@@ -9264,7 +9537,7 @@ public class MainActivity extends Activity {
         boolean price2Ok = hasPositiveNumber(r, "قیمت_فروش۲");
         boolean inStock = jsonDouble(r, "موجودی", 0) > 0;
         String mode = visitorShowcaseMode();
-        if ("compact".equals(mode)) { addVisitorFastProductRow(parent, r, index, query, filter); return; }
+        if ("compact".equals(mode) || "ultra".equals(mode)) { addVisitorFastProductRow(parent, r, index, query, filter); return; }
         if ("catalog".equals(mode)) { addVisitorCatalogProductCard(parent, r, index, query, filter); return; }
         int imageDp = 150;
         LinearLayout c = card();
@@ -9523,7 +9796,8 @@ public class MainActivity extends Activity {
         prices.addView(showcaseMetric("قیمت فروش ۱", moneyOrDash(r, "قیمت_فروش"), GOLD, true), showcaseCellLp(1f, 66));
         prices.addView(showcaseMetric("قیمت فروش ۲ ✦", price2Ok ? moneyOrDash(r, "قیمت_فروش۲") : "—", WARNING, true), showcaseCellLp(1.1f, 66));
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, -2); pp.setMargins(0, dp(12), 0, 0); box.addView(prices, pp);
-        TextView p2Status = text(price2Ok ? "این کالا با قیمت فروش ۲ آماده افزودن به سبد است." : "برای این کالا قیمت فروش ۲ ثبت نشده یا مقدار آن صفر است.", 10.0f, price2Ok ? WARNING : MUTED, Typeface.BOLD);
+        String p2quality = price2QualityText(r);
+        TextView p2Status = text(price2Ok ? (p2quality.isEmpty() ? "این کالا با قیمت فروش ۲ آماده افزودن به سبد است." : p2quality) : "برای این کالا قیمت فروش ۲ ثبت نشده یا مقدار آن صفر است.", 10.0f, price2Ok ? WARNING : MUTED, Typeface.BOLD);
         p2Status.setGravity(Gravity.CENTER);
         p2Status.setPadding(dp(8), dp(6), dp(8), dp(6));
         p2Status.setBackground(roundedStroke(alpha(price2Ok ? WARNING : MUTED, isLightTheme() ? 16 : 28), 15, alpha(price2Ok ? WARNING : MUTED, 66)));
@@ -9545,6 +9819,8 @@ public class MainActivity extends Activity {
         final Button[] add1Ref = new Button[1];
         final Button[] add2Ref = new Button[1];
         final Button[] removeRef = new Button[1];
+        final Button[] photoRef = new Button[1];
+        final Button[] editProductRef = new Button[1];
         if (canOpenPage("cart")) {
             EditText qty = input("تعداد/وزن برای افزودن به سبد", cartQtyFor(safeDisplayText(r.opt("کد"), "")), false);
             qtyRef[0] = qty;
@@ -9565,12 +9841,20 @@ public class MainActivity extends Activity {
         Button fixVisual = themedActionButton("اصلاح هوشمندی تصویر این کالا", accent, false);
         fixVisual.setTextSize(9.4f);
         LinearLayout.LayoutParams flp = new LinearLayout.LayoutParams(-1, dp(45)); flp.setMargins(0, dp(6), 0, 0); box.addView(fixVisual, flp);
+        Button productPhoto = themedActionButton("ثبت/تعویض عکس کالا ۵۱۲×۵۱۲", navAccent("showcase"), true); photoRef[0] = productPhoto;
+        productPhoto.setTextSize(9.1f);
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-1, dp(45)); plp.setMargins(0, dp(6), 0, 0); box.addView(productPhoto, plp);
+        Button editProduct = themedActionButton("ویرایش/ذخیره دستی کالا", GOLD_2, false); editProductRef[0] = editProduct;
+        editProduct.setTextSize(9.1f);
+        LinearLayout.LayoutParams elp = new LinearLayout.LayoutParams(-1, dp(45)); elp.setMargins(0, dp(6), 0, 0); box.addView(editProduct, elp);
 
         AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).create();
         if (add1Ref[0] != null) add1Ref[0].setOnClickListener(v -> { addOrUpdateCartItem(r, qtyRef[0].getText().toString(), 1); Toast.makeText(this, "با قیمت ۱ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) rerenderShowcaseFast(stringOr(query, ""), stringOr(filter, "all")); });
         if (add2Ref[0] != null) add2Ref[0].setOnClickListener(v -> { addOrUpdateCartItem(r, qtyRef[0].getText().toString(), 2); Toast.makeText(this, "با قیمت ۲ به سبد اضافه شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) rerenderShowcaseFast(stringOr(query, ""), stringOr(filter, "all")); });
         if (removeRef[0] != null) removeRef[0].setOnClickListener(v -> { removeCartItem(safeDisplayText(r.opt("کد"), "")); Toast.makeText(this, "از سبد حذف شد.", Toast.LENGTH_SHORT).show(); dlg.dismiss(); if (query != null || filter != null) rerenderShowcaseFast(stringOr(query, ""), stringOr(filter, "all")); });
         fixVisual.setOnClickListener(v -> { dlg.dismiss(); showProductVisualChooser(r, query, filter); });
+        if (photoRef[0] != null) photoRef[0].setOnClickListener(v -> { dlg.dismiss(); pickVisitorProductImage(r); });
+        if (editProductRef[0] != null) editProductRef[0].setOnClickListener(v -> { dlg.dismiss(); showVisitorEditProductDialog(r, query, filter); });
         dlg.setOnShowListener(d -> styleMeelanoDialog(dlg, accent));
         dlg.show();
     }
@@ -9621,11 +9905,13 @@ public class MainActivity extends Activity {
             JSONObject old = ix >= 0 ? visitorCartItems.optJSONObject(ix) : null;
             double price1 = jsonDouble(product, "قیمت_فروش", 0);
             double price2 = jsonDouble(product, "قیمت_فروش۲", 0);
+            boolean computedP2 = price2Computed(product);
+            if (price2 <= 0 && price1 > 0) { price2 = Math.round(price1 * 1.06d); computedP2 = true; }
             int tier = priceTier == 2 && price2 > 0 ? 2 : 1;
             double price = tier == 2 ? price2 : price1;
             JSONObject item = new JSONObject();
             item.put("code", code); item.put("name", safeDisplayText(product.opt("نام"), "محصول")); item.put("unit", safeDisplayText(product.opt("واحد"), "")); item.put("qty", qty);
-            item.put("price", price); item.put("price1", price1); item.put("price2", price2); item.put("priceTier", String.valueOf(tier));
+            item.put("price", price); item.put("price1", price1); item.put("price2", price2); item.put("priceTier", String.valueOf(tier)); item.put("price2Computed", computedP2);
             item.put("stock", jsonDouble(product, "موجودی", 0)); item.put("pack", jsonDouble(product, "تعداد_در_بسته", 1)); item.put("image", product.optString("تصویر", ""));
             item.put("lineDiscount", old == null ? 0 : old.optDouble("lineDiscount", 0)); item.put("note", old == null ? "" : old.optString("note", "")); item.put("amount", cartItemNet(item));
             if (ix >= 0) visitorCartItems.put(ix, item); else visitorCartItems.put(item);
@@ -9974,6 +10260,12 @@ public class MainActivity extends Activity {
         TextView copy = text("پیشنهاد مکمل سبد: " + suggestion, 10.8f, TEXT, Typeface.BOLD); copy.setMaxLines(3); copy.setPadding(dp(10), 0, dp(10), 0); row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         Button go = themedActionButton("ویترین", navAccent("showcase"), true); go.setTextSize(9.0f); go.setOnClickListener(v -> showApp("showcase")); row.addView(go, new LinearLayout.LayoutParams(dp(86), dp(42)));
         c.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button p2 = themedActionButton("مکمل قیمت ۲", WARNING, true); p2.setTextSize(8.8f); p2.setOnClickListener(v -> loadShowcase("", "price2"));
+        Button top = themedActionButton("پرفروش‌ها", GOLD, false); top.setTextSize(8.8f); top.setOnClickListener(v -> loadShowcase("", "top"));
+        Button add = themedActionButton("کالای دستی", navAccent("showcase"), false); add.setTextSize(8.8f); add.setOnClickListener(v -> showVisitorAddProductDialog("", "all"));
+        actions.addView(p2, weightedButtonLp()); actions.addView(top, weightedButtonLp()); actions.addView(add, weightedButtonLp());
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(8), 0, 0); c.addView(actions, ap);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
 
@@ -10056,7 +10348,32 @@ public class MainActivity extends Activity {
         });
     }
 
-    private void renderCartCustomerPicker(String search, JSONArray rows) {
+    private boolean cartCustomerMatchesQuick(JSONObject r, String filter) {
+        if (r == null) return false;
+        String f = filter == null ? "all" : filter;
+        if ("debt".equals(f)) return r.optDouble("balance", 0) > 0;
+        if ("top".equals(f)) return r.optDouble("totalSales", 0) > 0 || r.optLong("invoiceCount", 0) > 0;
+        if ("inactive".equals(f)) return customerIsInactive(r);
+        if ("route_today".equals(f)) return customerOnTodayRoute(r);
+        return true;
+    }
+
+    private int cartCustomerQuickCount(JSONArray rows, String filter) {
+        int count = 0;
+        if (rows != null) for (int i = 0; i < rows.length(); i++) if (cartCustomerMatchesQuick(rows.optJSONObject(i), filter)) count++;
+        return count;
+    }
+
+    private JSONArray cartCustomerQuickRows(JSONArray rows, String filter) {
+        JSONArray out = new JSONArray();
+        if (rows == null) return out;
+        for (int i = 0; i < rows.length(); i++) { JSONObject r = rows.optJSONObject(i); if (cartCustomerMatchesQuick(r, filter)) out.put(r); }
+        return out;
+    }
+
+    private void renderCartCustomerPicker(String search, JSONArray rows) { renderCartCustomerPicker(search, rows, "all"); }
+
+    private void renderCartCustomerPicker(String search, JSONArray rows, String activeQuickFilter) {
         int accent = navAccent("customers");
         int cartAccent = navAccent("cart");
         LinearLayout box = new LinearLayout(this);
@@ -10080,11 +10397,27 @@ public class MainActivity extends Activity {
         q.setOnEditorActionListener((v, actionId, event) -> { if (actionId == EditorInfo.IME_ACTION_SEARCH) { if (dlg[0] != null) dlg[0].dismiss(); showCartCustomerPicker(q.getText().toString().trim()); return true; } return false; });
         LinearLayout.LayoutParams sbp = new LinearLayout.LayoutParams(-1, dp(44)); sbp.setMargins(0, dp(7), 0, 0); box.addView(searchBtn, sbp);
 
+        HorizontalScrollView quickScroll = new HorizontalScrollView(this); styleHorizontalScroll(quickScroll);
+        LinearLayout quicks = new LinearLayout(this); quicks.setOrientation(LinearLayout.HORIZONTAL);
+        final JSONArray pickerRows = rows == null ? new JSONArray() : rows;
+        final String activeQuick = activeQuickFilter == null || activeQuickFilter.trim().isEmpty() ? "all" : activeQuickFilter;
+        String[][] quickFilters = {{"all","همه"},{"debt","بدهکار"},{"top","پرخرید"},{"inactive","کم‌تحرک"},{"route_today","مسیر امروز"}};
+        for (String[] fopt : quickFilters) {
+            final String key = fopt[0];
+            Button qb = key.equals(activeQuick) ? themedActionButton(fopt[1] + " " + formatNumber(cartCustomerQuickCount(pickerRows, key)), accent, true) : themedActionButton(fopt[1] + " " + formatNumber(cartCustomerQuickCount(pickerRows, key)), cartAccent, false);
+            qb.setTextSize(8.5f); qb.setMinWidth(0); qb.setPadding(dp(7), 0, dp(7), 0);
+            qb.setOnClickListener(v -> { if (dlg[0] != null) dlg[0].dismiss(); renderCartCustomerPicker(search, pickerRows, key); });
+            LinearLayout.LayoutParams qbp = new LinearLayout.LayoutParams(dp(104), dp(38)); qbp.setMargins(dp(2), 0, dp(2), 0); quicks.addView(qb, qbp);
+        }
+        quickScroll.addView(quicks, new FrameLayout.LayoutParams(-2, -2));
+        LinearLayout.LayoutParams qsp = new LinearLayout.LayoutParams(-1, -2); qsp.setMargins(0, dp(8), 0, 0); box.addView(quickScroll, qsp);
+
         ScrollView scroll = new ScrollView(this); styleVerticalScroll(scroll);
         LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL);
-        if (rows == null || rows.length() == 0) addEmptyTo(list, "مشتری مطابق جستجو پیدا نشد.");
-        for (int i = 0; rows != null && i < rows.length(); i++) {
-            JSONObject r = rows.optJSONObject(i); if (r == null) continue;
+        JSONArray displayRows = cartCustomerQuickRows(pickerRows, activeQuick);
+        if (displayRows.length() == 0) addEmptyTo(list, "مشتری مطابق این جستجو/فیلتر پیدا نشد.");
+        for (int i = 0; i < displayRows.length(); i++) {
+            JSONObject r = displayRows.optJSONObject(i); if (r == null) continue;
             boolean risky = r.optDouble("balance", 0) > 0 || r.optBoolean("blocked", false);
             int rowAccent = risky ? WARNING : SUCCESS;
             LinearLayout card = new LinearLayout(this);
@@ -10133,6 +10466,7 @@ public class MainActivity extends Activity {
             String credit = resolveFlexible(cols, "credit", "Credit", "credit_limit", "Limit", "etebar", "Etebar", "سقف_اعتبار");
             String address = resolveFlexible(cols, "address", "Address", "addr", "Adress", "آدرس");
             String blocked = resolveFlexible(cols, "blocked", "blacklist", "lock", "is_blocked", "active", "Active");
+            String route = resolveFlexible(cols, "route", "Route", "masir", "Masir", "مسیر", "مسير", "day", "Day", "visit_day", "VisitDay", "rooz", "Rooz", "روز");
             if (shmo == null) return "[]";
             String sailShmo = resolve(sail, "shmo", "SHMO"); String amount = resolve(sail, "all", "amount"); String saleDate = resolve(sail, "date", "DATE", "t_date");
             String label = name == null ? "TRY_CONVERT(nvarchar(220),c.[" + shmo + "])" : "TRY_CONVERT(nvarchar(220),c.[" + name + "])";
@@ -10140,8 +10474,8 @@ public class MainActivity extends Activity {
             String scope = customerScopeCondition(cols, "c", params); if (!scope.isEmpty()) where.add(scope);
             if (search != null && !search.trim().isEmpty()) { String q = search.trim(); List<String> parts = new ArrayList<>(); for (String col : new String[]{shmo, name, phone}) if (col != null) { parts.add("TRY_CONVERT(nvarchar(400),c.[" + col + "]) LIKE N'%' + ? + N'%'"); params.add(q); } if (!parts.isEmpty()) where.add("(" + join(parts, " OR ") + ")"); }
             String salesApply = sailShmo == null ? "OUTER APPLY (SELECT CAST(0 AS bigint) cnt, CAST(0 AS decimal(19,2)) total, CAST(N'' AS nvarchar(30)) lastSale) sf " : "OUTER APPLY (SELECT COUNT_BIG(1) cnt, " + (amount == null ? "CAST(0 AS decimal(19,2))" : "ISNULL(SUM(TRY_CONVERT(decimal(19,2),s.[" + amount + "])),0)") + " total, " + (saleDate == null ? "CAST(N'' AS nvarchar(30))" : "ISNULL(MAX(TRY_CONVERT(nvarchar(30),s.[" + saleDate + "])),N'')") + " lastSale FROM dbo.sailfact s WHERE TRY_CONVERT(nvarchar(100),s.[" + sailShmo + "])=TRY_CONVERT(nvarchar(100),c.[" + shmo + "])) sf ";
-            String sql = "SELECT TOP (40) TRY_CONVERT(nvarchar(100),c.[" + shmo + "]), " + label + ", " + (balance == null ? "CAST(0 AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),c.[" + balance + "])") + ", " + (phone == null ? "CAST(NULL AS nvarchar(100))" : "TRY_CONVERT(nvarchar(100),c.[" + phone + "])") + ", sf.cnt, sf.total, sf.lastSale, " + (credit == null ? "CAST(0 AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),c.[" + credit + "])") + ", " + (address == null ? "CAST(NULL AS nvarchar(500))" : "TRY_CONVERT(nvarchar(500),c.[" + address + "])") + ", " + (blocked == null ? "CAST(NULL AS nvarchar(40))" : "TRY_CONVERT(nvarchar(40),c.[" + blocked + "])") + " FROM dbo.CUSTOMERS c " + salesApply + (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + " ORDER BY " + label;
-            JSONArray arr = new JSONArray(); try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("name", stringOr(r.getString(2), "مشتری")); o.put("balance", r.getDouble(3)); o.put("phone", stringOr(r.getString(4), "")); o.put("invoiceCount", r.getLong(5)); o.put("totalSales", r.getDouble(6)); o.put("lastSale", stringOr(r.getString(7), "")); o.put("creditLimit", r.getDouble(8)); o.put("address", stringOr(r.getString(9), "")); String bv = stringOr(r.getString(10), ""); o.put("blockedRaw", bv); o.put("blocked", bv.equals("0") || bv.equalsIgnoreCase("blocked") || bv.contains("مسدود")); arr.put(o); } } }
+            String sql = "SELECT TOP (40) TRY_CONVERT(nvarchar(100),c.[" + shmo + "]), " + label + ", " + (balance == null ? "CAST(0 AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),c.[" + balance + "])") + ", " + (phone == null ? "CAST(NULL AS nvarchar(100))" : "TRY_CONVERT(nvarchar(100),c.[" + phone + "])") + ", sf.cnt, sf.total, sf.lastSale, " + (credit == null ? "CAST(0 AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),c.[" + credit + "])") + ", " + (address == null ? "CAST(NULL AS nvarchar(500))" : "TRY_CONVERT(nvarchar(500),c.[" + address + "])") + ", " + (blocked == null ? "CAST(NULL AS nvarchar(40))" : "TRY_CONVERT(nvarchar(40),c.[" + blocked + "])") + ", " + (route == null ? "CAST(NULL AS nvarchar(100))" : "TRY_CONVERT(nvarchar(100),c.[" + route + "])") + " FROM dbo.CUSTOMERS c " + salesApply + (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + " ORDER BY " + label;
+            JSONArray arr = new JSONArray(); try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) { JSONObject o = new JSONObject(); o.put("code", stringOr(r.getString(1), "")); o.put("name", stringOr(r.getString(2), "مشتری")); o.put("balance", r.getDouble(3)); o.put("phone", stringOr(r.getString(4), "")); o.put("invoiceCount", r.getLong(5)); o.put("totalSales", r.getDouble(6)); o.put("lastSale", stringOr(r.getString(7), "")); o.put("creditLimit", r.getDouble(8)); o.put("address", stringOr(r.getString(9), "")); String bv = stringOr(r.getString(10), ""); o.put("blockedRaw", bv); o.put("blocked", bv.equals("0") || bv.equalsIgnoreCase("blocked") || bv.contains("مسدود")); o.put("route", stringOr(r.getString(11), "")); arr.put(o); } } }
             return arr.toString();
         }
     }
@@ -10336,7 +10670,7 @@ public class MainActivity extends Activity {
         String sql = "SELECT " + sqlNumberExpr("i", stock, "decimal(19,3)") + "," + sqlNumberExpr("i", price1, "decimal(19,2)") + "," + sqlNumberExpr("i", price2, "decimal(19,2)") + " FROM dbo.inventory i WHERE TRY_CONVERT(nvarchar(100),i.["+shka+"])=?";
         for (int i=0; items!=null && i<items.length(); i++) {
             JSONObject it=items.optJSONObject(i); if (it==null) continue;
-            try (PreparedStatement ps=c.prepareStatement(sql)) { ps.setString(1,it.optString("code","")); try(ResultSet r=ps.executeQuery()) { if(!r.next()){ warnings.put("کالا پیدا نشد: "+it.optString("name","")); blocked=true; continue; } double st=r.getDouble(1); double p1=r.getDouble(2); double p2=r.getDouble(3); if(stock!=null && st<it.optDouble("qty",0)){ warnings.put("موجودی کافی نیست: "+it.optString("name","")+" / موجودی "+formatNumber(st)); blocked=true; } double dbPrice="2".equals(it.optString("priceTier","1"))&&p2>0?p2:p1; if(dbPrice>0 && Math.abs(dbPrice-it.optDouble("price",0))>1){ warnings.put("قیمت کالا تغییر کرده: "+it.optString("name","")); if(strict) blocked=true; } } }
+            try (PreparedStatement ps=c.prepareStatement(sql)) { ps.setString(1,it.optString("code","")); try(ResultSet r=ps.executeQuery()) { if(!r.next()){ warnings.put("کالا پیدا نشد: "+it.optString("name","")); blocked=true; continue; } double st=r.getDouble(1); double p1=r.getDouble(2); double p2=r.getDouble(3); if(stock!=null && st<it.optDouble("qty",0)){ warnings.put("موجودی کافی نیست: "+it.optString("name","")+" / موجودی "+formatNumber(st)); blocked=true; } double dbP2=p2>0?p2:(p1>0?Math.round(p1*1.06d):0); double dbPrice="2".equals(it.optString("priceTier","1"))?dbP2:p1; if(dbPrice>0 && Math.abs(dbPrice-it.optDouble("price",0))>1){ warnings.put("قیمت کالا تغییر کرده: "+it.optString("name","")); if(strict) blocked=true; } } }
         }
         out.put("warnings", warnings); out.put("blocked", blocked); out.put("ok", !blocked);
         if (strict && blocked) throw new DbException(warnings.length()>0 ? warnings.optString(0) : "کنترل موجودی/قیمت تایید نشد.");
@@ -10396,7 +10730,7 @@ public class MainActivity extends Activity {
 
     private void loadMyPrefactors() {
         if (!canUsePermission("prefactor_list")) { redirectToAllowedPage("prefactor_list"); return; }
-        content.removeAllViews(); addHero("پیش‌فاکتورهای من", "پیگیری، ویرایش پیش‌نویس، ارسال مجدد، PDF و وضعیت تایید");
+        content.removeAllViews(); if (!VISITOR_EDITION) addHero("پیش‌فاکتورهای من", "پیگیری، ویرایش پیش‌نویس، ارسال مجدد، PDF و وضعیت تایید");
         addManualRefreshPanel("cart", "بروزرسانی پیش‌فاکتورها", "نمایش آخرین سفارش‌های ویزیتور", () -> loadMyPrefactors());
         LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list, new LinearLayout.LayoutParams(-1, -2)); addLoading(list, "در حال دریافت پیش‌فاکتورها…");
         runDb(this::queryMyPrefactorsSql, new DbCallback() { @Override public void ok(String body) { try { renderMyPrefactors(new JSONArray(body)); } catch(Exception e){ showPageError("پیش‌فاکتورهای من", e, () -> loadMyPrefactors()); } } @Override public void fail(Exception e){ showPageError("پیش‌فاکتورهای من", e, () -> loadMyPrefactors()); } });
@@ -10406,29 +10740,117 @@ public class MainActivity extends Activity {
         try (Connection c = openConnection()) {
             ensurePrefactorTables(c);
             List<Object> params = new ArrayList<>(); String where = prefactorScopeWhere("p", params);
-            String sql = "SELECT TOP (100) p.id, TRY_CONVERT(nvarchar(30),p.created_at), p.status, p.customer_code, p.customer_name, ISNULL(p.grand_total,p.total_amount), p.settlement_type, p.delivery_date, p.approval_reason, ISNULL(x.cnt,0) FROM dbo.meelano_prefactors p OUTER APPLY (SELECT COUNT_BIG(1) cnt FROM dbo.meelano_prefactor_items i WHERE i.prefactor_id=p.id) x" + where + " ORDER BY p.id DESC";
+            String sql = "SELECT TOP (100) p.id, TRY_CONVERT(nvarchar(30),p.created_at), p.status, p.customer_code, p.customer_name, ISNULL(p.grand_total,p.total_amount), p.settlement_type, p.delivery_date, p.approval_reason, ISNULL(x.cnt,0) FROM dbo.meelano_prefactors p OUTER APPLY (SELECT COUNT_BIG(1) cnt FROM dbo.meelano_prefactor_items i WHERE i.prefactor_id=p.id) x" + where + " ORDER BY p.created_at DESC, p.id DESC";
             JSONArray arr = new JSONArray();
             try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try(ResultSet r = ps.executeQuery()) { while(r.next()){ JSONObject o=new JSONObject(); o.put("id", r.getLong(1)); o.put("date", stringOr(r.getString(2), "")); o.put("status", stringOr(r.getString(3), "")); o.put("customerCode", stringOr(r.getString(4), "")); o.put("customerName", stringOr(r.getString(5), "")); o.put("total", r.getDouble(6)); o.put("settlement", stringOr(r.getString(7), "")); o.put("delivery", stringOr(r.getString(8), "")); o.put("reason", stringOr(r.getString(9), "")); o.put("items", r.getLong(10)); arr.put(o); } } }
             return arr.toString();
         }
     }
 
+    private String prefactorDateKey(JSONObject r) {
+        String d = r == null ? "" : r.optString("date", "");
+        if (d == null || d.trim().isEmpty()) return "بدون تاریخ";
+        d = d.trim().replace('T', ' ');
+        int sp = d.indexOf(' ');
+        return sp > 0 ? d.substring(0, sp) : (d.length() >= 10 ? d.substring(0, 10) : d);
+    }
+
+    private String prefactorTimeKey(JSONObject r) {
+        String d = r == null ? "" : r.optString("date", "");
+        if (d == null) return "—";
+        d = d.trim().replace('T', ' ');
+        int sp = d.indexOf(' ');
+        if (sp < 0 || sp + 1 >= d.length()) return "—";
+        String t = d.substring(sp + 1).trim();
+        return t.length() >= 5 ? t.substring(0, 5) : t;
+    }
+
+    private int prefactorStatusAccent(String st) {
+        if ("approved".equals(st) || "invoiced".equals(st)) return SUCCESS;
+        if ("rejected".equals(st) || "needs_revision".equals(st) || "canceled".equals(st)) return DANGER;
+        if ("pending_approval".equals(st)) return WARNING;
+        if ("draft".equals(st)) return INFO;
+        return navAccent("cart");
+    }
+
+    private int prefactorStatusCount(JSONArray rows, String status) {
+        int n = 0; if (rows != null) for (int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r!=null && (status == null || status.equals(r.optString("status","")))) n++; }
+        return n;
+    }
+
+    private double prefactorRowsTotal(JSONArray rows) {
+        double t=0; if(rows!=null) for(int i=0;i<rows.length();i++){ JSONObject r=rows.optJSONObject(i); if(r!=null) t+=r.optDouble("total",0); }
+        return t;
+    }
+
     private void renderMyPrefactors(JSONArray rows) {
-        content.removeAllViews(); addHero("پیش‌فاکتورهای من", "وضعیت همه سفارش‌ها و پیش‌نویس‌های ثبت‌شده");
-        LinearLayout top = card(); top.setBackground(gradient(new int[]{alpha(navAccent("cart"),22), alpha(SURFACE,248)}, GradientDrawable.Orientation.RIGHT_LEFT,22));
-        LinearLayout tr = new LinearLayout(this); tr.setOrientation(LinearLayout.HORIZONTAL); Button cart = primaryButton("بازگشت به سبد"); cart.setOnClickListener(v -> showApp("cart")); Button route = secondaryButton("مسیر بازدید"); route.setOnClickListener(v -> loadVisitRoutePage("")); tr.addView(cart, weightedButtonLp()); tr.addView(route, weightedButtonLp()); top.addView(tr, new LinearLayout.LayoutParams(-1,-2)); content.addView(top, new LinearLayout.LayoutParams(-1,-2));
+        content.removeAllViews();
+        if (!VISITOR_EDITION) addHero("پیش‌فاکتورهای من", "وضعیت همه سفارش‌ها و پیش‌نویس‌های ثبت‌شده");
+        int accent = navAccent("cart");
+        JSONArray dataRows = rows == null ? new JSONArray() : rows;
+        LinearLayout top = card();
+        top.setPadding(dp(13), dp(12), dp(13), dp(12));
+        top.setBackground(gradient(new int[]{alpha(accent, isLightTheme()?34:54), alpha(navAccent("visitor_reports"), isLightTheme()?20:36), alpha(SURFACE,248)}, GradientDrawable.Orientation.RIGHT_LEFT,28));
+        LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+        head.addView(cart3dIcon("▤", accent, 16f), new LinearLayout.LayoutParams(dp(48), dp(48)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(10),0,dp(8),0);
+        copy.addView(text("پیش‌فاکتورهای من",16.4f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
+        copy.addView(text("مرتب‌شده بر اساس تاریخ و ساعت؛ هر روز به شکل تایم‌لاین جدا نمایش داده می‌شود.",10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
+        head.addView(copy,new LinearLayout.LayoutParams(0,-2,1f)); top.addView(head,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout metrics = new LinearLayout(this); metrics.setOrientation(LinearLayout.HORIZONTAL);
+        metrics.addView(visitorMetricBox("تعداد", formatNumber(dataRows.length()), accent), weightedMiniLp());
+        metrics.addView(visitorMetricBox("جمع", money(prefactorRowsTotal(dataRows)), GOLD_2), weightedMiniLp());
+        metrics.addView(visitorMetricBox("در انتظار", formatNumber(prefactorStatusCount(dataRows,"pending_approval")), WARNING), weightedMiniLp());
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1,-2); mp.setMargins(0,dp(9),0,0); top.addView(metrics, mp);
+        LinearLayout tr = new LinearLayout(this); tr.setOrientation(LinearLayout.HORIZONTAL);
+        Button cart = themedActionButton("بازگشت به سبد", accent, true); cart.setOnClickListener(v -> showApp("cart"));
+        Button route = themedActionButton("مسیر بازدید", navAccent("visitor_dashboard"), false); route.setOnClickListener(v -> loadVisitRoutePage(""));
+        Button refresh = themedActionButton("تازه‌سازی", GOLD_2, false); refresh.setOnClickListener(v -> loadMyPrefactors());
+        tr.addView(cart, weightedButtonLp()); tr.addView(route, weightedButtonLp()); tr.addView(refresh, weightedButtonLp());
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1,-2); tp.setMargins(0,dp(9),0,0); top.addView(tr, tp);
+        content.addView(top, new LinearLayout.LayoutParams(-1,-2));
         LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); LinearLayout.LayoutParams lp0 = new LinearLayout.LayoutParams(-1,-2); lp0.setMargins(0,dp(12),0,0); content.addView(list, lp0);
-        if (rows == null || rows.length()==0) { addEmptyTo(list, "پیش‌فاکتوری ثبت نشده است."); return; }
-        for(int i=0;i<rows.length();i++) addPrefactorListCard(list, rows.optJSONObject(i));
+        if (dataRows.length()==0) { addEmptyTo(list, "پیش‌فاکتوری ثبت نشده است."); return; }
+        String lastDate = "";
+        for(int i=0;i<dataRows.length();i++) {
+            JSONObject r = dataRows.optJSONObject(i); if (r == null) continue;
+            String dk = prefactorDateKey(r);
+            if (!dk.equals(lastDate)) {
+                LinearLayout day = new LinearLayout(this); day.setOrientation(LinearLayout.HORIZONTAL); day.setGravity(Gravity.CENTER_VERTICAL); day.setPadding(dp(10),dp(8),dp(10),dp(8));
+                day.setBackground(roundedStroke(alpha(GOLD_2, isLightTheme()?18:30),999,alpha(GOLD_2,88)));
+                TextView dot = text("●",13,GOLD_2,Typeface.BOLD); dot.setGravity(Gravity.CENTER); day.addView(dot,new LinearLayout.LayoutParams(dp(28),dp(28)));
+                TextView label = text("تاریخ " + dk,12.2f,TEXT,Typeface.BOLD); label.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL); day.addView(label,new LinearLayout.LayoutParams(0,-2,1f));
+                LinearLayout.LayoutParams dpv = new LinearLayout.LayoutParams(-1,-2); dpv.setMargins(0,dp(5),0,dp(8)); list.addView(day,dpv);
+                lastDate = dk;
+            }
+            addPrefactorListCard(list, r);
+        }
     }
 
     private void addPrefactorListCard(LinearLayout parent, JSONObject r) {
-        if (r == null) return; String st=r.optString("status",""); int accent="approved".equals(st)?SUCCESS:("rejected".equals(st)||"needs_revision".equals(st)?DANGER:("pending_approval".equals(st)?WARNING:navAccent("cart")));
-        LinearLayout c=card(); c.setBackground(roundedStroke(alpha(accent,16),22,alpha(accent,70)));
-        c.addView(text("#"+formatNumber(r.optLong("id"))+" • "+r.optString("customerName","مشتری")+" • "+prefactorStatusFa(st),13.0f,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
-        c.addView(text("تاریخ: "+r.optString("date","")+" • اقلام: "+formatNumber(r.opt("items"))+" • تسویه: "+stringOr(r.optString("settlement"),"—"),10.2f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
-        c.addView(text("مبلغ: "+money(r.opt("total"))+(!r.optString("reason","").isEmpty()?"\nعلت تایید: "+r.optString("reason",""):""),10.5f,accent,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2));
-        LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); Button det=secondaryButton("جزئیات/PDF"); det.setTextSize(8.6f); det.setOnClickListener(v -> loadPrefactorDetails(r.optLong("id"), false)); Button edit=secondaryButton("کپی به سبد"); edit.setTextSize(8.6f); edit.setOnClickListener(v -> loadPrefactorDetails(r.optLong("id"), true)); row.addView(det, weightedButtonLp()); row.addView(edit, weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(8),0,0); c.addView(row,rp);
+        if (r == null) return;
+        String st=r.optString("status",""); int accent=prefactorStatusAccent(st);
+        LinearLayout c=card(); c.setPadding(dp(10),dp(10),dp(10),dp(10)); c.setBackground(gradient(new int[]{alpha(accent,isLightTheme()?20:36),alpha(Color.rgb(9,8,6),isLightTheme()?18:238)},GradientDrawable.Orientation.RIGHT_LEFT,24));
+        LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
+        TextView time = text(prefactorTimeKey(r), 11.5f, onColorFor(accent), Typeface.BOLD); time.setGravity(Gravity.CENTER); time.setBackground(luxuryButtonBg(accent,true,999));
+        head.addView(time,new LinearLayout.LayoutParams(dp(54),dp(42)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(9),0,dp(8),0);
+        TextView title = text("#"+formatNumber(r.optLong("id"))+" • "+r.optString("customerName","مشتری"),13.4f,TEXT,Typeface.BOLD); title.setSingleLine(true); title.setEllipsize(TextUtils.TruncateAt.END); copy.addView(title,new LinearLayout.LayoutParams(-1,-2));
+        copy.addView(text("کد مشتری " + stringOr(r.optString("customerCode"),"—") + " • " + formatNumber(r.opt("items")) + " قلم",9.7f,MUTED,Typeface.NORMAL),new LinearLayout.LayoutParams(-1,-2));
+        head.addView(copy,new LinearLayout.LayoutParams(0,-2,1f));
+        TextView status = pill(prefactorStatusFa(st), accent, false); head.addView(status,new LinearLayout.LayoutParams(-2,-2));
+        c.addView(head,new LinearLayout.LayoutParams(-1,-2));
+        LinearLayout m = new LinearLayout(this); m.setOrientation(LinearLayout.HORIZONTAL);
+        m.addView(visitorMetricBox("مبلغ", money(r.opt("total")), GOLD_2), weightedMiniLp());
+        m.addView(visitorMetricBox("تسویه", stringOr(r.optString("settlement"),"—"), INFO), weightedMiniLp());
+        m.addView(visitorMetricBox("تحویل", stringOr(r.optString("delivery"),"—"), SUCCESS), weightedMiniLp());
+        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(-1,-2); mlp.setMargins(0,dp(7),0,0); c.addView(m,mlp);
+        if(!r.optString("reason","").isEmpty()) { TextView rs = text("یادداشت تایید: "+r.optString("reason",""),9.8f,accent,Typeface.BOLD); rs.setPadding(dp(8),dp(5),dp(8),dp(5)); rs.setBackground(roundedStroke(alpha(accent,16),14,alpha(accent,60))); LinearLayout.LayoutParams rp2 = new LinearLayout.LayoutParams(-1,-2); rp2.setMargins(0,dp(7),0,0); c.addView(rs,rp2); }
+        LinearLayout row=new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        Button det=themedActionButton("جزئیات/PDF", accent, false); det.setTextSize(8.6f); det.setOnClickListener(v -> loadPrefactorDetails(r.optLong("id"), false));
+        Button edit=themedActionButton("کپی به سبد", navAccent("cart"), true); edit.setTextSize(8.6f); edit.setOnClickListener(v -> loadPrefactorDetails(r.optLong("id"), true));
+        Button share=themedActionButton("اشتراک", GOLD_2, false); share.setTextSize(8.6f); share.setOnClickListener(v -> sharePlainText("پیش‌فاکتور MEELANO", "پیش‌فاکتور #"+r.optLong("id")+"\nمشتری: "+r.optString("customerName","")+"\nمبلغ: "+money(r.optDouble("total",0))+"\nوضعیت: "+prefactorStatusFa(st), null));
+        row.addView(det, weightedButtonLp()); row.addView(edit, weightedButtonLp()); row.addView(share, weightedButtonLp()); LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2); rp.setMargins(0,dp(8),0,0); c.addView(row,rp);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2); lp.setMargins(0,0,0,dp(10)); parent.addView(c,lp);
     }
 
@@ -10480,8 +10902,15 @@ public class MainActivity extends Activity {
         LinearLayout box=new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(12),dp(10),dp(12),dp(6)); box.addView(text("نتیجه بازدید: "+customer.optString("name","مشتری"),16,TEXT,Typeface.BOLD),new LinearLayout.LayoutParams(-1,-2)); EditText result=input("نتیجه: خرید کرد/نکرد، مغازه بسته بود، نیاز به پیگیری…","نیازمند پیگیری",false); EditText note=input("توضیحات بازدید","",false); note.setSingleLine(false); note.setMinLines(2); box.addView(result,new LinearLayout.LayoutParams(-1,dp(48))); box.addView(note,new LinearLayout.LayoutParams(-1,dp(82))); AlertDialog dlg=new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن",null).setPositiveButton("ثبت",null).create(); dlg.setOnShowListener(d->{ styleMeelanoDialog(dlg,navAccent("visitor_dashboard")); Button ok=dlg.getButton(AlertDialog.BUTTON_POSITIVE); if(ok!=null)ok.setOnClickListener(v->{ dlg.dismiss(); saveVisitResult(customer,result.getText().toString(),note.getText().toString()); }); }); dlg.show();
     }
 
+    private JSONArray localVisitResults() { try { String raw = prefs == null ? "[]" : prefs.getString(KEY_VISIT_RESULTS_LOCAL, "[]"); return new JSONArray(raw == null || raw.trim().isEmpty() ? "[]" : raw); } catch (Exception ignored) { return new JSONArray(); } }
+    private void writeLocalVisitResults(JSONArray a) { if (prefs != null) prefs.edit().putString(KEY_VISIT_RESULTS_LOCAL, a == null ? "[]" : a.toString()).apply(); }
+    private void saveLocalVisitResult(JSONObject customer, String result, String note) {
+        try { JSONArray a = localVisitResults(); JSONObject o = new JSONObject(); o.put("customerCode", customer == null ? "" : customer.optString("code", "")); o.put("customerName", customer == null ? "" : customer.optString("name", "")); o.put("result", stringOr(result, "")); o.put("notes", stringOr(note, "")); o.put("createdLocal", nowText()); a.put(o); JSONArray lim = new JSONArray(); for (int i=Math.max(0,a.length()-100); i<a.length(); i++) lim.put(a.optJSONObject(i)); writeLocalVisitResults(lim); } catch (Exception ignored) { }
+    }
+    private int localVisitsTodayCount() { int c=0; String today=todayDateText(); JSONArray a=localVisitResults(); for(int i=0;i<a.length();i++){ JSONObject o=a.optJSONObject(i); if(o!=null && o.optString("createdLocal","").startsWith(today)) c++; } return c; }
+
     private void saveVisitResult(JSONObject customer,String result,String note){
-        runDb(() -> { try(Connection c=openConnection()){ ensurePrefactorTables(c); try(PreparedStatement ps=c.prepareStatement("INSERT INTO dbo.meelano_visit_results(visitor_username,visitor_id,customer_code,customer_name,result,notes,created_at) VALUES(?,?,?,?,?,?,SYSDATETIME())")){ ps.setString(1,currentAccountName()); ps.setString(2,currentVisitorScopeId()==null?"":String.valueOf(currentVisitorScopeId())); ps.setString(3,customer.optString("code","")); ps.setString(4,customer.optString("name","")); ps.setString(5,result); ps.setString(6,note); ps.executeUpdate(); } } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this,"نتیجه بازدید ثبت شد.",Toast.LENGTH_SHORT).show(); } @Override public void fail(Exception e){ Toast.makeText(MainActivity.this,"نتیجه به‌صورت محلی نگهداری شد.",Toast.LENGTH_LONG).show(); }});
+        runDb(() -> { try(Connection c=openConnection()){ ensurePrefactorTables(c); try(PreparedStatement ps=c.prepareStatement("INSERT INTO dbo.meelano_visit_results(visitor_username,visitor_id,customer_code,customer_name,result,notes,created_at) VALUES(?,?,?,?,?,?,SYSDATETIME())")){ ps.setString(1,currentAccountName()); ps.setString(2,currentVisitorScopeId()==null?"":String.valueOf(currentVisitorScopeId())); ps.setString(3,customer.optString("code","")); ps.setString(4,customer.optString("name","")); ps.setString(5,result); ps.setString(6,note); ps.executeUpdate(); } } return "ok"; }, new DbCallback(){ @Override public void ok(String b){ Toast.makeText(MainActivity.this,"نتیجه بازدید ثبت شد.",Toast.LENGTH_SHORT).show(); } @Override public void fail(Exception e){ saveLocalVisitResult(customer,result,note); Toast.makeText(MainActivity.this,"نتیجه به‌صورت محلی نگهداری شد.",Toast.LENGTH_LONG).show(); }});
     }
 
     private void showEndOfDayReportDialog(){
@@ -10785,8 +11214,12 @@ public class MainActivity extends Activity {
             select.add("i.[" + shka + "] AS کد");
             select.add(name == null ? "CAST(NULL AS nvarchar(250)) AS نام" : "TRY_CONVERT(nvarchar(250),i.[" + name + "]) AS نام");
             select.add(code == null ? "CAST(NULL AS nvarchar(100)) AS بارکد" : "TRY_CONVERT(nvarchar(100),i.[" + code + "]) AS بارکد");
-            select.add(sqlNumberExpr("i", price, "decimal(19,2)") + " AS قیمت_فروش");
-            select.add(sqlNumberExpr("i", price2, "decimal(19,2)") + " AS قیمت_فروش۲");
+            String priceExpr = sqlNumberExpr("i", price, "decimal(19,2)");
+            String price2RawExpr = sqlNumberExpr("i", price2, "decimal(19,2)");
+            String price2FinalExpr = "CASE WHEN ISNULL(" + price2RawExpr + ",0)>0 THEN " + price2RawExpr + " WHEN ISNULL(" + priceExpr + ",0)>0 THEN ROUND(" + priceExpr + "*1.06,0) ELSE 0 END";
+            select.add(priceExpr + " AS قیمت_فروش");
+            select.add(price2FinalExpr + " AS قیمت_فروش۲");
+            select.add("CASE WHEN ISNULL(" + price2RawExpr + ",0)>0 THEN CAST(0 AS int) WHEN ISNULL(" + priceExpr + ",0)>0 THEN CAST(1 AS int) ELSE CAST(0 AS int) END AS قیمت_فروش۲_محاسباتی");
             select.add(sqlNumberExpr("i", buyPrice, "decimal(19,2)") + " AS بهای_خرید");
             String movementStockExpr = "(ISNULL(ba.buy_qty,0)-ISNULL(sa.sale_qty,0))";
             String stockExpr = stock == null ? movementStockExpr : "COALESCE(" + sqlNumberExpr("i", stock, "decimal(19,3)") + "," + movementStockExpr + ")";
@@ -10828,8 +11261,8 @@ public class MainActivity extends Activity {
             if ("stock".equals(filter)) where.add(stockWhereExpr + ">0");
             if ("low".equals(filter)) where.add(stockWhereExpr + "<=0");
             if ("idle".equals(filter)) where.add("ISNULL(sa.sale_qty,0)=0 AND ISNULL(ba.buy_qty,0)=0");
-            if ("priced".equals(filter)) where.add("(ISNULL(" + sqlNumberExpr("i", price, "decimal(19,2)") + ",0)>0 OR ISNULL(" + sqlNumberExpr("i", price2, "decimal(19,2)") + ",0)>0)");
-            if ("price2".equals(filter)) where.add("ISNULL(" + sqlNumberExpr("i", price2, "decimal(19,2)") + ",0)>0");
+            if ("priced".equals(filter)) where.add("(ISNULL(" + priceExpr + ",0)>0 OR ISNULL(" + price2FinalExpr + ",0)>0)");
+            if ("price2".equals(filter)) where.add("ISNULL(" + price2FinalExpr + ",0)>0");
             if ("image".equals(filter) && imageCol != null) where.add(imageBinary ? "DATALENGTH(i.[" + imageCol + "])>20" : "LEN(LTRIM(RTRIM(TRY_CONVERT(nvarchar(max),i.[" + imageCol + "]))))>20");
             if ("package".equals(filter) && packCount != null) where.add("ISNULL(" + sqlNumberExpr("i", packCount, "decimal(19,3)") + ",0)>1");
             String order = "top".equals(filter) ? " ORDER BY مبلغ_فروش DESC, نام" : ("low".equals(filter) ? " ORDER BY موجودی ASC, نام" : ("price2".equals(filter) ? " ORDER BY قیمت_فروش۲ DESC, نام" : " ORDER BY نام, کد"));
@@ -10899,7 +11332,64 @@ public class MainActivity extends Activity {
         }
     }
 
+    private String productLocalKey(JSONObject r) {
+        String code = safeDisplayText(r == null ? null : r.opt("کد"), "").trim();
+        if (code.isEmpty()) code = safeDisplayText(r == null ? null : r.opt("نام"), "محصول").trim();
+        return normalizeDigits(code).replaceAll("[^0-9A-Za-zآ-یا-ی]+", "_");
+    }
+
+    private String productImageOverrideKey(JSONObject r) {
+        return "visitor_product_image_" + productLocalKey(r);
+    }
+
+    private Bitmap visitorProductImageOverrideBitmap(JSONObject r) {
+        try {
+            if (prefs == null || r == null) return null;
+            String key = productImageOverrideKey(r);
+            String cacheKey = "local_image|" + key;
+            Bitmap cached = productBitmapCache.get(cacheKey);
+            if (cached != null && !cached.isRecycled()) return cached;
+            String b64 = prefs.getString(key, "");
+            if (b64 == null || b64.trim().isEmpty()) return null;
+            byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
+            Bitmap bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            if (bmp != null) productBitmapCache.put(cacheKey, bmp);
+            return bmp;
+        } catch (Exception ignored) { return null; }
+    }
+
+    private void pickVisitorProductImage(JSONObject product) {
+        if (product == null) return;
+        pendingProductImageKey = productImageOverrideKey(product);
+        pendingProductImageName = safeDisplayText(product.opt("نام"), "محصول");
+        Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+        i.setType("image/*");
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        try { startActivityForResult(Intent.createChooser(i, "انتخاب تصویر کالا - مربع ۵۱۲×۵۱۲ پیشنهاد می‌شود"), REQ_PRODUCT_IMAGE); }
+        catch (Exception ex) { Toast.makeText(this, "انتخاب تصویر در این دستگاه در دسترس نیست.", Toast.LENGTH_SHORT).show(); }
+    }
+
+    private void handleVisitorProductImage(Uri uri) {
+        if (uri == null || pendingProductImageKey == null || pendingProductImageKey.trim().isEmpty()) return;
+        try (InputStream in = getContentResolver().openInputStream(uri)) {
+            Bitmap src = BitmapFactory.decodeStream(in);
+            if (src == null) { Toast.makeText(this, "تصویر خوانده نشد.", Toast.LENGTH_SHORT).show(); return; }
+            int side = Math.min(src.getWidth(), src.getHeight());
+            Bitmap crop = Bitmap.createBitmap(src, Math.max(0, (src.getWidth() - side) / 2), Math.max(0, (src.getHeight() - side) / 2), side, side);
+            Bitmap scaled = Bitmap.createScaledBitmap(crop, 512, 512, true);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            scaled.compress(Bitmap.CompressFormat.JPEG, 86, out);
+            if (prefs != null) prefs.edit().putString(pendingProductImageKey, Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)).apply();
+            productBitmapCache.clear();
+            Toast.makeText(this, "تصویر کالا با ابعاد ۵۱۲×۵۱۲ ذخیره شد: " + stringOr(pendingProductImageName, "محصول"), Toast.LENGTH_LONG).show();
+            if ("showcase".equals(activePage)) rerenderShowcaseFast(showcaseCacheQuery, showcaseCacheFilter);
+            else if ("cart".equals(activePage)) renderCartPage();
+        } catch (Exception ex) { Toast.makeText(this, "ذخیره تصویر ممکن نشد: " + shortError(ex), Toast.LENGTH_LONG).show(); }
+        pendingProductImageKey = ""; pendingProductImageName = "";
+    }
+
     private boolean hasProductImage(JSONObject r) {
+        if (visitorProductImageOverrideBitmap(r) != null) return true;
         String raw = r == null ? "" : r.optString("تصویر", "");
         if (raw == null) return false;
         raw = raw.trim();
@@ -10918,6 +11408,8 @@ public class MainActivity extends Activity {
 
     private void applyProductImage(ImageView img, JSONObject r, boolean decodeRealImage) {
         if (img == null) return;
+        Bitmap local = visitorProductImageOverrideBitmap(r);
+        if (local != null) { img.setImageBitmap(local); return; }
         Bitmap smart = smartProductBitmap(r);
         if (smart != null) img.setImageBitmap(smart); else img.setImageResource(ir.meelano.android.R.drawable.icon_products);
         if (!decodeRealImage || !hasProductImage(r)) return;
@@ -15042,6 +15534,8 @@ public class MainActivity extends Activity {
             }
         } else if (requestCode == REQ_CHAT_ATTACHMENT && resultCode == RESULT_OK && data != null) {
             handleChatAttachment(data.getData());
+        } else if (requestCode == REQ_PRODUCT_IMAGE && resultCode == RESULT_OK && data != null) {
+            handleVisitorProductImage(data.getData());
         } else if (requestCode == REQ_BARCODE_SCAN && resultCode == RESULT_OK && data != null) {
             String code = data.getStringExtra("SCAN_RESULT");
             if (code == null || code.trim().isEmpty()) code = data.getStringExtra("SCAN_RESULT_BYTES");
