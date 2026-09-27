@@ -117,6 +117,8 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     private static final String PREFS = "meelano_android_direct_sql";
+    private static final boolean VISITOR_EDITION = true;
+    private static final String EDITION_TITLE = "Meelano Visit";
     private static final String DEFAULT_THEME = "azure_diamond";
     private static final String KEY_LAST_USER = "last_meelano_user";
     private static final String KEY_THEME = "meelano_theme_palette";
@@ -828,10 +830,10 @@ public class MainActivity extends Activity {
         titles.setOrientation(LinearLayout.VERTICAL);
         titles.setGravity(Gravity.CENTER_VERTICAL);
         titles.setPadding(dp(10), 0, dp(8), 0);
-        TextView appTitle = text("Meelano", 17.5f, TEXT, Typeface.BOLD);
+        TextView appTitle = text(VISITOR_EDITION ? EDITION_TITLE : "Meelano", 17.5f, TEXT, Typeface.BOLD);
         appTitle.setSingleLine(true);
         appTitle.setShadowLayer(dp(2), 0, dp(1), alpha(Color.WHITE, isLightTheme() ? 90 : 20));
-        subtitle = text("ورود با حساب Meelano", 10.2f, alpha(TEXT, 205), Typeface.NORMAL);
+        subtitle = text(VISITOR_EDITION ? "نسخه اختصاصی ویزیتور" : "ورود با حساب Meelano", 10.2f, alpha(TEXT, 205), Typeface.NORMAL);
         subtitle.setSingleLine(true);
         status = text("", 1, Color.TRANSPARENT, Typeface.NORMAL);
         titles.addView(appTitle, new LinearLayout.LayoutParams(-1, -2));
@@ -845,7 +847,8 @@ public class MainActivity extends Activity {
         tools.setGravity(Gravity.CENTER_VERTICAL);
         tools.setPadding(dp(2), 0, dp(2), 0);
         addHeaderTool(tools, "⌕", "جستجوی سراسری", INFO, v -> showGlobalSearchDialog());
-        addHeaderTool(tools, "♛", "مدیریت دسترسی کاربران", mix(INFO, GOLD, 0.34f), v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("management"); });
+        if (VISITOR_EDITION) addHeaderTool(tools, "✦", "ماموریت امروز ویزیتور", mix(SUCCESS, GOLD, 0.30f), v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("visitor_dashboard"); });
+        else addHeaderTool(tools, "♛", "مدیریت دسترسی کاربران", mix(INFO, GOLD, 0.34f), v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("management"); });
         addHeaderTool(tools, "✺", "انتخاب تم", GOLD_2, v -> showThemeChooser());
         addHeaderTool(tools, "⚙", "تنظیمات", SUCCESS, v -> { if (session == null) showLogin("ابتدا وارد شوید."); else showApp("settings"); });
         addHeaderTool(tools, "⎋", "خروج", DANGER, v -> { if (session == null) showLogin("برای ورود، نام کاربری و رمز Meelano را وارد کنید."); else showLogin("از حساب خارج شدید. برای ورود مجدد اطلاعات Meelano را وارد کنید."); });
@@ -1598,7 +1601,7 @@ public class MainActivity extends Activity {
         activePage = targetPage;
         motionSerial = 0;
         setConnectionStatus("connected");
-        subtitle.setText(session.userName);
+        subtitle.setText(VISITOR_EDITION ? "ویزیتور فعال • " + session.userName : session.userName);
         stage.removeAllViews();
 
         LinearLayout shell = new LinearLayout(this);
@@ -1670,7 +1673,11 @@ public class MainActivity extends Activity {
         rail.setOrientation(LinearLayout.HORIZONTAL);
         rail.setGravity(Gravity.CENTER_VERTICAL);
         rail.setPadding(dp(4), dp(2), dp(4), dp(2));
-        String[][] items = {
+        String[][] items = VISITOR_EDITION ? new String[][]{
+                {"visitor_dashboard", "ماموریت"}, {"showcase", "ویترین"}, {"cart", "سبد"}, {"customers", "مشتری"},
+                {"products", "کالا"}, {"attendance", "حضور"}, {"assistant", "میلو"}, {"chat", "گفتگو"},
+                {"settings", "تم"}, {"health", "اتصال"}
+        } : new String[][]{
                 {"dashboard", "داشبورد"}, {"visitor_dashboard", "ویزیتور"}, {"showcase", "ویترین"}, {"cart", "سبد"},
                 {"customers", "مشتریان"}, {"products", "کالا"}, {"reports", "گزارشات"}, {"assistant", "میلو"},
                 {"chat", "گفتگو"}, {"personnel", "پرسنل"}, {"attendance", "حضور"}, {"taxpayers", "مودیان"},
@@ -4480,8 +4487,21 @@ public class MainActivity extends Activity {
 
     private boolean canUsePermission(String key) {
         if (key == null || key.trim().isEmpty()) return true;
+        if (VISITOR_EDITION) return visitorEditionPermissionAllowed(key);
         if (isFullAccessUser()) return true;
         return currentPermissionSet().contains(key);
+    }
+
+    private boolean visitorEditionPermissionAllowed(String key) {
+        if (key == null || key.trim().isEmpty()) return true;
+        String k = key.trim();
+        return "visitor_dashboard".equals(k) || "showcase".equals(k) || "cart".equals(k) || "cart_draft".equals(k) || "cart_submit".equals(k)
+                || "cart_signature".equals(k) || "customer_select".equals(k) || "prefactor_list".equals(k) || "visit_route".equals(k)
+                || "cart_discount".equals(k) || "cart_pdf".equals(k) || "offline_queue".equals(k) || "day_report".equals(k)
+                || "customers".equals(k) || "customer_detail".equals(k) || "customer_call".equals(k) || "customer_message".equals(k)
+                || "products".equals(k) || "product_detail".equals(k) || "attendance".equals(k) || "attendance_self".equals(k)
+                || "leave_balance".equals(k) || "leave_request".equals(k) || "assistant".equals(k) || "chat".equals(k)
+                || "settings".equals(k) || "connection_health".equals(k);
     }
 
     private String pagePermissionKey(String page) {
@@ -4825,9 +4845,11 @@ public class MainActivity extends Activity {
     }
 
     private String firstAllowedPage() {
-        String[] preferred = {"dashboard", "visitor_dashboard", "showcase", "cart", "customers", "products", "attendance", "assistant", "chat", "reports", "command", "personnel", "taxpayers", "cameras", "alarm", "settings", "health"};
+        String[] preferred = VISITOR_EDITION
+                ? new String[]{"visitor_dashboard", "showcase", "cart", "customers", "products", "attendance", "assistant", "chat", "settings", "health"}
+                : new String[]{"dashboard", "visitor_dashboard", "showcase", "cart", "customers", "products", "attendance", "assistant", "chat", "reports", "command", "personnel", "taxpayers", "cameras", "alarm", "settings", "health"};
         for (String p : preferred) if (canOpenPage(p)) return p;
-        return "dashboard";
+        return VISITOR_EDITION ? "visitor_dashboard" : "dashboard";
     }
 
     private void redirectToAllowedPage(String requestedPage) {
@@ -7749,8 +7771,9 @@ public class MainActivity extends Activity {
 
     private void renderVisitorDashboard(JSONObject data) {
         content.removeAllViews();
-        addHero("داشبورد ویزیتور", "نمای اختصاصی " + stringOr(data.optString("visitor"), "ویزیتور") + " • تاریخ فروش: " + stringOr(data.optString("date"), "—"));
+        addHero(VISITOR_EDITION ? "Meelano Visit" : "داشبورد ویزیتور", "نمای اختصاصی " + stringOr(data.optString("visitor"), "ویزیتور") + " • تاریخ فروش: " + stringOr(data.optString("date"), "—"));
         addManualRefreshPanel("visitor_dashboard", "بروزرسانی داشبورد ویزیتور", "آخرین بروزرسانی: " + lastRefreshText("visitor_dashboard"), () -> loadVisitorDashboard());
+        if (VISITOR_EDITION) addVisitorEditionWelcome(data);
         JSONObject sales = data.optJSONObject("sales");
         LinearLayout c = card();
         c.setBackground(themedSectionBg("visitor_dashboard", 26));
@@ -7775,6 +7798,40 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
         addVisitorGoalsCard(data.optJSONArray("goals"));
         addDashboardInsightTable(data);
+    }
+
+    private void addVisitorEditionWelcome(JSONObject data) {
+        int accent = navAccent("visitor_dashboard");
+        LinearLayout c = card();
+        c.setPadding(dp(14), dp(12), dp(14), dp(12));
+        c.setBackground(gradient(new int[]{alpha(accent, isLightTheme() ? 38 : 58), alpha(navAccent("showcase"), isLightTheme() ? 26 : 42), alpha(GOLD, isLightTheme() ? 20 : 30), alpha(SURFACE, 248)}, GradientDrawable.Orientation.TL_BR, 30));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) c.setElevation(dp(7));
+        TextView title = text("مسیر طلایی امروز ویزیتور", 16.2f, TEXT, Typeface.BOLD);
+        title.setGravity(Gravity.CENTER);
+        c.addView(title, new LinearLayout.LayoutParams(-1, -2));
+        TextView desc = text("از این نسخه فقط برای فروش میدانی ساخته شده: مشتری را انتخاب کن، ویترین را باز کن، با قیمت ۱ یا ۲ سفارش بگیر، امضا کن و پیش‌فاکتور را ارسال کن.", 10.8f, MUTED, Typeface.NORMAL);
+        desc.setGravity(Gravity.CENTER); desc.setLineSpacing(dp(3), 1.05f);
+        c.addView(desc, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        String[] labels = {"مسیر", "ویترین", "سبد", "ارسال"};
+        String[] hints = {"بازدید", "قیمت‌ها", "اقلام", "پیش‌فاکتور"};
+        int[] colors = {accent, navAccent("showcase"), navAccent("cart"), SUCCESS};
+        for (int i = 0; i < labels.length; i++) {
+            LinearLayout step = new LinearLayout(this); step.setOrientation(LinearLayout.VERTICAL); step.setGravity(Gravity.CENTER); step.setPadding(dp(5), dp(6), dp(5), dp(6));
+            step.setBackground(roundedStroke(alpha(colors[i], isLightTheme() ? 16 : 28), 17, alpha(colors[i], 78)));
+            TextView n = text(String.valueOf(i + 1), 13.5f, onColorFor(colors[i]), Typeface.BOLD); n.setGravity(Gravity.CENTER); n.setBackground(luxuryButtonBg(colors[i], true, 999));
+            step.addView(n, new LinearLayout.LayoutParams(dp(30), dp(30)));
+            TextView l = text(labels[i], 9.8f, TEXT, Typeface.BOLD); l.setGravity(Gravity.CENTER); l.setSingleLine(true); step.addView(l, new LinearLayout.LayoutParams(-1, -2));
+            TextView h = text(hints[i], 8.5f, MUTED, Typeface.NORMAL); h.setGravity(Gravity.CENTER); h.setSingleLine(true); step.addView(h, new LinearLayout.LayoutParams(-1, -2));
+            LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, -2, 1f); sp.setMargins(dp(3), dp(10), dp(3), 0); row.addView(step, sp);
+        }
+        c.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button route = themedActionButton("شروع مسیر امروز", accent, true); route.setTextSize(9.2f); route.setOnClickListener(v -> loadVisitRoutePage(""));
+        Button showcase = themedActionButton("ورود به ویترین", navAccent("showcase"), false); showcase.setTextSize(9.2f); showcase.setOnClickListener(v -> showApp("showcase"));
+        actions.addView(route, weightedButtonLp()); actions.addView(showcase, weightedButtonLp());
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(10), 0, 0); c.addView(actions, ap);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
     }
 
     private void addVisitorGoalsCard(JSONArray goals) {
@@ -12919,7 +12976,32 @@ public class MainActivity extends Activity {
         animateEntrance(t, motionSerial++);
     }
 
+    private void renderVisitorEditionSettings() {
+        content.removeAllViews();
+        addHero("تنظیمات ویزیتور", "ظاهر، ورود سریع، سلامت اتصال و خروج امن برای تیم فروش میدانی");
+        LinearLayout quick = card();
+        quick.setBackground(themedSectionBg("visitor_dashboard", 24));
+        quick.addView(text("Meelano Visit", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        quick.addView(text("کاربر: " + (session == null ? "-" : session.userName) + " • تم فعال: " + themeName(currentThemeId()), 11, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        Button theme = themedActionButton("انتخاب تم", GOLD_2, true); theme.setOnClickListener(v -> showThemeChooser());
+        Button health = themedActionButton("سلامت اتصال", INFO, false); health.setOnClickListener(v -> renderConnectionHealthPage());
+        row.addView(theme, weightedButtonLp()); row.addView(health, weightedButtonLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); quick.addView(row, rp);
+        Button logout = themedActionButton("خروج از حساب ویزیتور", DANGER, false); logout.setOnClickListener(v -> showLogin("برای ورود مجدد ویزیتور اطلاعات Meelano را وارد کنید."));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, dp(48)); lp.setMargins(0, dp(9), 0, 0); quick.addView(logout, lp);
+        content.addView(quick, new LinearLayout.LayoutParams(-1, -2));
+        addExperienceSettingsCard();
+        LinearLayout about = card();
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(12), 0, 0);
+        about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        TextView desc = text("Meelano Visit v4.0.0\nنسخه مستقل ویزیتور با تمرکز روی ماموریت فروش، ویترین، سبد، مشتری، پیش‌فاکتور، امضا، حضور و گفتگوی کاری.", 12, MUTED, Typeface.NORMAL);
+        desc.setLineSpacing(dp(3), 1.05f); about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
+        content.addView(about, ap);
+    }
+
     private void renderSettings() {
+        if (VISITOR_EDITION) { renderVisitorEditionSettings(); return; }
         content.removeAllViews();
         addHero("تنظیمات Meelano", "مدیریت اتصال، خروج امن، تم‌های لوکس و کلیدهای دستیار هوش مصنوعی");
         LinearLayout connection = card();
@@ -12967,7 +13049,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android v3.43.5\nاین نسخه منوی اصلی را از بالای صفحه به یک dock آینده‌نگر در پایین منتقل می‌کند، ترتیب چیدمان بخش‌ها را بر اساس مسیر کاری واقعی بازطراحی می‌کند و دکمه‌ها را به کارت‌های شیشه‌ای/سه‌بعدی هماهنگ با تم تبدیل می‌سازد.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Visit v4.0.0\nاین نسخه مخصوص ویزیتور ساخته شده است؛ منوهای مدیریتی حذف شده‌اند و مسیر فروش میدانی، ویترین، سبد، مشتری، پیش‌فاکتور، امضا، حضور و گفتگوی کاری در یک قالب جذاب و سریع متمرکز شده‌اند.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
