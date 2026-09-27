@@ -9078,6 +9078,13 @@ public class MainActivity extends Activity {
                 new VisitorToolSpec("گفتگو", "پیام‌ها", "✉", INFO, () -> showApp("chat"), canOpenPage("chat")),
                 new VisitorToolSpec("تنظیمات", "تم و دسترسی", "⚙", accent, () -> showApp("settings"), canOpenPage("settings"))
         });
+        addVisitorMoreGroup("مدیریت و سخت‌افزار", "بخش‌های سنگین فقط اینجا دیده می‌شوند", new VisitorToolSpec[]{
+                new VisitorToolSpec("مدیریت", "داشبورد پیشرفته", "♛", navAccent("command"), () -> showApp("command"), canOpenPage("command")),
+                new VisitorToolSpec("پرسنل", "پرونده و حضور", "ID", navAccent("personnel"), () -> showApp("personnel"), canOpenPage("personnel")),
+                new VisitorToolSpec("مودیان", "مالیات و ارسال", "٪", navAccent("taxpayers"), () -> showApp("taxpayers"), canOpenPage("taxpayers")),
+                new VisitorToolSpec("دوربین", "DVR و وضعیت", "▣", navAccent("cameras"), () -> showApp("cameras"), canOpenPage("cameras")),
+                new VisitorToolSpec("دزدگیر", "امنیت فروشگاه", "◬", navAccent("alarm"), () -> showApp("alarm"), canOpenPage("alarm"))
+        });
     }
 
     private class VisitorToolSpec {
@@ -9113,12 +9120,32 @@ public class MainActivity extends Activity {
         LinearLayout tile = new LinearLayout(this); tile.setOrientation(LinearLayout.HORIZONTAL); tile.setGravity(Gravity.CENTER_VERTICAL); tile.setPadding(dp(8), dp(7), dp(8), dp(7));
         tile.setClickable(true); tile.setFocusable(true); tile.setBackground(roundedStroke(alpha(tool.accent, isLightTheme() ? 16 : 26), 20, alpha(tool.accent, 62))); applyTouchFeedback(tile);
         tile.setOnClickListener(v -> { if (tool.action != null) tool.action.run(); });
-        TextView icon = text(tool.glyph, 14, onColorFor(tool.accent), Typeface.BOLD); icon.setGravity(Gravity.CENTER); icon.setBackground(luxuryButtonBg(tool.accent, true, 999)); tile.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
+        View icon = sectionVectorIcon(visitorToolIconKey(tool), tool.accent); tile.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
         LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(7), 0, dp(4), 0);
         TextView tt = text(tool.title, 10.9f, TEXT, Typeface.BOLD); tt.setSingleLine(true); copy.addView(tt, new LinearLayout.LayoutParams(-1, -2));
         TextView ss = text(tool.sub, 8.7f, MUTED, Typeface.BOLD); ss.setSingleLine(true); copy.addView(ss, new LinearLayout.LayoutParams(-1, -2));
         tile.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(58), 1f); lp.setMargins(dp(4), 0, dp(4), 0); parent.addView(tile, lp);
+    }
+
+    private String visitorToolIconKey(VisitorToolSpec tool) {
+        if (tool == null) return "management";
+        String t = tool.title == null ? "" : tool.title;
+        if (t.contains("گزارش")) return "visitor_reports";
+        if (t.contains("پیش‌فاکتور") || t.contains("سبد") || t.contains("پیش‌نویس")) return "cart";
+        if (t.contains("پایان")) return "dashboard";
+        if (t.contains("صف")) return "health";
+        if (t.contains("مشتری")) return "customers";
+        if (t.contains("کالا") || t.contains("کدخوان")) return "showcase";
+        if (t.contains("حضور")) return "attendance";
+        if (t.contains("گفتگو")) return "chat";
+        if (t.contains("تنظیمات")) return "settings";
+        if (t.contains("پرسنل")) return "personnel";
+        if (t.contains("مودیان")) return "taxpayers";
+        if (t.contains("دوربین")) return "cameras";
+        if (t.contains("دزدگیر")) return "alarm";
+        if (t.contains("مدیریت")) return "management";
+        return "management";
     }
 
     private void addVisitorAtiranHeader(JSONObject data) {
@@ -14765,8 +14792,6 @@ public class MainActivity extends Activity {
     private FrameLayout sectionVectorIcon(String key, int accent) {
         FrameLayout wrap = new FrameLayout(this);
         wrap.setContentDescription(MeelanoDesignKit.label(key));
-        wrap.setClickable(true);
-        wrap.setFocusable(true);
         wrap.setPadding(dp(9), dp(9), dp(9), dp(9));
         GradientDrawable bg = gradient(new int[]{
                 mix(accent, Color.WHITE, isLightTheme() ? 0.34f : 0.20f),
