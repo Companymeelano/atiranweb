@@ -388,168 +388,168 @@ public class MainActivity extends Activity {
     private void applyTheme(String themeId) {
         String id = normalizeThemeId(themeId);
         if ("pearl_platinum".equals(id)) {
-            NAVY = Color.rgb(246, 248, 252);
+            NAVY = Color.rgb(245, 247, 251);
             SURFACE = Color.rgb(255, 255, 255);
-            SURFACE_2 = Color.rgb(235, 240, 248);
-            GOLD = Color.rgb(190, 143, 55);
-            GOLD_2 = Color.rgb(235, 195, 103);
-            SUCCESS = Color.rgb(23, 159, 120);
-            INFO = Color.rgb(62, 107, 211);
-            WARNING = Color.rgb(209, 135, 42);
-            DANGER = Color.rgb(198, 57, 86);
-            TEXT = Color.rgb(21, 27, 39);
-            MUTED = Color.rgb(88, 99, 121);
-            BORDER = Color.argb(62, 125, 111, 82);
-            HEADER_START = Color.rgb(255, 255, 255);
-            HEADER_END = Color.rgb(232, 238, 249);
-            HERO_START = Color.rgb(255, 253, 246);
-            HERO_END = Color.rgb(232, 239, 252);
-            ON_PRIMARY = Color.rgb(24, 20, 12);
+            SURFACE_2 = Color.rgb(232, 237, 245);
+            GOLD = Color.rgb(168, 122, 44);
+            GOLD_2 = Color.rgb(224, 181, 92);
+            SUCCESS = Color.rgb(20, 135, 108);
+            INFO = Color.rgb(48, 96, 176);
+            WARNING = Color.rgb(188, 116, 42);
+            DANGER = Color.rgb(184, 51, 78);
+            TEXT = Color.rgb(24, 31, 43);
+            MUTED = Color.rgb(86, 98, 118);
+            BORDER = Color.argb(76, 158, 135, 89);
+            HEADER_START = Color.rgb(252, 253, 255);
+            HEADER_END = Color.rgb(231, 237, 247);
+            HERO_START = Color.rgb(255, 251, 241);
+            HERO_END = Color.rgb(236, 243, 253);
+            ON_PRIMARY = Color.rgb(30, 24, 14);
         } else if ("rose_quartz_lux".equals(id)) {
-            NAVY = Color.rgb(255, 246, 248);
+            NAVY = Color.rgb(255, 247, 248);
             SURFACE = Color.rgb(255, 255, 255);
-            SURFACE_2 = Color.rgb(255, 232, 239);
-            GOLD = Color.rgb(195, 123, 80);
-            GOLD_2 = Color.rgb(255, 177, 180);
-            SUCCESS = Color.rgb(31, 159, 119);
-            INFO = Color.rgb(109, 105, 214);
-            WARNING = Color.rgb(218, 136, 52);
-            DANGER = Color.rgb(200, 55, 105);
-            TEXT = Color.rgb(47, 30, 39);
-            MUTED = Color.rgb(118, 88, 100);
-            BORDER = Color.argb(56, 170, 95, 120);
-            HEADER_START = Color.rgb(255, 249, 250);
-            HEADER_END = Color.rgb(255, 226, 235);
+            SURFACE_2 = Color.rgb(250, 230, 236);
+            GOLD = Color.rgb(177, 102, 82);
+            GOLD_2 = Color.rgb(222, 151, 143);
+            SUCCESS = Color.rgb(22, 139, 118);
+            INFO = Color.rgb(111, 90, 174);
+            WARNING = Color.rgb(192, 119, 50);
+            DANGER = Color.rgb(189, 58, 100);
+            TEXT = Color.rgb(50, 33, 42);
+            MUTED = Color.rgb(116, 86, 98);
+            BORDER = Color.argb(70, 179, 105, 124);
+            HEADER_START = Color.rgb(255, 250, 251);
+            HEADER_END = Color.rgb(248, 226, 233);
             HERO_START = Color.rgb(255, 241, 244);
-            HERO_END = Color.rgb(255, 251, 246);
-            ON_PRIMARY = Color.rgb(50, 25, 20);
+            HERO_END = Color.rgb(255, 249, 243);
+            ON_PRIMARY = Color.rgb(50, 27, 24);
         } else if ("emerald_silk".equals(id)) {
-            NAVY = Color.rgb(241, 250, 246);
+            NAVY = Color.rgb(241, 249, 245);
             SURFACE = Color.rgb(255, 255, 252);
-            SURFACE_2 = Color.rgb(222, 242, 232);
-            GOLD = Color.rgb(175, 135, 54);
-            GOLD_2 = Color.rgb(74, 196, 145);
-            SUCCESS = Color.rgb(20, 151, 101);
-            INFO = Color.rgb(35, 128, 190);
-            WARNING = Color.rgb(205, 137, 45);
-            DANGER = Color.rgb(199, 63, 80);
-            TEXT = Color.rgb(20, 42, 34);
-            MUTED = Color.rgb(73, 105, 93);
-            BORDER = Color.argb(58, 69, 145, 105);
-            HEADER_START = Color.rgb(250, 255, 251);
-            HEADER_END = Color.rgb(215, 240, 227);
-            HERO_START = Color.rgb(232, 250, 240);
-            HERO_END = Color.rgb(255, 253, 241);
-            ON_PRIMARY = Color.rgb(16, 39, 29);
+            SURFACE_2 = Color.rgb(222, 239, 230);
+            GOLD = Color.rgb(160, 128, 55);
+            GOLD_2 = Color.rgb(55, 166, 121);
+            SUCCESS = Color.rgb(16, 132, 91);
+            INFO = Color.rgb(40, 117, 165);
+            WARNING = Color.rgb(184, 124, 46);
+            DANGER = Color.rgb(185, 65, 77);
+            TEXT = Color.rgb(22, 43, 36);
+            MUTED = Color.rgb(76, 105, 95);
+            BORDER = Color.argb(72, 68, 137, 105);
+            HEADER_START = Color.rgb(250, 255, 252);
+            HEADER_END = Color.rgb(218, 239, 228);
+            HERO_START = Color.rgb(232, 248, 240);
+            HERO_END = Color.rgb(255, 252, 239);
+            ON_PRIMARY = Color.rgb(15, 39, 30);
         } else if ("royal_amethyst".equals(id)) {
-            NAVY = Color.rgb(10, 8, 24);
-            SURFACE = Color.rgb(25, 20, 45);
-            SURFACE_2 = Color.rgb(35, 27, 63);
-            GOLD = Color.rgb(184, 114, 255);
-            GOLD_2 = Color.rgb(248, 113, 193);
-            SUCCESS = Color.rgb(70, 220, 177);
-            INFO = Color.rgb(96, 189, 255);
-            WARNING = Color.rgb(255, 190, 102);
-            DANGER = Color.rgb(255, 105, 136);
-            TEXT = Color.rgb(252, 248, 255);
-            MUTED = Color.rgb(184, 174, 205);
-            BORDER = Color.argb(52, 255, 255, 255);
-            HEADER_START = Color.rgb(18, 12, 43);
-            HEADER_END = Color.rgb(48, 25, 88);
-            HERO_START = Color.rgb(49, 30, 87);
-            HERO_END = Color.rgb(20, 14, 42);
+            NAVY = Color.rgb(11, 9, 25);
+            SURFACE = Color.rgb(24, 20, 43);
+            SURFACE_2 = Color.rgb(36, 29, 62);
+            GOLD = Color.rgb(154, 108, 224);
+            GOLD_2 = Color.rgb(218, 133, 194);
+            SUCCESS = Color.rgb(86, 204, 169);
+            INFO = Color.rgb(121, 163, 230);
+            WARNING = Color.rgb(226, 166, 93);
+            DANGER = Color.rgb(228, 91, 124);
+            TEXT = Color.rgb(251, 248, 255);
+            MUTED = Color.rgb(186, 178, 207);
+            BORDER = Color.argb(58, 218, 202, 255);
+            HEADER_START = Color.rgb(18, 13, 41);
+            HEADER_END = Color.rgb(45, 28, 76);
+            HERO_START = Color.rgb(46, 31, 79);
+            HERO_END = Color.rgb(18, 14, 39);
             ON_PRIMARY = Color.WHITE;
         } else if ("ivory_sunrise".equals(id)) {
-            NAVY = Color.rgb(248, 241, 229);
-            SURFACE = Color.rgb(255, 251, 244);
-            SURFACE_2 = Color.rgb(247, 232, 212);
-            GOLD = Color.rgb(213, 126, 55);
-            GOLD_2 = Color.rgb(255, 185, 109);
-            SUCCESS = Color.rgb(32, 158, 119);
-            INFO = Color.rgb(51, 126, 210);
-            WARNING = Color.rgb(224, 148, 58);
-            DANGER = Color.rgb(210, 77, 91);
-            TEXT = Color.rgb(40, 33, 27);
-            MUTED = Color.rgb(111, 95, 78);
-            BORDER = Color.argb(52, 92, 62, 32);
-            HEADER_START = Color.rgb(255, 247, 232);
-            HEADER_END = Color.rgb(247, 223, 190);
+            NAVY = Color.rgb(249, 243, 233);
+            SURFACE = Color.rgb(255, 252, 246);
+            SURFACE_2 = Color.rgb(244, 231, 213);
+            GOLD = Color.rgb(194, 117, 54);
+            GOLD_2 = Color.rgb(230, 166, 91);
+            SUCCESS = Color.rgb(29, 143, 113);
+            INFO = Color.rgb(63, 112, 185);
+            WARNING = Color.rgb(202, 130, 52);
+            DANGER = Color.rgb(194, 73, 88);
+            TEXT = Color.rgb(45, 36, 29);
+            MUTED = Color.rgb(111, 94, 78);
+            BORDER = Color.argb(70, 126, 86, 45);
+            HEADER_START = Color.rgb(255, 249, 238);
+            HEADER_END = Color.rgb(245, 224, 197);
             HERO_START = Color.rgb(255, 246, 232);
-            HERO_END = Color.rgb(242, 222, 196);
-            ON_PRIMARY = Color.rgb(42, 27, 15);
+            HERO_END = Color.rgb(243, 225, 202);
+            ON_PRIMARY = Color.rgb(45, 29, 16);
         } else if ("crystal_lagoon".equals(id)) {
-            NAVY = Color.rgb(235, 248, 250);
+            NAVY = Color.rgb(237, 249, 250);
             SURFACE = Color.rgb(255, 255, 255);
-            SURFACE_2 = Color.rgb(222, 244, 249);
-            GOLD = Color.rgb(0, 151, 178);
-            GOLD_2 = Color.rgb(87, 217, 220);
-            SUCCESS = Color.rgb(21, 168, 128);
-            INFO = Color.rgb(42, 125, 225);
-            WARNING = Color.rgb(238, 158, 63);
-            DANGER = Color.rgb(218, 70, 105);
-            TEXT = Color.rgb(18, 42, 54);
-            MUTED = Color.rgb(84, 109, 121);
-            BORDER = Color.argb(48, 23, 91, 111);
-            HEADER_START = Color.rgb(227, 249, 253);
-            HEADER_END = Color.rgb(197, 237, 248);
-            HERO_START = Color.rgb(217, 248, 251);
-            HERO_END = Color.rgb(242, 253, 255);
+            SURFACE_2 = Color.rgb(220, 241, 246);
+            GOLD = Color.rgb(18, 142, 166);
+            GOLD_2 = Color.rgb(74, 197, 201);
+            SUCCESS = Color.rgb(20, 151, 123);
+            INFO = Color.rgb(54, 117, 203);
+            WARNING = Color.rgb(211, 136, 57);
+            DANGER = Color.rgb(201, 69, 100);
+            TEXT = Color.rgb(20, 43, 55);
+            MUTED = Color.rgb(83, 108, 121);
+            BORDER = Color.argb(66, 35, 105, 125);
+            HEADER_START = Color.rgb(231, 250, 253);
+            HEADER_END = Color.rgb(202, 236, 247);
+            HERO_START = Color.rgb(219, 248, 251);
+            HERO_END = Color.rgb(245, 253, 255);
             ON_PRIMARY = Color.WHITE;
         } else if ("azure_diamond".equals(id)) {
-            NAVY = Color.rgb(239, 247, 255);
+            NAVY = Color.rgb(240, 247, 255);
             SURFACE = Color.rgb(255, 255, 255);
-            SURFACE_2 = Color.rgb(224, 239, 255);
-            GOLD = Color.rgb(28, 101, 242);
-            GOLD_2 = Color.rgb(98, 196, 255);
-            SUCCESS = Color.rgb(18, 166, 139);
-            INFO = Color.rgb(0, 132, 255);
-            WARNING = Color.rgb(224, 144, 56);
-            DANGER = Color.rgb(214, 65, 101);
-            TEXT = Color.rgb(15, 35, 62);
-            MUTED = Color.rgb(75, 100, 128);
-            BORDER = Color.argb(56, 26, 96, 168);
-            HEADER_START = Color.rgb(231, 244, 255);
-            HEADER_END = Color.rgb(204, 226, 255);
-            HERO_START = Color.rgb(221, 240, 255);
+            SURFACE_2 = Color.rgb(224, 237, 252);
+            GOLD = Color.rgb(45, 98, 190);
+            GOLD_2 = Color.rgb(91, 167, 220);
+            SUCCESS = Color.rgb(19, 149, 127);
+            INFO = Color.rgb(37, 118, 214);
+            WARNING = Color.rgb(203, 132, 54);
+            DANGER = Color.rgb(198, 65, 96);
+            TEXT = Color.rgb(18, 38, 65);
+            MUTED = Color.rgb(77, 101, 128);
+            BORDER = Color.argb(68, 43, 101, 172);
+            HEADER_START = Color.rgb(234, 246, 255);
+            HEADER_END = Color.rgb(207, 226, 251);
+            HERO_START = Color.rgb(224, 240, 255);
             HERO_END = Color.rgb(250, 253, 255);
             ON_PRIMARY = Color.WHITE;
         } else if ("noir_aurora".equals(id)) {
-            NAVY = Color.rgb(3, 5, 16);
-            SURFACE = Color.rgb(10, 14, 30);
-            SURFACE_2 = Color.rgb(16, 24, 45);
-            GOLD = Color.rgb(0, 210, 210);
-            GOLD_2 = Color.rgb(126, 87, 255);
-            SUCCESS = Color.rgb(50, 230, 174);
-            INFO = Color.rgb(69, 176, 255);
-            WARNING = Color.rgb(255, 195, 96);
-            DANGER = Color.rgb(255, 92, 130);
+            NAVY = Color.rgb(5, 8, 18);
+            SURFACE = Color.rgb(12, 17, 31);
+            SURFACE_2 = Color.rgb(19, 29, 48);
+            GOLD = Color.rgb(36, 190, 186);
+            GOLD_2 = Color.rgb(113, 103, 229);
+            SUCCESS = Color.rgb(77, 213, 169);
+            INFO = Color.rgb(84, 165, 230);
+            WARNING = Color.rgb(229, 174, 89);
+            DANGER = Color.rgb(230, 86, 124);
             TEXT = Color.rgb(248, 252, 255);
-            MUTED = Color.rgb(158, 177, 207);
-            BORDER = Color.argb(60, 126, 220, 255);
-            HEADER_START = Color.rgb(2, 4, 14);
-            HEADER_END = Color.rgb(20, 15, 54);
-            HERO_START = Color.rgb(18, 17, 54);
-            HERO_END = Color.rgb(3, 9, 23);
+            MUTED = Color.rgb(160, 178, 207);
+            BORDER = Color.argb(66, 115, 205, 236);
+            HEADER_START = Color.rgb(4, 7, 17);
+            HEADER_END = Color.rgb(19, 24, 53);
+            HERO_START = Color.rgb(18, 31, 54);
+            HERO_END = Color.rgb(4, 10, 22);
             ON_PRIMARY = Color.WHITE;
         } else if ("onyx_gold".equals(id)) {
             if (VISITOR_EDITION) {
-                NAVY = Color.rgb(5, 5, 4);
-                SURFACE = Color.rgb(13, 12, 9);
-                SURFACE_2 = Color.rgb(28, 24, 15);
-                GOLD = Color.rgb(224, 163, 49);
-                GOLD_2 = Color.rgb(255, 214, 116);
-                SUCCESS = Color.rgb(88, 221, 130);
-                INFO = Color.rgb(224, 174, 72);
-                WARNING = Color.rgb(255, 189, 64);
-                DANGER = Color.rgb(246, 84, 102);
+                NAVY = Color.rgb(8, 9, 10);
+                SURFACE = Color.rgb(17, 18, 19);
+                SURFACE_2 = Color.rgb(29, 27, 22);
+                GOLD = Color.rgb(204, 153, 65);
+                GOLD_2 = Color.rgb(235, 199, 121);
+                SUCCESS = Color.rgb(91, 197, 151);
+                INFO = Color.rgb(111, 158, 207);
+                WARNING = Color.rgb(222, 166, 76);
+                DANGER = Color.rgb(229, 91, 106);
                 TEXT = Color.rgb(255, 251, 238);
-                MUTED = Color.rgb(190, 174, 138);
-                BORDER = Color.argb(72, 255, 214, 116);
-                HEADER_START = Color.rgb(3, 3, 2);
-                HEADER_END = Color.rgb(23, 18, 9);
-                HERO_START = Color.rgb(26, 21, 11);
-                HERO_END = Color.rgb(7, 6, 4);
-                ON_PRIMARY = Color.rgb(18, 13, 5);
+                MUTED = Color.rgb(194, 180, 145);
+                BORDER = Color.argb(76, 235, 199, 121);
+                HEADER_START = Color.rgb(6, 7, 7);
+                HEADER_END = Color.rgb(24, 21, 15);
+                HERO_START = Color.rgb(28, 24, 15);
+                HERO_END = Color.rgb(9, 9, 8);
+                ON_PRIMARY = Color.rgb(24, 18, 8);
             } else {
                 NAVY = Color.rgb(7, 9, 16);
                 SURFACE = Color.rgb(18, 22, 31);
@@ -622,27 +622,32 @@ public class MainActivity extends Activity {
         if (k.contains("chat") || k.contains("گفتگو")) return mix(GOLD_2, INFO, 0.62f);
         if (k.contains("personnel") || k.contains("پرسنل")) return mix(SUCCESS, INFO, 0.38f);
         if (k.contains("report") || k.contains("گزارش")) return INFO;
-        if (k.contains("product") || k.contains("کالا")) return WARNING;
+        if (k.contains("product") || k.contains("کالا")) return mix(WARNING, GOLD, 0.28f);
         if (k.contains("theme") || k.contains("تم")) return GOLD_2;
         return GOLD;
     }
 
     private GradientDrawable premiumPanel(int accent, float radius) {
-        int glow = mix(accent, Color.WHITE, isLightTheme() ? 0.42f : 0.18f);
-        int deep = mix(SURFACE, accent, isLightTheme() ? 0.06f : 0.18f);
-        GradientDrawable d = gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 92 : 20), alpha(glow, isLightTheme() ? 42 : 34), alpha(deep, 248)}, GradientDrawable.Orientation.TL_BR, radius);
-        d.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.30f), isLightTheme() ? 96 : 82));
+        int softAccent = mix(accent, GOLD_2, isLightTheme() ? 0.16f : 0.20f);
+        int top = isLightTheme() ? mix(SURFACE, softAccent, 0.04f) : mix(SURFACE, softAccent, 0.10f);
+        int mid = isLightTheme() ? mix(SURFACE_2, softAccent, 0.08f) : mix(SURFACE_2, softAccent, 0.16f);
+        int bottom = isLightTheme() ? mix(NAVY, softAccent, 0.025f) : mix(NAVY, softAccent, 0.12f);
+        GradientDrawable d = gradient(new int[]{alpha(top, 252), alpha(mid, 248), alpha(bottom, 252)}, GradientDrawable.Orientation.TL_BR, radius);
+        d.setStroke(dp(1), alpha(mix(softAccent, Color.WHITE, isLightTheme() ? 0.38f : 0.24f), isLightTheme() ? 116 : 92));
         return d;
     }
 
     private GradientDrawable luxuryButtonBg(int accent, boolean primary, float radius) {
         GradientDrawable d;
+        int harmonic = mix(accent, GOLD_2, isLightTheme() ? 0.10f : 0.16f);
         if (primary) {
-            d = gradient(new int[]{mix(accent, Color.WHITE, isLightTheme() ? 0.34f : 0.20f), accent, mix(GOLD, accent, 0.36f), mix(accent, Color.BLACK, isLightTheme() ? 0.08f : 0.28f)}, GradientDrawable.Orientation.LEFT_RIGHT, radius);
-            d.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.52f), 150));
+            d = gradient(new int[]{mix(harmonic, Color.WHITE, isLightTheme() ? 0.24f : 0.16f), harmonic, mix(harmonic, GOLD, 0.22f), mix(harmonic, Color.BLACK, isLightTheme() ? 0.10f : 0.24f)}, GradientDrawable.Orientation.LEFT_RIGHT, radius);
+            d.setStroke(dp(1), alpha(mix(harmonic, Color.WHITE, 0.42f), 148));
         } else {
-            d = gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 95 : 18), alpha(accent, isLightTheme() ? 22 : 30), alpha(SURFACE_2, 235)}, GradientDrawable.Orientation.TL_BR, radius);
-            d.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.22f), 92));
+            int base = isLightTheme() ? mix(SURFACE, harmonic, 0.035f) : mix(SURFACE_2, harmonic, 0.12f);
+            int shade = isLightTheme() ? mix(SURFACE_2, harmonic, 0.08f) : mix(SURFACE, harmonic, 0.10f);
+            d = gradient(new int[]{alpha(base, 248), alpha(shade, 244), alpha(mix(NAVY, harmonic, isLightTheme() ? 0.02f : 0.08f), 236)}, GradientDrawable.Orientation.TL_BR, radius);
+            d.setStroke(dp(1), alpha(mix(harmonic, Color.WHITE, 0.28f), isLightTheme() ? 92 : 82));
         }
         return d;
     }
@@ -1155,7 +1160,7 @@ public class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(8), dp(8), dp(8), dp(4));
-        TextView hint = text(VISITOR_EDITION ? "۳ تم روشن لاکچری تازه اضافه شد؛ کارت‌ها، منوها و نوشته‌ها با خوانایی کامل و جلوه سه‌بعدی هماهنگ می‌شوند." : "یک پالت را لمس کنید؛ همه کارت‌ها، دکمه‌ها و گزارش‌ها هماهنگ تغییر می‌کنند.", 11, MUTED, Typeface.NORMAL);
+        TextView hint = text(VISITOR_EDITION ? "پالت‌ها بازطراحی شدند: رنگ زمینه، داک پایین، کارت‌ها، دکمه‌ها و متن‌ها از یک خانواده هماهنگ استفاده می‌کنند و کنتراست خوانا دارند." : "یک پالت را لمس کنید؛ همه کارت‌ها، دکمه‌ها و گزارش‌ها هماهنگ تغییر می‌کنند.", 11, MUTED, Typeface.NORMAL);
         hint.setGravity(Gravity.CENTER);
         box.addView(hint, new LinearLayout.LayoutParams(-1, -2));
         AlertDialog dialog = new AlertDialog.Builder(this)
@@ -1163,17 +1168,17 @@ public class MainActivity extends Activity {
                 .setView(box)
                 .setNegativeButton("بستن", null)
                 .create();
-        addThemeOption(box, dialog, "pearl_platinum", "روشن ۱", "مروارید پلاتینیوم", new int[]{Color.rgb(246, 248, 252), Color.rgb(190, 143, 55), Color.rgb(62, 107, 211)});
-        addThemeOption(box, dialog, "rose_quartz_lux", "روشن ۲", "رز کوارتز لاکچری", new int[]{Color.rgb(255, 246, 248), Color.rgb(195, 123, 80), Color.rgb(200, 55, 105)});
-        addThemeOption(box, dialog, "emerald_silk", "روشن ۳", "زمرد ابریشمی", new int[]{Color.rgb(241, 250, 246), Color.rgb(20, 151, 101), Color.rgb(175, 135, 54)});
+        addThemeOption(box, dialog, "pearl_platinum", "روشن ۱", "مروارید پلاتینیوم", new int[]{Color.rgb(245, 247, 251), Color.rgb(168, 122, 44), Color.rgb(48, 96, 176)});
+        addThemeOption(box, dialog, "rose_quartz_lux", "روشن ۲", "رز کوارتز لاکچری", new int[]{Color.rgb(255, 247, 248), Color.rgb(177, 102, 82), Color.rgb(111, 90, 174)});
+        addThemeOption(box, dialog, "emerald_silk", "روشن ۳", "زمرد ابریشمی", new int[]{Color.rgb(241, 249, 245), Color.rgb(16, 132, 91), Color.rgb(160, 128, 55)});
         if (!VISITOR_EDITION) {
-            addThemeOption(box, dialog, "azure_diamond", "روشن کلاسیک", "الماس آبی", new int[]{Color.rgb(239, 247, 255), Color.rgb(28, 101, 242), Color.rgb(98, 196, 255)});
-            addThemeOption(box, dialog, "crystal_lagoon", "روشن کلاسیک", "کریستالی", new int[]{Color.rgb(235, 248, 250), Color.rgb(0, 151, 178), Color.rgb(42, 125, 225)});
-            addThemeOption(box, dialog, "ivory_sunrise", "روشن کلاسیک", "عاجی", new int[]{Color.rgb(248, 241, 229), Color.rgb(213, 126, 55), Color.rgb(32, 158, 119)});
+            addThemeOption(box, dialog, "azure_diamond", "روشن کلاسیک", "الماس آبی", new int[]{Color.rgb(240, 247, 255), Color.rgb(45, 98, 190), Color.rgb(91, 167, 220)});
+            addThemeOption(box, dialog, "crystal_lagoon", "روشن کلاسیک", "کریستالی", new int[]{Color.rgb(237, 249, 250), Color.rgb(18, 142, 166), Color.rgb(54, 117, 203)});
+            addThemeOption(box, dialog, "ivory_sunrise", "روشن کلاسیک", "عاجی", new int[]{Color.rgb(249, 243, 233), Color.rgb(194, 117, 54), Color.rgb(29, 143, 113)});
         }
-        addThemeOption(box, dialog, "onyx_gold", "دارک ۱", "اونیکس طلایی", new int[]{Color.rgb(7, 9, 16), Color.rgb(231, 177, 90), Color.rgb(102, 170, 245)});
-        addThemeOption(box, dialog, "royal_amethyst", "دارک ۲", "آمتیست", new int[]{Color.rgb(10, 8, 24), Color.rgb(184, 114, 255), Color.rgb(248, 113, 193)});
-        addThemeOption(box, dialog, "noir_aurora", "دارک ۳", "نوآر شفق", new int[]{Color.rgb(3, 5, 16), Color.rgb(0, 210, 210), Color.rgb(126, 87, 255)});
+        addThemeOption(box, dialog, "onyx_gold", "دارک ۱", "اونیکس طلایی", new int[]{Color.rgb(8, 9, 10), Color.rgb(204, 153, 65), Color.rgb(91, 197, 151)});
+        addThemeOption(box, dialog, "royal_amethyst", "دارک ۲", "آمتیست سلطنتی", new int[]{Color.rgb(11, 9, 25), Color.rgb(154, 108, 224), Color.rgb(218, 133, 194)});
+        addThemeOption(box, dialog, "noir_aurora", "دارک ۳", "نوآر شفق", new int[]{Color.rgb(5, 8, 18), Color.rgb(36, 190, 186), Color.rgb(113, 103, 229)});
         styleMeelanoDialog(dialog, GOLD_2);
         dialog.show();
     }
@@ -1293,22 +1298,25 @@ public class MainActivity extends Activity {
 
     private GradientDrawable themedSectionBg(String page, float radius) {
         int accent = navAccent(page);
-        int glow = mix(accent, GOLD_2, isLightTheme() ? 0.16f : 0.24f);
-        GradientDrawable d = gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 92 : 20), alpha(glow, isLightTheme() ? 34 : 48), alpha(mix(SURFACE, accent, isLightTheme() ? 0.05f : 0.16f), 250)}, GradientDrawable.Orientation.TL_BR, radius);
-        d.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.35f), isLightTheme() ? 105 : 86));
+        int glow = mix(accent, GOLD_2, isLightTheme() ? 0.12f : 0.18f);
+        GradientDrawable d = gradient(new int[]{
+                alpha(mix(SURFACE, glow, isLightTheme() ? 0.035f : 0.10f), 252),
+                alpha(mix(SURFACE_2, glow, isLightTheme() ? 0.075f : 0.16f), 248),
+                alpha(mix(NAVY, glow, isLightTheme() ? 0.025f : 0.12f), 250)
+        }, GradientDrawable.Orientation.TL_BR, radius);
+        d.setStroke(dp(1), alpha(mix(glow, Color.WHITE, isLightTheme() ? 0.36f : 0.24f), isLightTheme() ? 112 : 88));
         return d;
     }
 
     private GradientDrawable visitorPanel(int accent, float radius) {
-        int hero = mix(accent, navAccent("showcase"), 0.18f);
-        int deep = mix(NAVY, accent, isLightTheme() ? 0.08f : 0.18f);
+        int hero = mix(accent, GOLD_2, isLightTheme() ? 0.10f : 0.16f);
+        int companion = mix(hero, navAccent("showcase"), 0.12f);
         GradientDrawable d = gradient(new int[]{
-                alpha(Color.WHITE, isLightTheme() ? 112 : 24),
-                alpha(mix(hero, GOLD_2, 0.20f), isLightTheme() ? 40 : 58),
-                alpha(mix(SURFACE_2, hero, isLightTheme() ? 0.08f : 0.20f), 248),
-                alpha(deep, 250)
+                alpha(mix(SURFACE, hero, isLightTheme() ? 0.04f : 0.10f), 252),
+                alpha(mix(SURFACE_2, companion, isLightTheme() ? 0.08f : 0.18f), 248),
+                alpha(mix(NAVY, hero, isLightTheme() ? 0.025f : 0.13f), 252)
         }, GradientDrawable.Orientation.TL_BR, radius);
-        d.setStroke(dp(1), alpha(mix(hero, Color.WHITE, 0.42f), isLightTheme() ? 132 : 96));
+        d.setStroke(dp(1), alpha(mix(hero, Color.WHITE, isLightTheme() ? 0.40f : 0.26f), isLightTheme() ? 128 : 96));
         return d;
     }
 
@@ -1994,7 +2002,7 @@ public class MainActivity extends Activity {
         navStrip.setOrientation(LinearLayout.VERTICAL);
         navStrip.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
         navStrip.setPadding(dp(0), dp(2), dp(0), dp(8));
-        navStrip.setBackground(gradient(new int[]{alpha(Color.TRANSPARENT, 0), alpha(isLightTheme() ? SURFACE_2 : Color.BLACK, isLightTheme() ? 150 : 185), alpha(isLightTheme() ? SURFACE : Color.BLACK, isLightTheme() ? 235 : 244)}, GradientDrawable.Orientation.TOP_BOTTOM, 0));
+        navStrip.setBackground(gradient(new int[]{alpha(Color.TRANSPARENT, 0), alpha(mix(SURFACE_2, currentPageAccent(), isLightTheme() ? 0.05f : 0.10f), isLightTheme() ? 150 : 190), alpha(mix(SURFACE, currentPageAccent(), isLightTheme() ? 0.03f : 0.08f), 244)}, GradientDrawable.Orientation.TOP_BOTTOM, 0));
         int accent = currentPageAccent();
         FrameLayout dock = new FrameLayout(this);
         dock.setClipChildren(false);
@@ -2009,8 +2017,13 @@ public class MainActivity extends Activity {
             bar.setTextDirection(View.TEXT_DIRECTION_RTL);
         }
         bar.setPadding(dp(8), dp(8), dp(8), dp(7));
-        GradientDrawable bg = gradient(new int[]{alpha(isLightTheme() ? Color.WHITE : Color.rgb(8, 7, 4), 248), alpha(isLightTheme() ? SURFACE_2 : Color.rgb(22, 18, 11), 248), alpha(isLightTheme() ? SURFACE : Color.BLACK, 250)}, GradientDrawable.Orientation.TOP_BOTTOM, 30);
-        bg.setStroke(dp(1), alpha(GOLD_2, isLightTheme() ? 132 : 96));
+        int dockAccent = mix(accent, GOLD_2, isLightTheme() ? 0.10f : 0.16f);
+        GradientDrawable bg = gradient(new int[]{
+                alpha(mix(SURFACE, dockAccent, isLightTheme() ? 0.035f : 0.09f), 250),
+                alpha(mix(SURFACE_2, dockAccent, isLightTheme() ? 0.075f : 0.14f), 248),
+                alpha(mix(NAVY, dockAccent, isLightTheme() ? 0.015f : 0.08f), 250)
+        }, GradientDrawable.Orientation.TOP_BOTTOM, 30);
+        bg.setStroke(dp(1), alpha(mix(dockAccent, Color.WHITE, isLightTheme() ? 0.38f : 0.20f), isLightTheme() ? 132 : 96));
         bar.setBackground(bg);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) bar.setElevation(dp(15));
         String[][] items = new String[][]{
@@ -2053,14 +2066,15 @@ public class MainActivity extends Activity {
         FrameLayout iconWrap = new FrameLayout(this);
         iconWrap.setClipChildren(false);
         iconWrap.setClipToPadding(false);
-        TextView bubble = text(icon, center ? 24f : 17.5f, active || center ? onColorFor(accent) : alpha(TEXT, 230), Typeface.BOLD);
+        int bubbleAccent = active || center ? mix(accent, GOLD_2, center ? 0.18f : 0.08f) : mix(accent, SURFACE_2, isLightTheme() ? 0.72f : 0.58f);
+        TextView bubble = text(icon, center ? 24f : 17.5f, active || center ? onColorFor(bubbleAccent) : alpha(TEXT, 225), Typeface.BOLD);
         bubble.setGravity(Gravity.CENTER);
-        bubble.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, 160));
+        bubble.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, isLightTheme() ? 88 : 160));
         GradientDrawable circle = gradient(new int[]{
-                active || center ? mix(GOLD_2, Color.WHITE, 0.18f) : alpha(Color.rgb(25, 25, 28), 245),
-                active || center ? GOLD : alpha(Color.rgb(5, 5, 8), 248)
+                active || center ? mix(bubbleAccent, Color.WHITE, isLightTheme() ? 0.24f : 0.14f) : mix(SURFACE_2, bubbleAccent, isLightTheme() ? 0.08f : 0.16f),
+                active || center ? bubbleAccent : mix(SURFACE, bubbleAccent, isLightTheme() ? 0.04f : 0.10f)
         }, GradientDrawable.Orientation.TL_BR, center ? 999 : 20);
-        circle.setStroke(dp(active ? 3 : 1), active || center ? alpha(GOLD_2, 210) : alpha(GOLD, 54));
+        circle.setStroke(dp(active ? 3 : 1), active || center ? alpha(mix(bubbleAccent, Color.WHITE, 0.34f), 200) : alpha(mix(bubbleAccent, Color.WHITE, 0.18f), 76));
         bubble.setBackground(circle);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) bubble.setElevation(dp(active || center ? 12 : 4));
         iconWrap.addView(bubble, new FrameLayout.LayoutParams(dp(center ? 64 : 54), dp(center ? 64 : 54), Gravity.CENTER));
@@ -2069,7 +2083,8 @@ public class MainActivity extends Activity {
             badge.setGravity(Gravity.CENTER);
             badge.setSingleLine(true);
             badge.setPadding(dp(4), 0, dp(4), dp(1));
-            badge.setBackground(gradient(new int[]{Color.WHITE, GOLD_2, GOLD}, GradientDrawable.Orientation.TOP_BOTTOM, 999));
+            int cartAccent = navAccent("cart");
+            badge.setBackground(gradient(new int[]{mix(cartAccent, Color.WHITE, 0.34f), mix(cartAccent, GOLD_2, 0.28f), cartAccent}, GradientDrawable.Orientation.TOP_BOTTOM, 999));
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) badge.setElevation(dp(16));
             FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(dp(28), dp(22), Gravity.TOP | Gravity.RIGHT);
             bp.setMargins(0, -dp(2), -dp(1), 0);
@@ -2077,7 +2092,7 @@ public class MainActivity extends Activity {
         }
         item.addView(iconWrap, new LinearLayout.LayoutParams(dp(center ? 70 : 58), dp(center ? 68 : 58)));
         String dockLabel = "cart".equals(key) && cartHasItems() ? "سبد " + cartCountText() : label;
-        TextView title = text(dockLabel, active ? 11.2f : 10.2f, active ? GOLD_2 : alpha(TEXT, 205), Typeface.BOLD);
+        TextView title = text(dockLabel, active ? 11.2f : 10.2f, active ? mix(accent, GOLD_2, 0.18f) : alpha(TEXT, 205), Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         title.setSingleLine(true);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
@@ -2145,14 +2160,14 @@ public class MainActivity extends Activity {
         if ("command".equals(key)) return INFO;
         if ("assistant".equals(key)) return mix(GOLD_2, INFO, 0.45f);
         if ("customers".equals(key)) return SUCCESS;
-        if ("products".equals(key)) return WARNING;
+        if ("products".equals(key)) return mix(WARNING, GOLD, 0.28f);
         if ("reports".equals(key) || "visitor_reports".equals(key)) return INFO;
-        if ("chat".equals(key)) return mix(GOLD_2, INFO, 0.62f);
-        if ("personnel".equals(key)) return mix(SUCCESS, INFO, 0.35f);
-        if ("attendance".equals(key)) return mix(GOLD, SUCCESS, 0.30f);
-        if ("visitor_dashboard".equals(key)) return mix(SUCCESS, GOLD, 0.26f);
-        if ("showcase".equals(key)) return mix(WARNING, INFO, 0.24f);
-        if ("cart".equals(key)) return mix(GOLD, SUCCESS, 0.46f);
+        if ("chat".equals(key)) return mix(GOLD_2, INFO, 0.52f);
+        if ("personnel".equals(key)) return mix(SUCCESS, INFO, 0.32f);
+        if ("attendance".equals(key)) return mix(GOLD, SUCCESS, 0.28f);
+        if ("visitor_dashboard".equals(key)) return mix(GOLD, SUCCESS, 0.26f);
+        if ("showcase".equals(key)) return mix(GOLD, INFO, 0.22f);
+        if ("cart".equals(key)) return mix(GOLD_2, SUCCESS, 0.34f);
         if ("taxpayers".equals(key)) return mix(GOLD, INFO, 0.28f);
         if ("cameras".equals(key)) return mix(INFO, SUCCESS, 0.30f);
         if ("alarm".equals(key)) return mix(DANGER, GOLD, 0.30f);
