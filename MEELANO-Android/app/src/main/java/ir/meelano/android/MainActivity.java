@@ -2311,8 +2311,14 @@ public class MainActivity extends Activity {
             for (String col : new String[]{code, name, phone}) if (col != null && !searchCols.contains(col)) searchCols.add(col);
             for (String col : customerAddressColumns(cols)) if (col != null && !searchCols.contains(col)) searchCols.add(col);
             for (String col : searchCols) if (col != null) parts.add("TRY_CONVERT(nvarchar(500),[" + col + "]) LIKE N'%' + ? + N'%'");
-            String sql = "SELECT TOP (5) TRY_CONVERT(nvarchar(80),[" + code + "]), " + (name == null ? "N'بدون نام'" : "TRY_CONVERT(nvarchar(250),[" + name + "])") + ", " + (phone == null ? "N''" : "TRY_CONVERT(nvarchar(100),[" + phone + "])") + ", " + customerAddressExpr(cols, "") + " FROM dbo.CUSTOMERS WHERE " + join(parts, " OR ");
-            try (PreparedStatement ps = c.prepareStatement(sql)) { for (int i = 1; i <= parts.size(); i++) ps.setString(i, q); try (ResultSet r = ps.executeQuery()) { while (r.next()) addGlobalResult(out, "مشتری", stringOr(r.getString(2), "بدون نام"), "کد " + stringOr(r.getString(1), "—") + " • " + stringOr(r.getString(3), "") + (cleanCustomerAddress(r.getString(4)).isEmpty() ? "" : " • نشانی: " + cleanCustomerAddress(r.getString(4))), SUCCESS); } }
+            List<String> where = new ArrayList<>();
+            List<Object> params = new ArrayList<>();
+            if (!parts.isEmpty()) { where.add("(" + join(parts, " OR ") + ")"); for (int i = 0; i < parts.size(); i++) params.add(q); }
+            String scope = customerScopeCondition(cols, "", params);
+            if (!scope.isEmpty()) where.add(scope);
+            if (where.isEmpty()) return;
+            String sql = "SELECT TOP (5) TRY_CONVERT(nvarchar(80),[" + code + "]), " + (name == null ? "N'بدون نام'" : "TRY_CONVERT(nvarchar(250),[" + name + "])") + ", " + (phone == null ? "N''" : "TRY_CONVERT(nvarchar(100),[" + phone + "])") + ", " + customerAddressExpr(cols, "") + " FROM dbo.CUSTOMERS WHERE " + join(where, " AND ");
+            try (PreparedStatement ps = c.prepareStatement(sql)) { setParams(ps, params); try (ResultSet r = ps.executeQuery()) { while (r.next()) addGlobalResult(out, "مشتری", stringOr(r.getString(2), "بدون نام"), "کد " + stringOr(r.getString(1), "—") + " • " + stringOr(r.getString(3), "") + (cleanCustomerAddress(r.getString(4)).isEmpty() ? "" : " • نشانی: " + cleanCustomerAddress(r.getString(4))), SUCCESS); } }
         } catch (Exception ignored) { }
     }
 
@@ -5111,6 +5117,22 @@ public class MainActivity extends Activity {
         return session == null ? null : session.visitorId;
     }
 
+    private boolean isLatifiCustomer08Account() {
+        String login = currentAccountName();
+        String display = session == null ? "" : session.userName;
+        return "latifi".equalsIgnoreCase(login == null ? "" : login.trim())
+                || "latifi".equalsIgnoreCase(display == null ? "" : display.trim());
+    }
+
+    private String customerName08RestrictionCondition(Set<String> cols, String alias) {
+        if (!isLatifiCustomer08Account()) return "";
+        String name = resolveFlexible(cols, "MONAME", "Name", "CusName", "CustomerName", "customer_name", "نام", "نام_مشتری", "نام مشتری");
+        if (name == null) return "1=0";
+        String p = alias == null || alias.trim().isEmpty() ? "" : alias.trim() + ".";
+        String expr = "TRY_CONVERT(nvarchar(500)," + p + "[" + name + "])";
+        return "(" + expr + " LIKE N'%08%' OR " + expr + " LIKE N'%۰۸%' OR " + expr + " LIKE N'%٠٨%')";
+    }
+
     private boolean restrictCustomerData() {
         if (isFullAccessUser()) return false;
         String role = currentAccessRole();
@@ -5120,13 +5142,20 @@ public class MainActivity extends Activity {
     }
 
     private String customerScopeCondition(Set<String> cols, String alias, List<Object> params) {
-        if (!restrictCustomerData()) return "";
-        Integer vid = currentVisitorScopeId();
-        String vis = resolveFlexible(cols, "vis_rdf", "VisitorID", "visid", "visitor", "shvis");
-        if (vid == null || vid <= 0 || vis == null) return "1=0";
-        params.add(String.valueOf(vid));
+        List<String> conditions = new ArrayList<>();
         String p = alias == null || alias.trim().isEmpty() ? "" : alias.trim() + ".";
-        return "TRY_CONVERT(nvarchar(100)," + p + "[" + vis + "])=?";
+        if (restrictCustomerData()) {
+            Integer vid = currentVisitorScopeId();
+            String vis = resolveFlexible(cols, "vis_rdf", "VisitorID", "visid", "visitor", "shvis");
+            if (vid == null || vid <= 0 || vis == null) conditions.add("1=0");
+            else {
+                if (params != null) params.add(String.valueOf(vid));
+                conditions.add("TRY_CONVERT(nvarchar(100)," + p + "[" + vis + "])=?");
+            }
+        }
+        String latifiNameScope = customerName08RestrictionCondition(cols, alias);
+        if (!latifiNameScope.isEmpty()) conditions.add(latifiNameScope);
+        return join(conditions, " AND ");
     }
 
     private String salesScopeCondition(Set<String> cols, String alias, List<Object> params) {
@@ -7055,7 +7084,7 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) { }
         }
         content.removeAllViews();
-        addHero("مشتریان", "اطلاعات مشتریان ثابت می‌ماند؛ برای داده جدید از تازه‌سازی دستی استفاده کنید.");
+        addHero("مشتریان", "اطلاعات مشتریان ثابت می‌ماند؛ برای داده جدید از تازه‌سازی دستی استفاده کنید." + (isLatifiCustomer08Account() ? " • محدوده latifi: فقط نام‌های دارای 08" : ""));
         addManualRefreshPanel("customers", "بروزرسانی دستی مشتریان", "بازگشت از گردش حساب دیگر لیست را دوباره فراخوانی نمی‌کند", () -> loadCustomers(q, f, true));
         addSearchBox("جستجوی مشتری…", q, qq -> loadCustomers(qq, f, true));
         addCustomerFilterChips(q, f, new JSONArray());
@@ -7080,7 +7109,7 @@ public class MainActivity extends Activity {
 
     private void renderCustomersFromJson(JSONArray rows, String query, String filter) {
         content.removeAllViews();
-        addHero("مشتریان", "فیلتر هوشمند بدهکاران، بستانکاران، بدون خرید و پرخریدها");
+        addHero("مشتریان", "فیلتر هوشمند بدهکاران، بستانکاران، بدون خرید و پرخریدها" + (isLatifiCustomer08Account() ? " • فقط مشتریان دارای 08 در نام" : ""));
         addManualRefreshPanel("customers", "بروزرسانی دستی مشتریان", "آخرین لیست ثابت نگه داشته شده است", () -> loadCustomers(query, filter, true));
         addSearchBox("جستجوی مشتری…", query, q -> loadCustomers(q, filter, true));
         JSONArray allRows = rows == null ? new JSONArray() : rows;
@@ -13971,7 +14000,7 @@ public class MainActivity extends Activity {
         LinearLayout about = card();
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Visit v4.4.0\nویترین جمع‌وجور هوشمند، داشبورد هدف/مسیر/نشان‌ها، اسکلت بارگذاری، پیشنهاد مکمل و آیکن تازه هماهنگ با تم دارک طلایی.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Visit v4.4.1\nمحدوده مشتریان latifi روی نام‌های دارای 08 تنظیم شد و آیکن برنامه با مونگرام لوکس‌تر سفید/طلایی ارتقا یافت.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f); about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
     }
@@ -14025,7 +14054,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Visit v4.4.0\nنسخه ویزیتور با ویترین هوشمند خلوت‌تر، داشبورد هدف و مسیر، سبد شناور خواناتر و گرافیک/آیکن تازه مشکی-طلایی.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Visit v4.4.1\nنسخه ویزیتور با محدودسازی مشتریان latifi، ویترین هوشمند، داشبورد هدف و آیکن سفید/طلایی جذاب‌تر.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
