@@ -119,7 +119,7 @@ public class MainActivity extends Activity {
     private static final String PREFS = "meelano_android_direct_sql";
     private static final boolean VISITOR_EDITION = true;
     private static final String EDITION_TITLE = "Meelano Visit";
-    private static final String DEFAULT_THEME = "azure_diamond";
+    private static final String DEFAULT_THEME = VISITOR_EDITION ? "onyx_gold" : "azure_diamond";
     private static final String KEY_LAST_USER = "last_meelano_user";
     private static final String KEY_THEME = "meelano_theme_palette";
     private static final String KEY_FIRST_NAME = "assistant_first_name";
@@ -286,6 +286,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        if (VISITOR_EDITION) prepareVisitorEditionDefaults();
         applyTheme(prefs.getString(KEY_THEME, DEFAULT_THEME));
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         initSpeechEngine();
@@ -313,7 +314,28 @@ public class MainActivity extends Activity {
     }
 
     private boolean isLightTheme() {
+        if (VISITOR_EDITION) return false;
         return Color.red(NAVY) + Color.green(NAVY) + Color.blue(NAVY) > 520;
+    }
+
+    private void prepareVisitorEditionDefaults() {
+        if (prefs == null) return;
+        String savedTheme = prefs.getString(KEY_THEME, "");
+        SharedPreferences.Editor ed = prefs.edit();
+        if (savedTheme == null || savedTheme.trim().isEmpty() || isLightThemeId(savedTheme)) ed.putString(KEY_THEME, "onyx_gold");
+        ed.putBoolean(KEY_QUICK_LOGIN_ENABLED, false)
+                .remove(KEY_QUICK_PIN)
+                .remove(KEY_QUICK_USER_ID)
+                .remove(KEY_QUICK_VISITOR_ID)
+                .remove(KEY_QUICK_USER_NAME)
+                .remove(KEY_QUICK_ROLE)
+                .remove(KEY_QUICK_PERMISSIONS)
+                .apply();
+    }
+
+    private boolean isLightThemeId(String id) {
+        String v = id == null ? "" : id.trim();
+        return "azure_diamond".equals(v) || "crystal_lagoon".equals(v) || "ivory_sunrise".equals(v);
     }
 
     private boolean motionAllowed() {
@@ -349,6 +371,7 @@ public class MainActivity extends Activity {
     private String normalizeThemeId(String themeId) {
         String id = themeId == null ? DEFAULT_THEME : themeId.trim();
         if (id.isEmpty()) return DEFAULT_THEME;
+        if (VISITOR_EDITION && isLightThemeId(id)) return "onyx_gold";
         if ("royal_amethyst".equals(id) || "ivory_sunrise".equals(id) || "crystal_lagoon".equals(id) || "azure_diamond".equals(id) || "noir_aurora".equals(id) || "onyx_gold".equals(id)) return id;
         return DEFAULT_THEME;
     }
@@ -446,23 +469,43 @@ public class MainActivity extends Activity {
             HERO_END = Color.rgb(3, 9, 23);
             ON_PRIMARY = Color.WHITE;
         } else if ("onyx_gold".equals(id)) {
-            NAVY = Color.rgb(7, 9, 16);
-            SURFACE = Color.rgb(18, 22, 31);
-            SURFACE_2 = Color.rgb(24, 30, 42);
-            GOLD = Color.rgb(231, 177, 90);
-            GOLD_2 = Color.rgb(242, 207, 138);
-            SUCCESS = Color.rgb(72, 199, 163);
-            INFO = Color.rgb(102, 170, 245);
-            WARNING = Color.rgb(244, 181, 95);
-            DANGER = Color.rgb(241, 106, 117);
-            TEXT = Color.rgb(246, 248, 252);
-            MUTED = Color.rgb(154, 166, 183);
-            BORDER = Color.argb(42, 255, 255, 255);
-            HEADER_START = Color.rgb(9, 12, 20);
-            HEADER_END = Color.rgb(22, 26, 38);
-            HERO_START = Color.rgb(26, 32, 45);
-            HERO_END = Color.rgb(15, 19, 28);
-            ON_PRIMARY = Color.rgb(20, 16, 10);
+            if (VISITOR_EDITION) {
+                NAVY = Color.rgb(5, 5, 4);
+                SURFACE = Color.rgb(13, 12, 9);
+                SURFACE_2 = Color.rgb(28, 24, 15);
+                GOLD = Color.rgb(224, 163, 49);
+                GOLD_2 = Color.rgb(255, 214, 116);
+                SUCCESS = Color.rgb(88, 221, 130);
+                INFO = Color.rgb(224, 174, 72);
+                WARNING = Color.rgb(255, 189, 64);
+                DANGER = Color.rgb(246, 84, 102);
+                TEXT = Color.rgb(255, 251, 238);
+                MUTED = Color.rgb(190, 174, 138);
+                BORDER = Color.argb(72, 255, 214, 116);
+                HEADER_START = Color.rgb(3, 3, 2);
+                HEADER_END = Color.rgb(23, 18, 9);
+                HERO_START = Color.rgb(26, 21, 11);
+                HERO_END = Color.rgb(7, 6, 4);
+                ON_PRIMARY = Color.rgb(18, 13, 5);
+            } else {
+                NAVY = Color.rgb(7, 9, 16);
+                SURFACE = Color.rgb(18, 22, 31);
+                SURFACE_2 = Color.rgb(24, 30, 42);
+                GOLD = Color.rgb(231, 177, 90);
+                GOLD_2 = Color.rgb(242, 207, 138);
+                SUCCESS = Color.rgb(72, 199, 163);
+                INFO = Color.rgb(102, 170, 245);
+                WARNING = Color.rgb(244, 181, 95);
+                DANGER = Color.rgb(241, 106, 117);
+                TEXT = Color.rgb(246, 248, 252);
+                MUTED = Color.rgb(154, 166, 183);
+                BORDER = Color.argb(42, 255, 255, 255);
+                HEADER_START = Color.rgb(9, 12, 20);
+                HEADER_END = Color.rgb(22, 26, 38);
+                HERO_START = Color.rgb(26, 32, 45);
+                HERO_END = Color.rgb(15, 19, 28);
+                ON_PRIMARY = Color.rgb(20, 16, 10);
+            }
         }
         if (getWindow() != null) {
             getWindow().setStatusBarColor(NAVY);
@@ -982,17 +1025,19 @@ public class MainActivity extends Activity {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(8), dp(8), dp(8), dp(4));
-        TextView hint = text("یک پالت را لمس کنید؛ همه کارت‌ها، دکمه‌ها و گزارش‌ها هماهنگ تغییر می‌کنند.", 11, MUTED, Typeface.NORMAL);
+        TextView hint = text(VISITOR_EDITION ? "برای خوانایی کامل نسخه ویزیتور، فقط تم‌های دارک فعال هستند؛ پیش‌فرض برنامه «اونیکس طلایی» است." : "یک پالت را لمس کنید؛ همه کارت‌ها، دکمه‌ها و گزارش‌ها هماهنگ تغییر می‌کنند.", 11, MUTED, Typeface.NORMAL);
         hint.setGravity(Gravity.CENTER);
         box.addView(hint, new LinearLayout.LayoutParams(-1, -2));
         AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("تم‌های Meelano")
+                .setTitle(VISITOR_EDITION ? "تم‌های دارک Meelano Visit" : "تم‌های Meelano")
                 .setView(box)
                 .setNegativeButton("بستن", null)
                 .create();
-        addThemeOption(box, dialog, "azure_diamond", "روشن ۱", "الماس آبی", new int[]{Color.rgb(239, 247, 255), Color.rgb(28, 101, 242), Color.rgb(98, 196, 255)});
-        addThemeOption(box, dialog, "crystal_lagoon", "روشن ۲", "کریستالی", new int[]{Color.rgb(235, 248, 250), Color.rgb(0, 151, 178), Color.rgb(42, 125, 225)});
-        addThemeOption(box, dialog, "ivory_sunrise", "روشن ۳", "عاجی", new int[]{Color.rgb(248, 241, 229), Color.rgb(213, 126, 55), Color.rgb(32, 158, 119)});
+        if (!VISITOR_EDITION) {
+            addThemeOption(box, dialog, "azure_diamond", "روشن ۱", "الماس آبی", new int[]{Color.rgb(239, 247, 255), Color.rgb(28, 101, 242), Color.rgb(98, 196, 255)});
+            addThemeOption(box, dialog, "crystal_lagoon", "روشن ۲", "کریستالی", new int[]{Color.rgb(235, 248, 250), Color.rgb(0, 151, 178), Color.rgb(42, 125, 225)});
+            addThemeOption(box, dialog, "ivory_sunrise", "روشن ۳", "عاجی", new int[]{Color.rgb(248, 241, 229), Color.rgb(213, 126, 55), Color.rgb(32, 158, 119)});
+        }
         addThemeOption(box, dialog, "onyx_gold", "دارک ۱", "اونیکس طلایی", new int[]{Color.rgb(7, 9, 16), Color.rgb(231, 177, 90), Color.rgb(102, 170, 245)});
         addThemeOption(box, dialog, "royal_amethyst", "دارک ۲", "آمتیست", new int[]{Color.rgb(10, 8, 24), Color.rgb(184, 114, 255), Color.rgb(248, 113, 193)});
         addThemeOption(box, dialog, "noir_aurora", "دارک ۳", "نوآر شفق", new int[]{Color.rgb(3, 5, 16), Color.rgb(0, 210, 210), Color.rgb(126, 87, 255)});
@@ -1271,7 +1316,7 @@ public class MainActivity extends Activity {
         activePage = "login";
         session = null;
         setConnectionStatus("idle");
-        subtitle.setText("ورود با حساب Meelano");
+        subtitle.setText(VISITOR_EDITION ? "ورود مستقیم ویزیتور" : "ورود با حساب Meelano");
         stage.removeAllViews();
 
         FrameLayout backdrop = new FrameLayout(this);
@@ -1337,11 +1382,11 @@ public class MainActivity extends Activity {
         logoLp.setMargins(0, 0, 0, dp(8));
         loginCard.addView(logo, logoLp);
 
-        TextView h = text("Meelano Diamond Login", 23, TEXT, Typeface.BOLD);
+        TextView h = text(VISITOR_EDITION ? "ورود آتیران ویزیتور" : "Meelano Diamond Login", 23, TEXT, Typeface.BOLD);
         h.setGravity(Gravity.CENTER);
         loginCard.addView(h, new LinearLayout.LayoutParams(-1, -2));
 
-        TextView sub = text("ورود امن به پنل مالی Meelano با تجربه‌ای لاکچری و تم‌محور", 12.5f, MUTED, Typeface.NORMAL);
+        TextView sub = text(VISITOR_EDITION ? "ورود امن ویزیتور با حساب Meelano در تم دارک طلایی و خوانا" : "ورود امن به پنل مالی Meelano با تجربه‌ای لاکچری و تم‌محور", 12.5f, MUTED, Typeface.NORMAL);
         sub.setGravity(Gravity.CENTER);
         sub.setLineSpacing(dp(2), 1.05f);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2);
@@ -1381,7 +1426,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams noteLp = new LinearLayout.LayoutParams(-1, -2);
         noteLp.setMargins(0, dp(14), 0, 0);
         loginCard.addView(note, noteLp);
-        addQuickLoginPanel(loginCard);
+        if (!VISITOR_EDITION) addQuickLoginPanel(loginCard);
 
         final View.OnClickListener[] doLogin = new View.OnClickListener[1];
         doLogin[0] = v -> {
@@ -1399,13 +1444,13 @@ public class MainActivity extends Activity {
                         session = s;
                         clearUserScopedCaches();
                         prefs.edit().putString(KEY_LAST_USER, u).apply();
-                        storeQuickSession(s);
+                        if (!VISITOR_EDITION) storeQuickSession(s);
                         login.setEnabled(true);
                         login.setText("اتصال و ورود ✦");
                         setConnectionStatus("connected");
                         Toast.makeText(this, "اتصال موفق بود", Toast.LENGTH_SHORT).show();
                         showApp("dashboard");
-                        maybePromptQuickPinSetup();
+                        if (!VISITOR_EDITION) maybePromptQuickPinSetup();
                     });
                 } catch (Exception ex) {
                     runOnUiThread(() -> {
@@ -1431,6 +1476,7 @@ public class MainActivity extends Activity {
     }
 
     private void addQuickLoginPanel(LinearLayout parent) {
+        if (VISITOR_EDITION) return;
         if (parent == null || prefs == null || !prefs.getBoolean(KEY_QUICK_LOGIN_ENABLED, false)) return;
         LinearLayout q = new LinearLayout(this);
         q.setOrientation(LinearLayout.VERTICAL);
@@ -1454,7 +1500,7 @@ public class MainActivity extends Activity {
     }
 
     private void storeQuickSession(UserSession s) {
-        if (prefs == null || s == null) return;
+        if (VISITOR_EDITION || prefs == null || s == null) return;
         SharedPreferences.Editor e = prefs.edit();
         e.putString(KEY_QUICK_USER_NAME, s.userName == null ? "" : s.userName);
         e.putString(KEY_QUICK_ROLE, s.accessRole == null ? "" : s.accessRole);
@@ -1465,7 +1511,7 @@ public class MainActivity extends Activity {
     }
 
     private UserSession storedQuickSession() {
-        if (prefs == null) return null;
+        if (VISITOR_EDITION || prefs == null) return null;
         String name = prefs.getString(KEY_QUICK_USER_NAME, "");
         if (name == null || name.trim().isEmpty()) return null;
         Integer uid = prefs.contains(KEY_QUICK_USER_ID) ? prefs.getInt(KEY_QUICK_USER_ID, 0) : null;
@@ -1476,6 +1522,7 @@ public class MainActivity extends Activity {
     }
 
     private void maybePromptQuickPinSetup() {
+        if (VISITOR_EDITION) return;
         if (prefs == null || prefs.getBoolean(KEY_QUICK_LOGIN_ENABLED, false) || !prefs.getString(KEY_QUICK_PIN, "").isEmpty()) return;
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -1587,6 +1634,7 @@ public class MainActivity extends Activity {
     }
 
     private void startBiometricQuickLogin() {
+        if (VISITOR_EDITION) return;
         if (Build.VERSION.SDK_INT < 28) { Toast.makeText(this, "اثر انگشت روی این نسخه اندروید پشتیبانی نمی‌شود؛ از PIN استفاده کنید.", Toast.LENGTH_SHORT).show(); return; }
         if (storedQuickSession() == null) { Toast.makeText(this, "ابتدا یک‌بار با حساب Meelano وارد شوید.", Toast.LENGTH_SHORT).show(); return; }
         try {
@@ -1604,6 +1652,7 @@ public class MainActivity extends Activity {
     }
 
     private void restoreQuickLogin() {
+        if (VISITOR_EDITION) return;
         UserSession saved = storedQuickSession();
         if (saved == null) { Toast.makeText(this, "جلسه ذخیره‌شده پیدا نشد.", Toast.LENGTH_SHORT).show(); return; }
         setConnectionStatus("loading");
@@ -13707,7 +13756,7 @@ public class MainActivity extends Activity {
         LinearLayout about = card();
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Visit v4.2.0\nنسخه طلایی ویزیتور با طراحی شبیه کاتالوگ فروش، خانه هوشمند، ویترین تصویری، سبد شناور، گزارشات و گزینه‌های عملیاتی مخصوص مسیر بازدید.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Visit v4.3.0\nتم پیش‌فرض دارک طلایی، رنگ‌بندی خواناتر همه کارت‌ها، ورود اولیه ساده‌تر و آماده‌سازی مسیر برای گرافیک‌های حرفه‌ای‌تر.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f); about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
     }
@@ -13761,7 +13810,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Visit v4.2.0\nنسخه طلایی ویزیتور با طراحی الهام‌گرفته از داشبورد فروش لوکس؛ خانه، ویترین، سبد، مشتری، گزارشات، ثبت ویزیت، گفتگو و تنظیمات اتصال در تجربه‌ای بسیار تمیز و جذاب قرار گرفته‌اند.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Visit v4.3.0\nنسخه ویزیتور با تم دارک طلایی، خوانایی بهتر و حفظ خانه، ویترین، سبد، مشتری و گزارشات در یک تجربه گرافیکی‌تر.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
