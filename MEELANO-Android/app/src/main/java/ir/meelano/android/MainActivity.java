@@ -1508,6 +1508,59 @@ public class MainActivity extends Activity {
         }
     }
 
+
+    private class VisitorDonutChartView extends View {
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final JSONArray data;
+        private final String label;
+        private final int[] colors = new int[]{SUCCESS, WARNING, INFO, GOLD_2, DANGER, navAccent("visitor_more")};
+        VisitorDonutChartView(Context context, JSONArray data, String label) {
+            super(context);
+            this.data = data;
+            this.label = label == null ? "وضعیت" : label;
+            setBackground(roundedStroke(alpha(SURFACE_2, 235), 18, BORDER));
+            setWillNotDraw(false);
+        }
+        @Override protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int w = getWidth(), h = getHeight();
+            if (w <= 0 || h <= 0) return;
+            float s = Math.min(w, h);
+            float pad = s * 0.15f;
+            RectF r = new RectF((w - s) / 2f + pad, (h - s) / 2f + pad, (w + s) / 2f - pad, (h + s) / 2f - pad);
+            double total = 0;
+            int n = data == null ? 0 : data.length();
+            for (int i = 0; i < n; i++) { JSONObject o = data.optJSONObject(i); if (o != null) total += Math.max(0, o.optDouble("count", o.optDouble("value", 0))); }
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeCap(Paint.Cap.BUTT);
+            p.setStrokeWidth(Math.max(dp(10), s * 0.10f));
+            p.setColor(alpha(GOLD_2, isLightTheme() ? 34 : 52));
+            canvas.drawArc(r, -90, 360, false, p);
+            if (total > 0) {
+                float start = -90;
+                for (int i = 0; i < n; i++) {
+                    JSONObject o = data.optJSONObject(i); if (o == null) continue;
+                    double v = Math.max(0, o.optDouble("count", o.optDouble("value", 0)));
+                    if (v <= 0) continue;
+                    p.setColor(alpha(colors[i % colors.length], 235));
+                    float sweep = (float)(360d * v / total);
+                    canvas.drawArc(r, start, Math.max(2.5f, sweep - 1.5f), false, p);
+                    start += sweep;
+                }
+            }
+            p.setStyle(Paint.Style.FILL);
+            p.setTextAlign(Paint.Align.CENTER);
+            p.setTypeface(Typeface.DEFAULT_BOLD);
+            p.setTextSize(s * 0.20f);
+            p.setColor(TEXT);
+            canvas.drawText(formatNumber(Math.round(total)), w / 2f, h / 2f + s * 0.02f, p);
+            p.setTypeface(Typeface.DEFAULT);
+            p.setTextSize(s * 0.088f);
+            p.setColor(MUTED);
+            canvas.drawText(label, w / 2f, h / 2f + s * 0.17f, p);
+        }
+    }
+
     private class DiamondPatternView extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         DiamondPatternView(Context context) { super(context); }
@@ -2064,10 +2117,9 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) bar.setElevation(dp(15));
         String[][] items = new String[][]{
                 {"visitor_dashboard", "خانه", "🏠"},
-                {"showcase", "ویترین", "🏬"},
+                {"visit", "ویزیت", "✦"},
                 {"cart", "سبد", "🛒"},
-                {"customers", "مشتری", "👤"},
-                {"visitor_reports", "گزارشات", "📈"}
+                {"visitor_more", "بیشتر", "☰"}
         };
         for (String[] item : items) addVisitorDockItem(bar, item[0], item[1], item[2]);
         FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-1, dp(94 * dockScale), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
@@ -2088,7 +2140,7 @@ public class MainActivity extends Activity {
 
     private void addVisitorDockItem(LinearLayout parent, String key, String label, String icon) {
         if (!canOpenPage(key)) return;
-        boolean center = "cart".equals(key);
+        boolean center = "visit".equals(key);
         boolean active = key.equals(activePage) || ("visitor_dashboard".equals(key) && ("settings".equals(activePage) || "health".equals(activePage)));
         int accent = navAccent(key);
         float dockScale = visitorDockScale();
@@ -2207,6 +2259,8 @@ public class MainActivity extends Activity {
         if ("personnel".equals(key)) return mix(SUCCESS, INFO, 0.32f);
         if ("attendance".equals(key)) return mix(GOLD, SUCCESS, 0.28f);
         if ("visitor_dashboard".equals(key)) return mix(GOLD, SUCCESS, 0.26f);
+        if ("visit".equals(key)) return mix(GOLD_2, SUCCESS, 0.28f);
+        if ("visitor_more".equals(key)) return mix(INFO, GOLD_2, 0.32f);
         if ("showcase".equals(key)) return mix(GOLD, INFO, 0.22f);
         if ("cart".equals(key)) return mix(GOLD_2, SUCCESS, 0.34f);
         if ("taxpayers".equals(key)) return mix(GOLD, INFO, 0.28f);
@@ -2226,6 +2280,8 @@ public class MainActivity extends Activity {
             case "personnel": loadPersonnel(); break;
             case "attendance": loadAttendance(); break;
             case "visitor_dashboard": loadVisitorDashboard(); break;
+            case "visit": renderSimpleVisitPage(); break;
+            case "visitor_more": renderVisitorMorePage(); break;
             case "visitor_reports": loadVisitorReportsPage(); break;
             case "showcase": loadShowcase("", "all"); break;
             case "cart": renderCartPage(); break;
@@ -5019,7 +5075,7 @@ public class MainActivity extends Activity {
     private boolean visitorEditionPermissionAllowed(String key) {
         if (key == null || key.trim().isEmpty()) return true;
         String k = key.trim();
-        return "visitor_dashboard".equals(k) || "visitor_reports".equals(k) || "showcase".equals(k) || "cart".equals(k) || "cart_draft".equals(k) || "cart_submit".equals(k)
+        return "visitor_dashboard".equals(k) || "visit".equals(k) || "visitor_more".equals(k) || "visitor_reports".equals(k) || "showcase".equals(k) || "cart".equals(k) || "cart_draft".equals(k) || "cart_submit".equals(k)
                 || "cart_signature".equals(k) || "customer_select".equals(k) || "prefactor_list".equals(k) || "visit_route".equals(k)
                 || "cart_discount".equals(k) || "cart_pdf".equals(k) || "offline_queue".equals(k) || "day_report".equals(k)
                 || "customers".equals(k) || "customer_detail".equals(k) || "customer_call".equals(k) || "customer_message".equals(k)
@@ -5029,6 +5085,7 @@ public class MainActivity extends Activity {
     }
 
     private String pagePermissionKey(String page) {
+        if ("visit".equals(page) || "visitor_more".equals(page)) return "visitor_dashboard";
         if ("health".equals(page)) return "connection_health";
         if ("management".equals(page)) return "management_access";
         if ("settings".equals(page)) return "settings";
@@ -5393,7 +5450,7 @@ public class MainActivity extends Activity {
 
     private String firstAllowedPage() {
         String[] preferred = VISITOR_EDITION
-                ? new String[]{"visitor_dashboard", "showcase", "cart", "customers", "visitor_reports", "attendance", "chat", "settings"}
+                ? new String[]{"visitor_dashboard", "visit", "cart", "visitor_more", "showcase", "customers", "visitor_reports", "attendance", "chat", "settings"}
                 : new String[]{"dashboard", "visitor_dashboard", "showcase", "cart", "customers", "products", "attendance", "assistant", "chat", "reports", "command", "personnel", "taxpayers", "cameras", "alarm", "settings", "health"};
         for (String p : preferred) if (canOpenPage(p)) return p;
         return VISITOR_EDITION ? "visitor_dashboard" : "dashboard";
@@ -5420,7 +5477,9 @@ public class MainActivity extends Activity {
         if ("chat".equals(page)) return "گفتگو";
         if ("personnel".equals(page)) return "پرسنل";
         if ("attendance".equals(page)) return "حضور و غیاب";
-        if ("visitor_dashboard".equals(page)) return "داشبورد ویزیتور";
+        if ("visitor_dashboard".equals(page)) return "خانه ویزیتور";
+        if ("visit".equals(page)) return "ویزیت";
+        if ("visitor_more".equals(page)) return "امکانات بیشتر";
         if ("showcase".equals(page)) return "ویترین";
         if ("cart".equals(page)) return "سبد خرید";
         if ("taxpayers".equals(page)) return "مودیان";
@@ -8420,6 +8479,18 @@ public class MainActivity extends Activity {
             out.put("inactiveCustomers", queryInactiveCustomers(c));
             out.put("goals", queryVisitorGoals(c, vid));
             out.put("dailyScore", queryVisitorDailyScore(c, vid, sales));
+            try {
+                ensurePrefactorTables(c);
+                out.put("todayPrefactors", queryPrefactorMetric(c, "today"));
+                out.put("weekPrefactors", queryPrefactorMetric(c, "week"));
+                out.put("weekTrend", queryVisitorPrefactorWeekTrend(c));
+                out.put("prefactorStatus", queryPrefactorStatusReport(c));
+                out.put("priceTiers", queryVisitorPriceTierBreakdown(c, "today"));
+            } catch (Exception ignored) {
+                out.put("weekTrend", new JSONArray());
+                out.put("prefactorStatus", new JSONArray());
+                out.put("priceTiers", new JSONArray());
+            }
             return out.toString();
         }
     }
@@ -8451,6 +8522,73 @@ public class MainActivity extends Activity {
         return o;
     }
 
+
+    private JSONArray queryVisitorPrefactorWeekTrend(Connection c) {
+        JSONArray arr = new JSONArray();
+        try {
+            ensurePrefactorTables(c);
+            for (int offset = 6; offset >= 0; offset--) {
+                List<Object> params = new ArrayList<>();
+                String own = visitorOwnScope("p", params);
+                String where = " WHERE CONVERT(date,p.created_at)=DATEADD(day,-?,CONVERT(date,SYSDATETIME()))" + (own.isEmpty() ? "" : " AND " + own);
+                String sql = "SELECT CONVERT(nvarchar(10),DATEADD(day,-?,CONVERT(date,SYSDATETIME())),111), COUNT_BIG(1), ISNULL(SUM(ISNULL(p.grand_total,p.total_amount)),0) FROM dbo.meelano_prefactors p" + where;
+                try (PreparedStatement ps = c.prepareStatement(sql)) {
+                    ps.setInt(1, offset);
+                    ps.setInt(2, offset);
+                    int idx = 3;
+                    for (Object v : params) ps.setObject(idx++, v);
+                    try (ResultSet r = ps.executeQuery()) {
+                        JSONObject o = new JSONObject();
+                        o.put("label", "-" + formatNumber(offset));
+                        o.put("count", 0);
+                        o.put("value", 0);
+                        if (r.next()) {
+                            String label = stringOr(r.getString(1), "");
+                            if (label.length() >= 5) label = label.substring(Math.max(0, label.length() - 5));
+                            o.put("label", stringOr(label, "-" + formatNumber(offset)));
+                            o.put("count", r.getLong(2));
+                            o.put("value", r.getDouble(3));
+                        }
+                        arr.put(o);
+                    }
+                }
+            }
+        } catch (Exception ignored) { }
+        return arr;
+    }
+
+    private JSONArray queryVisitorPriceTierBreakdown(Connection c, String window) {
+        JSONArray arr = new JSONArray();
+        try {
+            ensurePrefactorTables(c);
+            List<Object> params = new ArrayList<>();
+            String where = prefactorScopeWhere("p", params);
+            String and = where.isEmpty() ? " WHERE " : where + " AND ";
+            String sql = "SELECT ISNULL(NULLIF(i.price_tier,N''),N'1'), COUNT_BIG(1), ISNULL(SUM(i.amount),0) " +
+                    "FROM dbo.meelano_prefactor_items i INNER JOIN dbo.meelano_prefactors p ON p.id=i.prefactor_id" +
+                    and + prefactorWindowCondition("p", window) + " GROUP BY ISNULL(NULLIF(i.price_tier,N''),N'1') ORDER BY 1";
+            try (PreparedStatement ps = c.prepareStatement(sql)) {
+                setParams(ps, params);
+                try (ResultSet r = ps.executeQuery()) {
+                    while (r.next()) {
+                        String tier = stringOr(r.getString(1), "1");
+                        JSONObject o = new JSONObject();
+                        o.put("tier", tier);
+                        o.put("label", "2".equals(tier) ? "قیمت ۲" : "قیمت ۱");
+                        o.put("count", r.getLong(2));
+                        o.put("value", r.getDouble(3));
+                        arr.put(o);
+                    }
+                }
+            }
+            if (arr.length() == 0) {
+                JSONObject p1 = new JSONObject(); p1.put("tier", "1"); p1.put("label", "قیمت ۱"); p1.put("count", 0); p1.put("value", 0); arr.put(p1);
+                JSONObject p2 = new JSONObject(); p2.put("tier", "2"); p2.put("label", "قیمت ۲"); p2.put("count", 0); p2.put("value", 0); arr.put(p2);
+            }
+        } catch (Exception ignored) { }
+        return arr;
+    }
+
     private JSONArray queryVisitorGoals(Connection c, Integer vid) {
         JSONArray arr = new JSONArray();
         try {
@@ -8471,15 +8609,351 @@ public class MainActivity extends Activity {
     private void renderVisitorEditionDashboard(JSONObject data) {
         if (data == null) data = new JSONObject();
         content.removeAllViews();
-        addVisitorPulseTodayCard(data);
-        addVisitorDailyScoreCard(data);
-        addVisitorRouteCardsPreview(data);
-        addVisitorActivityGrid();
-        addVisitorGamificationCard(data);
-        addVisitorRiskDebtorCard(data);
-        addVisitorChecksFollowCard(data);
-        addVisitorWeeklySalesCard(data);
-        addVisitorEndDaySummaryCard(data);
+        addVisitorSimpleLuxuryHero(data);
+        addVisitorTodayOverview(data);
+        addVisitorHomeCharts(data);
+        addVisitorCartSnapshotCard();
+        addVisitorQuietOpportunitiesCard(data);
+        addVisitorMoreGatewayCard();
+    }
+
+    private double visitorConfiguredGoalTarget(JSONObject data) {
+        JSONArray goals = data == null ? null : data.optJSONArray("goals");
+        JSONObject g = firstObject(goals);
+        double target = g == null ? 0 : g.optDouble("target", 0);
+        return target > 0 ? target : 0;
+    }
+
+    private double visitorTodayPrefactorAmount(JSONObject data) {
+        JSONObject today = data == null ? null : data.optJSONObject("todayPrefactors");
+        JSONObject score = data == null ? null : data.optJSONObject("dailyScore");
+        JSONObject sales = data == null ? null : data.optJSONObject("sales");
+        double pref = today == null ? 0 : today.optDouble("amount", 0);
+        if (pref <= 0 && score != null) pref = score.optDouble("prefactorAmount", 0);
+        if (pref <= 0 && sales != null) pref = sales.optDouble("total", 0);
+        return Math.max(0, pref);
+    }
+
+    private long visitorTodayPrefactorCount(JSONObject data) {
+        JSONObject today = data == null ? null : data.optJSONObject("todayPrefactors");
+        JSONObject score = data == null ? null : data.optJSONObject("dailyScore");
+        if (today != null && today.has("count")) return today.optLong("count", 0);
+        return score == null ? 0 : score.optLong("prefactors", 0);
+    }
+
+    private long visitorTodayVisitCount(JSONObject data) {
+        JSONObject score = data == null ? null : data.optJSONObject("dailyScore");
+        return (score == null ? 0 : score.optLong("visits", 0)) + localVisitsTodayCount();
+    }
+
+    private String visitorCartCustomerName() {
+        if (visitorCartCustomer == null) return "انتخاب نشده";
+        return stringOr(visitorCartCustomer.optString("name", visitorCartCustomer.optString("customerName", "")), "مشتری");
+    }
+
+    private void openVisitorStartAction() {
+        if (visitorCartCustomer == null && canUsePermission("customer_select")) { showCartCustomerPicker(""); return; }
+        showApp("showcase");
+    }
+
+    private void addVisitorSimpleLuxuryHero(JSONObject data) {
+        int accent = navAccent("visit");
+        String name = data == null ? currentAccountName() : stringOr(data.optString("visitor", ""), currentAccountName());
+        LinearLayout hero = card();
+        hero.setPadding(dp(14), dp(14), dp(14), dp(14));
+        hero.setBackground(gradient(new int[]{alpha(accent, isLightTheme() ? 46 : 70), alpha(GOLD_2, isLightTheme() ? 28 : 42), alpha(SURFACE, 252)}, GradientDrawable.Orientation.TL_BR, 34));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) hero.setElevation(dp(8));
+
+        TextView label = text("خانه ویزیتور", 10.2f, onColorFor(accent), Typeface.BOLD);
+        label.setGravity(Gravity.CENTER);
+        label.setPadding(dp(12), dp(4), dp(12), dp(4));
+        label.setBackground(luxuryButtonBg(accent, true, 999));
+        LinearLayout.LayoutParams lpLabel = new LinearLayout.LayoutParams(-2, dp(30)); lpLabel.gravity = Gravity.RIGHT; hero.addView(label, lpLabel);
+
+        TextView title = text("سلام " + stringOr(name, "ویزیتور") + "؛ آماده ویزیت امروز هستی؟", 20.5f, TEXT, Typeface.BOLD);
+        title.setGravity(Gravity.RIGHT); title.setLineSpacing(dp(3), 1.05f);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.setMargins(0, dp(10), 0, 0); hero.addView(title, tp);
+        TextView sub = text("همه‌چیز ساده شده: یک دکمه بزرگ برای شروع، اطلاعات دقیق امروز، و ابزارهای حرفه‌ای داخل «بیشتر».", 11.0f, MUTED, Typeface.BOLD);
+        sub.setGravity(Gravity.RIGHT); sub.setLineSpacing(dp(3), 1.05f);
+        hero.addView(sub, new LinearLayout.LayoutParams(-1, -2));
+
+        Button start = themedActionButton("شروع ویزیت ✦", accent, true);
+        start.setTextSize(15.2f);
+        start.setOnClickListener(v -> openVisitorStartAction());
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, dp(58)); sp.setMargins(0, dp(14), 0, 0); hero.addView(start, sp);
+
+        LinearLayout quick = new LinearLayout(this); quick.setOrientation(LinearLayout.HORIZONTAL);
+        Button cart = themedActionButton("سبد " + cartCountText(), navAccent("cart"), false); cart.setTextSize(9.4f); cart.setOnClickListener(v -> showApp("cart"));
+        Button refresh = themedActionButton("بروزرسانی دستی", navAccent("visitor_dashboard"), false); refresh.setTextSize(9.4f); refresh.setOnClickListener(v -> loadVisitorDashboard());
+        quick.addView(cart, weightedButtonLp()); quick.addView(refresh, weightedButtonLp());
+        LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(-1, -2); qp.setMargins(0, dp(9), 0, 0); hero.addView(quick, qp);
+
+        TextView freshness = text("آخرین بروزرسانی: " + lastRefreshText("visitor_dashboard"), 9.4f, alpha(MUTED, 225), Typeface.BOLD);
+        freshness.setGravity(Gravity.CENTER); LinearLayout.LayoutParams fp = new LinearLayout.LayoutParams(-1, -2); fp.setMargins(0, dp(8), 0, 0); hero.addView(freshness, fp);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2); hp.setMargins(0, dp(14), 0, dp(12)); content.addView(hero, hp);
+    }
+
+    private void addVisitorTodayOverview(JSONObject data) {
+        int accent = navAccent("visitor_dashboard");
+        double amount = visitorTodayPrefactorAmount(data);
+        long prefCount = visitorTodayPrefactorCount(data);
+        long visits = visitorTodayVisitCount(data);
+        double target = visitorConfiguredGoalTarget(data);
+        double remain = target <= 0 ? 0 : Math.max(0, target - amount);
+        LinearLayout c = card();
+        c.setBackground(themedSectionBg("visitor_dashboard", 30));
+        c.addView(visitorSectionTitle("امروز در یک نگاه", "◆", accent), new LinearLayout.LayoutParams(-1, -2));
+        TextView hint = text("اعداد اصلی بدون شلوغی؛ برای جزئیات و گزارش‌ها از «بیشتر» استفاده کن.", 10.3f, MUTED, Typeface.BOLD);
+        c.addView(hint, new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout row1 = new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL);
+        row1.addView(visitorMetricBox("پیش‌فاکتور", formatNumber(prefCount), navAccent("cart")), weightedMiniLp());
+        row1.addView(visitorMetricBox("مبلغ امروز", money(amount), GOLD_2), weightedMiniLp());
+        LinearLayout.LayoutParams r1p = new LinearLayout.LayoutParams(-1, -2); r1p.setMargins(0, dp(10), 0, 0); c.addView(row1, r1p);
+
+        LinearLayout row2 = new LinearLayout(this); row2.setOrientation(LinearLayout.HORIZONTAL);
+        row2.addView(visitorMetricBox("سبد فعلی", cartCountSummary(), cartHasItems() ? SUCCESS : INFO), weightedMiniLp());
+        row2.addView(visitorMetricBox("مانده تا هدف", target > 0 ? money(remain) : "ثبت نشده", target > 0 && remain <= 0 ? SUCCESS : WARNING), weightedMiniLp());
+        LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(7), 0, 0); c.addView(row2, r2p);
+
+        LinearLayout row3 = new LinearLayout(this); row3.setOrientation(LinearLayout.HORIZONTAL);
+        row3.addView(visitorMetricBox("ویزیت ثبت‌شده", formatNumber(visits), accent), weightedMiniLp());
+        row3.addView(visitorMetricBox("مبلغ سبد", cartHasItems() ? money(cartTotal()) : "۰", navAccent("cart")), weightedMiniLp());
+        LinearLayout.LayoutParams r3p = new LinearLayout.LayoutParams(-1, -2); r3p.setMargins(0, dp(7), 0, 0); c.addView(row3, r3p);
+
+        if (target > 0) addVisitorProgressLine(c, "فقط اطلاع‌رسانی هدف", money(amount) + " ثبت‌شده / " + money(target), Math.min(1d, amount / Math.max(1d, target)), target > 0 && remain <= 0 ? SUCCESS : GOLD_2);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
+    }
+
+    private void addVisitorHomeCharts(JSONObject data) {
+        LinearLayout c = card();
+        c.setBackground(themedSectionBg("visitor_dashboard", 30));
+        c.addView(visitorSectionTitle("نمودارهای سریع و دقیق", "◈", GOLD_2), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("نمودارها سبک هستند و فقط با بروزرسانی دستی دوباره خوانده می‌شوند.", 10.1f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+
+        LinearLayout trendPanel = visitorChartPanel("روند ۷ روزه پیش‌فاکتور", "جمع مبلغ ثبت‌شده هر روز", navAccent("visit"));
+        JSONArray trend = data == null ? null : data.optJSONArray("weekTrend");
+        LineChartView line = new LineChartView(this, trend, navAccent("visit"));
+        LinearLayout.LayoutParams lcp = new LinearLayout.LayoutParams(-1, dp(174)); lcp.setMargins(0, dp(8), 0, 0); trendPanel.addView(line, lcp);
+        c.addView(trendPanel, chartPanelLp());
+
+        LinearLayout two = new LinearLayout(this); two.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout status = visitorChartPanel("وضعیت پیش‌فاکتور", "۳۰ روز اخیر", navAccent("cart"));
+        JSONArray statusRows = data == null ? null : data.optJSONArray("prefactorStatus");
+        VisitorDonutChartView donut = new VisitorDonutChartView(this, statusRows, "پیش‌فاکتور");
+        status.addView(donut, new LinearLayout.LayoutParams(-1, dp(154)));
+        addVisitorStatusLegend(status, statusRows);
+        two.addView(status, new LinearLayout.LayoutParams(0, -2, 1f));
+
+        LinearLayout price = visitorChartPanel("قیمت ۱ / ۲", "مبلغ امروز", WARNING);
+        JSONArray tiers = data == null ? null : data.optJSONArray("priceTiers");
+        price.addView(new BarChartView(this, tiers, WARNING), new LinearLayout.LayoutParams(-1, dp(154)));
+        addVisitorPriceTierLegend(price, tiers);
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(0, -2, 1f); plp.setMargins(dp(6), 0, 0, 0); two.addView(price, plp);
+        LinearLayout.LayoutParams twop = new LinearLayout.LayoutParams(-1, -2); twop.setMargins(0, dp(8), 0, 0); c.addView(two, twop);
+
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
+    }
+
+    private LinearLayout visitorChartPanel(String title, String sub, int accent) {
+        LinearLayout p = new LinearLayout(this); p.setOrientation(LinearLayout.VERTICAL); p.setPadding(dp(9), dp(9), dp(9), dp(9));
+        p.setBackground(roundedStroke(alpha(accent, isLightTheme() ? 16 : 28), 22, alpha(accent, 64)));
+        TextView t = text(title, 12.2f, TEXT, Typeface.BOLD); t.setGravity(Gravity.RIGHT); p.addView(t, new LinearLayout.LayoutParams(-1, -2));
+        TextView s = text(sub, 9.2f, MUTED, Typeface.BOLD); s.setGravity(Gravity.RIGHT); p.addView(s, new LinearLayout.LayoutParams(-1, -2));
+        return p;
+    }
+
+    private LinearLayout.LayoutParams chartPanelLp() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(9), 0, 0); return lp;
+    }
+
+    private void addVisitorStatusLegend(LinearLayout parent, JSONArray rows) {
+        if (parent == null) return;
+        if (rows == null || rows.length() == 0) {
+            parent.addView(text("هنوز پیش‌فاکتوری برای نمودار ثبت نشده است.", 9.0f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+            return;
+        }
+        for (int i = 0; i < Math.min(3, rows.length()); i++) {
+            JSONObject r = rows.optJSONObject(i); if (r == null) continue;
+            int accent = prefactorStatusAccent(r.optString("status", ""));
+            TextView pill = text(prefactorStatusFa(r.optString("status", "")) + "  " + formatNumber(r.optLong("count", 0)), 8.4f, accent, Typeface.BOLD);
+            pill.setSingleLine(true); pill.setGravity(Gravity.RIGHT); parent.addView(pill, new LinearLayout.LayoutParams(-1, -2));
+        }
+    }
+
+    private void addVisitorPriceTierLegend(LinearLayout parent, JSONArray rows) {
+        if (parent == null) return;
+        if (rows == null || rows.length() == 0) {
+            parent.addView(text("قیمت‌های امروز هنوز ثبت نشده‌اند.", 9.0f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+            return;
+        }
+        for (int i = 0; i < Math.min(2, rows.length()); i++) {
+            JSONObject r = rows.optJSONObject(i); if (r == null) continue;
+            TextView line = text(r.optString("label", "قیمت") + ": " + money(r.optDouble("value", 0)), 8.4f, "2".equals(r.optString("tier")) ? WARNING : GOLD_2, Typeface.BOLD);
+            line.setSingleLine(true); line.setGravity(Gravity.RIGHT); parent.addView(line, new LinearLayout.LayoutParams(-1, -2));
+        }
+    }
+
+    private void addVisitorCartSnapshotCard() {
+        int accent = navAccent("cart");
+        LinearLayout c = card(); c.setBackground(themedSectionBg("cart", 30));
+        c.addView(visitorSectionTitle("سبد فعلی پیش‌فاکتور", "🛒", accent), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("سبد فقط برای ساخت و ارسال پیش‌فاکتور نگه داشته شده و شلوغ نشده است.", 10.1f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(visitorMetricBox("مشتری", visitorCartCustomerName(), visitorCartCustomer == null ? WARNING : SUCCESS), weightedMiniLp());
+        row.addView(visitorMetricBox("اقلام", cartCountSummary(), cartHasItems() ? accent : INFO), weightedMiniLp());
+        row.addView(visitorMetricBox("مبلغ", cartHasItems() ? money(cartTotal()) : "۰", GOLD_2), weightedMiniLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(10), 0, 0); c.addView(row, rp);
+        LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button pick = themedActionButton(visitorCartCustomer == null ? "انتخاب مشتری" : "تغییر مشتری", navAccent("customers"), visitorCartCustomer == null); pick.setTextSize(9.2f); pick.setOnClickListener(v -> { if (ensurePermission("customer_select", "انتخاب مشتری")) showCartCustomerPicker(""); });
+        Button open = themedActionButton(cartHasItems() ? "مشاهده / ارسال" : "باز کردن سبد", accent, cartHasItems()); open.setTextSize(9.2f); open.setOnClickListener(v -> showApp("cart"));
+        actions.addView(pick, weightedButtonLp()); actions.addView(open, weightedButtonLp());
+        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(10), 0, 0); c.addView(actions, ap);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
+    }
+
+    private void addVisitorQuietOpportunitiesCard(JSONObject data) {
+        int accent = mix(navAccent("visit"), INFO, 0.25f);
+        LinearLayout c = card(); c.setBackground(themedSectionBg("visit", 28));
+        c.addView(visitorSectionTitle("فرصت‌های آرام امروز", "✦", accent), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("فقط راهنمای سبک برای اقدام بعدی؛ بدون اجبار مسیر و بدون گزارش‌های سنگین.", 10.1f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        addVisitorSoftOpportunity(c, "پیش‌نویس آماده", formatNumber(localDrafts().length()) + " مورد", localDrafts().length() > 0 ? WARNING : SUCCESS, () -> showSavedDraftsDialog());
+        addVisitorSoftOpportunity(c, "صف ارسال", formatNumber(offlineQueue().length()) + " مورد", offlineQueue().length() > 0 ? DANGER : SUCCESS, () -> trySendOfflineQueue());
+        JSONArray inactive = data == null ? null : data.optJSONArray("inactiveCustomers");
+        addVisitorSoftOpportunity(c, "مشتری قابل پیگیری", formatNumber(inactive == null ? 0 : inactive.length()) + " مورد", INFO, () -> showApp("customers"));
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
+    }
+
+    private void addVisitorSoftOpportunity(LinearLayout parent, String title, String value, int accent, final Runnable action) {
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(9), dp(8), dp(9), dp(8));
+        row.setClickable(true); row.setFocusable(true); row.setBackground(roundedStroke(alpha(accent, isLightTheme() ? 14 : 24), 18, alpha(accent, 62))); applyTouchFeedback(row);
+        row.setOnClickListener(v -> { if (action != null) action.run(); });
+        TextView v = text(value, 10.2f, accent, Typeface.BOLD); v.setGravity(Gravity.CENTER); v.setSingleLine(true); row.addView(v, new LinearLayout.LayoutParams(dp(92), dp(32)));
+        TextView t = text(title, 11.4f, TEXT, Typeface.BOLD); t.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL); row.addView(t, new LinearLayout.LayoutParams(0, dp(32), 1f));
+        TextView go = text("›", 17, accent, Typeface.BOLD); go.setGravity(Gravity.CENTER); row.addView(go, new LinearLayout.LayoutParams(dp(28), dp(32)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(7), 0, 0); parent.addView(row, lp);
+    }
+
+    private void addVisitorMoreGatewayCard() {
+        int accent = navAccent("visitor_more");
+        LinearLayout c = card(); c.setBackground(themedSectionBg("visitor_more", 30));
+        c.addView(visitorSectionTitle("امکانات بیشتر", "☰", accent), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text("گزارش‌ها، مشتریان، صف آفلاین، پیش‌نویس‌ها و ابزارهای حرفه‌ای اینجا گروه‌بندی شده‌اند تا صفحه خانه ساده بماند.", 10.3f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        Button more = themedActionButton("ورود به جعبه ابزار ویزیتور", accent, true); more.setOnClickListener(v -> showApp("visitor_more"));
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, dp(50)); mp.setMargins(0, dp(11), 0, 0); c.addView(more, mp);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
+    }
+
+    private void renderSimpleVisitPage() {
+        content.removeAllViews();
+        int accent = navAccent("visit");
+        LinearLayout hero = card(); hero.setBackground(themedSectionBg("visit", 32));
+        hero.addView(visitorSectionTitle("ویزیت سریع", "✦", accent), new LinearLayout.LayoutParams(-1, -2));
+        hero.addView(text("برای کاربر تازه‌کار: مشتری را انتخاب کن، ویترین را باز کن، کالا را به سبد اضافه کن. هیچ مسیر اجباری وجود ندارد.", 10.6f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        Button start = themedActionButton("شروع ویزیت / انتخاب مشتری", accent, true); start.setTextSize(14.2f); start.setOnClickListener(v -> openVisitorStartAction());
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, dp(56)); sp.setMargins(0, dp(12), 0, 0); hero.addView(start, sp);
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2); hp.setMargins(0, dp(14), 0, dp(12)); content.addView(hero, hp);
+
+        LinearLayout current = card(); current.setBackground(gradient(new int[]{alpha(accent, isLightTheme() ? 24 : 38), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 28));
+        current.addView(text("وضعیت ویزیت فعلی", 15.0f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+        row.addView(visitorMetricBox("مشتری", visitorCartCustomerName(), visitorCartCustomer == null ? WARNING : SUCCESS), weightedMiniLp());
+        row.addView(visitorMetricBox("سبد", cartCountSummary(), cartHasItems() ? navAccent("cart") : INFO), weightedMiniLp());
+        row.addView(visitorMetricBox("جمع", cartHasItems() ? money(cartTotal()) : "۰", GOLD_2), weightedMiniLp());
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(9), 0, 0); current.addView(row, rp);
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(current, cp);
+
+        LinearLayout grid = card(); grid.setBackground(themedSectionBg("visitor_dashboard", 28));
+        grid.addView(text("ابزار فروش سریع", 15.4f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout r1 = new LinearLayout(this); r1.setOrientation(LinearLayout.HORIZONTAL);
+        addVisitorVisitTile(r1, "انتخاب مشتری", "جستجو و اتصال به سبد", "♙", navAccent("customers"), () -> { if (ensurePermission("customer_select", "انتخاب مشتری")) showCartCustomerPicker(""); });
+        addVisitorVisitTile(r1, "ویترین", "قیمت فروش ۱ و ۲", "◈", navAccent("showcase"), () -> showApp("showcase"));
+        LinearLayout.LayoutParams r1p = new LinearLayout.LayoutParams(-1, -2); r1p.setMargins(0, dp(9), 0, 0); grid.addView(r1, r1p);
+        LinearLayout r2 = new LinearLayout(this); r2.setOrientation(LinearLayout.HORIZONTAL);
+        addVisitorVisitTile(r2, "سبد", "فقط پیش‌فاکتور", "🛒", navAccent("cart"), () -> showApp("cart"));
+        addVisitorVisitTile(r2, "ثبت نتیجه", "یادداشت بازدید اختیاری", "✓", SUCCESS, () -> { if (visitorCartCustomer != null) showVisitResultDialog(visitorCartCustomer); else Toast.makeText(this, "اول مشتری را انتخاب کن.", Toast.LENGTH_SHORT).show(); });
+        LinearLayout.LayoutParams r2p = new LinearLayout.LayoutParams(-1, -2); r2p.setMargins(0, dp(7), 0, 0); grid.addView(r2, r2p);
+        LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(-1, -2); gp.setMargins(0, 0, 0, dp(12)); content.addView(grid, gp);
+    }
+
+    private void addVisitorVisitTile(LinearLayout parent, String title, String sub, String glyph, int accent, final Runnable action) {
+        LinearLayout tile = new LinearLayout(this); tile.setOrientation(LinearLayout.VERTICAL); tile.setGravity(Gravity.CENTER); tile.setPadding(dp(8), dp(9), dp(8), dp(9));
+        tile.setClickable(true); tile.setFocusable(true); tile.setBackground(gradient(new int[]{alpha(accent, isLightTheme() ? 24 : 38), alpha(SURFACE_2, 246)}, GradientDrawable.Orientation.TL_BR, 24));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) tile.setElevation(dp(3));
+        applyTouchFeedback(tile); tile.setOnClickListener(v -> { if (action != null) action.run(); });
+        TextView icon = text(glyph, 18, onColorFor(accent), Typeface.BOLD); icon.setGravity(Gravity.CENTER); icon.setBackground(luxuryButtonBg(accent, true, 999)); tile.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
+        TextView tt = text(title, 12.5f, TEXT, Typeface.BOLD); tt.setGravity(Gravity.CENTER); tt.setSingleLine(true); LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.setMargins(0, dp(6), 0, 0); tile.addView(tt, tp);
+        TextView ss = text(sub, 9.0f, MUTED, Typeface.BOLD); ss.setGravity(Gravity.CENTER); ss.setSingleLine(true); tile.addView(ss, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(116), 1f); lp.setMargins(dp(4), 0, dp(4), 0); parent.addView(tile, lp);
+    }
+
+    private void renderVisitorMorePage() {
+        content.removeAllViews();
+        int accent = navAccent("visitor_more");
+        LinearLayout hero = card(); hero.setBackground(themedSectionBg("visitor_more", 32));
+        hero.addView(visitorSectionTitle("جعبه ابزار ویزیتور", "☰", accent), new LinearLayout.LayoutParams(-1, -2));
+        hero.addView(text("همه گزینه‌های حرفه‌ای در یک بخش جمع شده‌اند؛ خانه ساده می‌ماند و ویزیتور کم‌کم ابزارها را یاد می‌گیرد.", 10.6f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2); hp.setMargins(0, dp(14), 0, dp(12)); content.addView(hero, hp);
+
+        addVisitorMoreGroup("گزارش‌ها و پیش‌فاکتور", "گزارش‌های لازم بدون شلوغ کردن خانه", new VisitorToolSpec[]{
+                new VisitorToolSpec("گزارش‌ها", "امروز/هفته/ماه", "↗", navAccent("visitor_reports"), () -> showApp("visitor_reports"), canOpenPage("visitor_reports")),
+                new VisitorToolSpec("پیش‌فاکتورهای من", "لیست و وضعیت", "▤", navAccent("cart"), () -> loadMyPrefactors(), canUsePermission("prefactor_list")),
+                new VisitorToolSpec("پایان روز", "جمع‌بندی اختیاری", "◎", GOLD_2, () -> showEndOfDayReportDialog(), canUsePermission("day_report")),
+                new VisitorToolSpec("صف آفلاین", formatNumber(offlineQueue().length()) + " مورد", "⇅", offlineQueue().length() > 0 ? DANGER : SUCCESS, () -> trySendOfflineQueue(), canUsePermission("offline_queue"))
+        });
+        addVisitorMoreGroup("مشتری و کالا", "ابزارهای فروش سریع", new VisitorToolSpec[]{
+                new VisitorToolSpec("مشتریان", "جستجو و پیگیری", "♙", navAccent("customers"), () -> showApp("customers"), canOpenPage("customers")),
+                new VisitorToolSpec("انتخاب مشتری", "برای سبد فعلی", "+", navAccent("customers"), () -> showCartCustomerPicker(""), canUsePermission("customer_select")),
+                new VisitorToolSpec("ویترین", "قیمت ۱ و ۲", "◈", navAccent("showcase"), () -> showApp("showcase"), canOpenPage("showcase")),
+                new VisitorToolSpec("کدخوان", "جستجوی کالا", "⌕", INFO, () -> showBarcodeSearchDialog(), canOpenPage("showcase"))
+        });
+        addVisitorMoreGroup("ابزارهای کمکی", "چیزهایی که هر روز لازم نیستند", new VisitorToolSpec[]{
+                new VisitorToolSpec("پیش‌نویس‌ها", formatNumber(localDrafts().length()) + " ذخیره", "✎", WARNING, () -> showSavedDraftsDialog(), canUsePermission("cart_draft")),
+                new VisitorToolSpec("حضور", "ورود و خروج", "◷", SUCCESS, () -> showApp("attendance"), canOpenPage("attendance")),
+                new VisitorToolSpec("گفتگو", "پیام‌ها", "✉", INFO, () -> showApp("chat"), canOpenPage("chat")),
+                new VisitorToolSpec("تنظیمات", "تم و دسترسی", "⚙", accent, () -> showApp("settings"), canOpenPage("settings"))
+        });
+    }
+
+    private class VisitorToolSpec {
+        final String title, sub, glyph;
+        final int accent;
+        final Runnable action;
+        final boolean visible;
+        VisitorToolSpec(String title, String sub, String glyph, int accent, Runnable action, boolean visible) {
+            this.title = title; this.sub = sub; this.glyph = glyph; this.accent = accent; this.action = action; this.visible = visible;
+        }
+    }
+
+    private void addVisitorMoreGroup(String title, String sub, VisitorToolSpec[] tools) {
+        LinearLayout c = card(); c.setBackground(themedSectionBg("visitor_more", 28));
+        c.addView(text(title, 15.2f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.addView(text(sub, 10.0f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout row = null;
+        int visible = 0;
+        if (tools != null) for (VisitorToolSpec tool : tools) {
+            if (tool == null || !tool.visible) continue;
+            if (row == null || row.getChildCount() >= 2) {
+                row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+                LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, -2); rp.setMargins(0, dp(8), 0, 0); c.addView(row, rp);
+            }
+            addVisitorMoreTile(row, tool);
+            visible++;
+        }
+        if (visible == 0) c.addView(text("برای این حساب ابزاری در این گروه فعال نیست.", 10.2f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(12)); content.addView(c, cp);
+    }
+
+    private void addVisitorMoreTile(LinearLayout parent, VisitorToolSpec tool) {
+        LinearLayout tile = new LinearLayout(this); tile.setOrientation(LinearLayout.HORIZONTAL); tile.setGravity(Gravity.CENTER_VERTICAL); tile.setPadding(dp(8), dp(7), dp(8), dp(7));
+        tile.setClickable(true); tile.setFocusable(true); tile.setBackground(roundedStroke(alpha(tool.accent, isLightTheme() ? 16 : 26), 20, alpha(tool.accent, 62))); applyTouchFeedback(tile);
+        tile.setOnClickListener(v -> { if (tool.action != null) tool.action.run(); });
+        TextView icon = text(tool.glyph, 14, onColorFor(tool.accent), Typeface.BOLD); icon.setGravity(Gravity.CENTER); icon.setBackground(luxuryButtonBg(tool.accent, true, 999)); tile.addView(icon, new LinearLayout.LayoutParams(dp(38), dp(38)));
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(7), 0, dp(4), 0);
+        TextView tt = text(tool.title, 10.9f, TEXT, Typeface.BOLD); tt.setSingleLine(true); copy.addView(tt, new LinearLayout.LayoutParams(-1, -2));
+        TextView ss = text(tool.sub, 8.7f, MUTED, Typeface.BOLD); ss.setSingleLine(true); copy.addView(ss, new LinearLayout.LayoutParams(-1, -2));
+        tile.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(58), 1f); lp.setMargins(dp(4), 0, dp(4), 0); parent.addView(tile, lp);
     }
 
     private void addVisitorAtiranHeader(JSONObject data) {
@@ -10833,7 +11307,7 @@ public class MainActivity extends Activity {
             top.addView(names, new LinearLayout.LayoutParams(0, -2, 1f));
             Button choose = themedActionButton("انتخاب", rowAccent, !risky);
             choose.setTextSize(8.4f);
-            View.OnClickListener select = v -> { visitorCartCustomer = r; if (visitorCartAddress.trim().isEmpty()) visitorCartAddress = r.optString("address", ""); if (dlg[0] != null) dlg[0].dismiss(); renderCartPage(); };
+            View.OnClickListener select = v -> { visitorCartCustomer = r; if (visitorCartAddress.trim().isEmpty()) visitorCartAddress = r.optString("address", ""); if (dlg[0] != null) dlg[0].dismiss(); if ("visit".equals(activePage)) showApp("visit"); else renderCartPage(); };
             choose.setOnClickListener(select);
             card.setOnClickListener(select);
             top.addView(choose, new LinearLayout.LayoutParams(dp(76), dp(38)));
