@@ -1609,20 +1609,22 @@ public class MainActivity extends Activity {
             shell.setTextDirection(getRtlMode() ? View.TEXT_DIRECTION_RTL : View.TEXT_DIRECTION_LTR);
         }
 
-        navStrip = new LinearLayout(this);
-        navStrip.setOrientation(LinearLayout.VERTICAL);
-        navStrip.setGravity(Gravity.CENTER);
-        navStrip.setPadding(dp(8), dp(7), dp(8), dp(7));
-        navStrip.setBackground(gradient(new int[]{alpha(HEADER_START, 238), alpha(SURFACE_2, 210)}, GradientDrawable.Orientation.LEFT_RIGHT, 0));
-        shell.addView(navStrip, new LinearLayout.LayoutParams(-1, dp(262)));
-
         ScrollView scroll = new ScrollView(this);
         styleVerticalScroll(scroll);
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(14), dp(8), dp(14), dp(28));
+        content.setPadding(dp(14), dp(8), dp(14), dp(34));
         scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
         shell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        navStrip = new LinearLayout(this);
+        navStrip.setOrientation(LinearLayout.VERTICAL);
+        navStrip.setGravity(Gravity.CENTER_VERTICAL);
+        navStrip.setPadding(dp(10), dp(6), dp(10), dp(8));
+        navStrip.setClipToPadding(false);
+        navStrip.setBackground(gradient(new int[]{alpha(HEADER_START, 246), alpha(mix(SURFACE_2, currentPageAccent(), 0.12f), 232), alpha(HEADER_END, 246)}, GradientDrawable.Orientation.TOP_BOTTOM, 0));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) navStrip.setElevation(dp(14));
+        shell.addView(navStrip, new LinearLayout.LayoutParams(-1, dp(116)));
 
         stage.addView(shell, new FrameLayout.LayoutParams(-1, -1));
         buildNav();
@@ -1632,36 +1634,56 @@ public class MainActivity extends Activity {
     private void buildNav() {
         navStrip.removeAllViews();
         navStrip.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout row1 = navRow();
-        LinearLayout row2 = navRow();
-        LinearLayout row3 = navRow();
-        LinearLayout row4 = navRow();
-        LinearLayout row5 = navRow();
-        addNav(row1, "dashboard", "داشبورد", navGlyph("dashboard"));
-        addNav(row1, "customers", "مشتریان", navGlyph("customers"));
-        addNav(row1, "products", "کالا", navGlyph("products"));
-        addNav(row2, "reports", "گزارشات", navGlyph("reports"));
-        addNav(row2, "command", "فرماندهی", navGlyph("command"));
-        addNav(row2, "assistant", "دستیار", navGlyph("assistant"));
-        addNav(row3, "chat", "گفتگو", navGlyph("chat"));
-        addNav(row3, "personnel", "پرسنل", navGlyph("personnel"));
-        addNav(row3, "attendance", "حضور", navGlyph("attendance"));
-        addNav(row4, "taxpayers", "مودیان", navGlyph("taxpayers"));
-        addNav(row4, "cameras", "دوربین", navGlyph("cameras"));
-        addNav(row4, "alarm", "دزدگیر", navGlyph("alarm"));
-        addNav(row5, "visitor_dashboard", "داشبورد ویزیتور", navGlyph("visitor_dashboard"));
-        addNav(row5, "showcase", "ویترین", navGlyph("showcase"));
-        addNav(row5, "cart", "سبد خرید", navGlyph("cart"));
-        addNavRowIfNotEmpty(row1);
-        addNavRowIfNotEmpty(row2);
-        addNavRowIfNotEmpty(row3);
-        addNavRowIfNotEmpty(row4);
-        addNavRowIfNotEmpty(row5);
-        if (navStrip.getChildCount() == 0) {
+        navStrip.setGravity(Gravity.CENTER_VERTICAL);
+        int accent = currentPageAccent();
+        navStrip.setBackground(gradient(new int[]{alpha(HEADER_START, 248), alpha(mix(SURFACE_2, accent, isLightTheme() ? 0.10f : 0.22f), 238), alpha(HEADER_END, 248)}, GradientDrawable.Orientation.TOP_BOTTOM, 0));
+
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.HORIZONTAL);
+        info.setGravity(Gravity.CENTER_VERTICAL);
+        info.setPadding(dp(8), 0, dp(8), dp(2));
+        TextView pagePill = text("◆ " + sectionLabel(activePage), 10.4f, onColorFor(accent), Typeface.BOLD);
+        pagePill.setGravity(Gravity.CENTER);
+        pagePill.setSingleLine(true);
+        pagePill.setPadding(dp(10), dp(3), dp(10), dp(3));
+        pagePill.setBackground(luxuryButtonBg(accent, true, 999));
+        info.addView(pagePill, new LinearLayout.LayoutParams(-2, dp(28)));
+        TextView hint = text("  منوی آینده‌نگر Meelano در پایین صفحه", 9.3f, alpha(MUTED, 235), Typeface.BOLD);
+        hint.setSingleLine(true);
+        hint.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        info.addView(hint, new LinearLayout.LayoutParams(0, dp(28), 1f));
+        if (canOpenPage("cart")) {
+            TextView cart = text("سبد " + formatNumber(visitorCartItems.length()), 9.2f, navAccent("cart"), Typeface.BOLD);
+            cart.setGravity(Gravity.CENTER);
+            cart.setSingleLine(true);
+            cart.setPadding(dp(8), dp(3), dp(8), dp(3));
+            cart.setBackground(roundedStroke(alpha(navAccent("cart"), isLightTheme() ? 20 : 32), 999, alpha(navAccent("cart"), 85)));
+            cart.setOnClickListener(v -> showApp("cart"));
+            info.addView(cart, new LinearLayout.LayoutParams(-2, dp(28)));
+        }
+        navStrip.addView(info, new LinearLayout.LayoutParams(-1, dp(30)));
+
+        HorizontalScrollView scroll = new HorizontalScrollView(this);
+        styleHorizontalScroll(scroll);
+        scroll.setHorizontalScrollBarEnabled(true);
+        LinearLayout rail = new LinearLayout(this);
+        rail.setOrientation(LinearLayout.HORIZONTAL);
+        rail.setGravity(Gravity.CENTER_VERTICAL);
+        rail.setPadding(dp(4), dp(2), dp(4), dp(2));
+        String[][] items = {
+                {"dashboard", "داشبورد"}, {"visitor_dashboard", "ویزیتور"}, {"showcase", "ویترین"}, {"cart", "سبد"},
+                {"customers", "مشتریان"}, {"products", "کالا"}, {"reports", "گزارشات"}, {"assistant", "میلو"},
+                {"chat", "گفتگو"}, {"personnel", "پرسنل"}, {"attendance", "حضور"}, {"taxpayers", "مودیان"},
+                {"cameras", "دوربین"}, {"alarm", "دزدگیر"}, {"command", "فرماندهی"}
+        };
+        for (String[] item : items) addNav(rail, item[0], item[1], navGlyph(item[0]));
+        if (rail.getChildCount() == 0) {
             TextView empty = text("بخشی برای این حساب فعال نیست.", 11, MUTED, Typeface.BOLD);
             empty.setGravity(Gravity.CENTER);
-            navStrip.addView(empty, new LinearLayout.LayoutParams(-1, dp(46)));
+            rail.addView(empty, new LinearLayout.LayoutParams(dp(280), dp(62)));
         }
+        scroll.addView(rail, new FrameLayout.LayoutParams(-2, dp(72)));
+        navStrip.addView(scroll, new LinearLayout.LayoutParams(-1, dp(76)));
     }
 
     private void addNavRowIfNotEmpty(LinearLayout row) {
@@ -1685,32 +1707,35 @@ public class MainActivity extends Activity {
         if (locked) return;
         int accent = navAccent(key);
         LinearLayout tab = new LinearLayout(this);
-        tab.setOrientation(LinearLayout.HORIZONTAL);
+        tab.setOrientation(LinearLayout.VERTICAL);
         tab.setGravity(Gravity.CENTER);
-        tab.setPadding(dp(5), dp(4), dp(5), dp(4));
+        tab.setPadding(dp(5), dp(5), dp(5), dp(4));
         tab.setClickable(true);
         tab.setFocusable(true);
         tab.setAlpha(1f);
-        tab.setBackground(active ? luxuryButtonBg(accent, true, 19) : luxuryButtonBg(accent, false, 19));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) tab.setElevation(dp(active ? 7 : 2));
+        GradientDrawable bg = active
+                ? gradient(new int[]{mix(accent, Color.WHITE, isLightTheme() ? 0.36f : 0.18f), accent, mix(accent, GOLD, 0.20f)}, GradientDrawable.Orientation.TL_BR, 23)
+                : gradient(new int[]{alpha(Color.WHITE, isLightTheme() ? 82 : 18), alpha(accent, isLightTheme() ? 20 : 34), alpha(SURFACE_2, 232)}, GradientDrawable.Orientation.TL_BR, 23);
+        bg.setStroke(dp(active ? 2 : 1), alpha(mix(accent, Color.WHITE, 0.38f), active ? 165 : 86));
+        tab.setBackground(bg);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) tab.setElevation(dp(active ? 8 : 2));
         applyTouchFeedback(tab);
 
-        String visibleIcon = icon;
-        TextView badge = text(visibleIcon, visibleIcon != null && visibleIcon.length() > 1 ? 12.5f : 16, active ? onColorFor(accent) : accent, Typeface.BOLD);
+        TextView badge = text(icon == null ? "◆" : icon, icon != null && icon.length() > 1 ? 12.4f : 17.5f, active ? onColorFor(accent) : accent, Typeface.BOLD);
         badge.setGravity(Gravity.CENTER);
         badge.setSingleLine(true);
         badge.setShadowLayer(dp(active ? 3 : 1), 0, dp(1), alpha(Color.BLACK, active ? 145 : 55));
-        badge.setBackground(roundedStroke(active ? alpha(Color.WHITE, isLightTheme() ? 58 : 38) : alpha(accent, 18), 13, active ? alpha(Color.WHITE, 105) : alpha(accent, 70)));
-        tab.addView(badge, new LinearLayout.LayoutParams(dp(30), dp(30)));
+        badge.setBackground(roundedStroke(active ? alpha(Color.WHITE, isLightTheme() ? 64 : 42) : alpha(accent, isLightTheme() ? 18 : 28), 999, active ? alpha(Color.WHITE, 118) : alpha(accent, 72)));
+        tab.addView(badge, new LinearLayout.LayoutParams(dp(active ? 34 : 31), dp(active ? 34 : 31)));
 
-        TextView title = text(label, 10.2f, active ? onColorFor(accent) : TEXT, Typeface.BOLD);
+        TextView title = text(label, active ? 9.7f : 9.0f, active ? onColorFor(accent) : TEXT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         title.setSingleLine(true);
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1f); tp.setMargins(dp(4), 0, dp(4), 0);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.setMargins(0, dp(3), 0, 0);
         tab.addView(title, tp);
         tab.setOnClickListener(v -> showApp(key));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(43), 1f);
-        lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(active ? 94 : 84), dp(66));
+        lp.setMargins(dp(4), dp(2), dp(4), dp(4));
         parent.addView(tab, lp);
     }
 
@@ -12942,7 +12967,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Android v3.43.4\nاین نسخه علت نمایش نشدن قیمت فروش ۲ در ویترین را رفع می‌کند، اتصال دوربین‌های DVR/P2P را با پورت دستگاه و RTSP جداگانه پایدارتر می‌سازد و لوگوی بالای صفحه و آیکن برنامه را لوکس‌تر و دقیق‌تر نمایش می‌دهد.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Android v3.43.5\nاین نسخه منوی اصلی را از بالای صفحه به یک dock آینده‌نگر در پایین منتقل می‌کند، ترتیب چیدمان بخش‌ها را بر اساس مسیر کاری واقعی بازطراحی می‌کند و دکمه‌ها را به کارت‌های شیشه‌ای/سه‌بعدی هماهنگ با تم تبدیل می‌سازد.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
