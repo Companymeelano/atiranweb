@@ -254,6 +254,8 @@ public class MainActivity extends Activity {
     private String showcaseCacheQuery = "";
     private String showcaseCacheFilter = "all";
     private int showcaseShownLimit = 24;
+    private String visitorDashboardCacheJson = "";
+    private final Map<String, String> cartCustomerPickerCache = new HashMap<>();
     private String pendingChatAttachmentKind = "file";
     private String chatSearchQuery = "";
     private String taxPeriod = "day";
@@ -512,22 +514,22 @@ public class MainActivity extends Activity {
             HERO_END = Color.rgb(245, 253, 255);
             ON_PRIMARY = Color.WHITE;
         } else if ("azure_diamond".equals(id)) {
-            NAVY = Color.rgb(238, 247, 255);
+            NAVY = Color.rgb(244, 251, 255);
             SURFACE = Color.rgb(255, 255, 255);
-            SURFACE_2 = Color.rgb(219, 235, 255);
-            GOLD = Color.rgb(0, 108, 255);
-            GOLD_2 = Color.rgb(64, 166, 255);
-            SUCCESS = Color.rgb(0, 163, 181);
-            INFO = Color.rgb(32, 128, 255);
-            WARNING = Color.rgb(232, 146, 54);
-            DANGER = Color.rgb(211, 64, 101);
-            TEXT = Color.rgb(8, 35, 72);
-            MUTED = Color.rgb(76, 103, 136);
-            BORDER = Color.argb(82, 34, 128, 255);
-            HEADER_START = Color.rgb(246, 252, 255);
-            HEADER_END = Color.rgb(207, 229, 255);
-            HERO_START = Color.rgb(217, 238, 255);
-            HERO_END = Color.rgb(252, 255, 255);
+            SURFACE_2 = Color.rgb(215, 240, 255);
+            GOLD = Color.rgb(0, 126, 255);
+            GOLD_2 = Color.rgb(24, 190, 255);
+            SUCCESS = Color.rgb(0, 178, 204);
+            INFO = Color.rgb(0, 148, 255);
+            WARNING = Color.rgb(93, 132, 255);
+            DANGER = Color.rgb(216, 58, 100);
+            TEXT = Color.rgb(5, 38, 83);
+            MUTED = Color.rgb(68, 102, 142);
+            BORDER = Color.argb(96, 0, 148, 255);
+            HEADER_START = Color.rgb(250, 254, 255);
+            HEADER_END = Color.rgb(211, 237, 255);
+            HERO_START = Color.rgb(210, 240, 255);
+            HERO_END = Color.rgb(255, 255, 255);
             ON_PRIMARY = Color.WHITE;
         } else if ("noir_aurora".equals(id)) {
             NAVY = Color.rgb(5, 8, 18);
@@ -727,7 +729,7 @@ public class MainActivity extends Activity {
 
     private void styleMeelanoDialog(AlertDialog dialog, int accent) {
         if (dialog == null) return;
-        dialog.setOnShowListener(d -> {
+        final Runnable styler = () -> {
             try {
                 if (dialog.getWindow() != null) dialog.getWindow().setBackgroundDrawable(premiumPanel(accent, 30));
                 Button pos = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -737,7 +739,9 @@ public class MainActivity extends Activity {
                 if (neg != null) { neg.setTextColor(MUTED); neg.setAllCaps(false); applyTouchFeedback(neg); }
                 if (neu != null) { neu.setTextColor(INFO); neu.setAllCaps(false); applyTouchFeedback(neu); }
             } catch (Exception ignored) { }
-        });
+        };
+        dialog.setOnShowListener(d -> styler.run());
+        if (dialog.isShowing()) styler.run();
     }
 
     private GradientDrawable rounded(int color, float radius) {
@@ -2116,9 +2120,10 @@ public class MainActivity extends Activity {
         bar.setBackground(bg);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) bar.setElevation(dp(15));
         String[][] items = new String[][]{
-                {"visitor_dashboard", "خانه", "🏠"},
+                {"visitor_dashboard", "خانه", "⌂"},
                 {"visit", "ویزیت", "✦"},
-                {"cart", "سبد", "🛒"},
+                {"showcase", "کالاها", "◈"},
+                {"cart", "سبد", "⊕"},
                 {"visitor_more", "بیشتر", "☰"}
         };
         for (String[] item : items) addVisitorDockItem(bar, item[0], item[1], item[2]);
@@ -2140,14 +2145,14 @@ public class MainActivity extends Activity {
 
     private void addVisitorDockItem(LinearLayout parent, String key, String label, String icon) {
         if (!canOpenPage(key)) return;
-        boolean center = "visit".equals(key);
+        boolean center = false;
         boolean active = key.equals(activePage) || ("visitor_dashboard".equals(key) && ("settings".equals(activePage) || "health".equals(activePage)));
         int accent = navAccent(key);
         float dockScale = visitorDockScale();
-        int bubbleSize = dp((center ? 62f : 50f) * dockScale);
-        int wrapW = dp((center ? 68f : 54f) * dockScale);
-        int wrapH = dp((center ? 66f : 54f) * dockScale);
-        int itemH = dp((center ? 86f : 78f) * dockScale);
+        int bubbleSize = dp(48f * dockScale);
+        int wrapW = dp(52f * dockScale);
+        int wrapH = dp(52f * dockScale);
+        int itemH = dp(76f * dockScale);
         LinearLayout item = new LinearLayout(this);
         item.setOrientation(LinearLayout.VERTICAL);
         item.setGravity(Gravity.CENTER);
@@ -2159,17 +2164,17 @@ public class MainActivity extends Activity {
         FrameLayout iconWrap = new FrameLayout(this);
         iconWrap.setClipChildren(false);
         iconWrap.setClipToPadding(false);
-        int bubbleAccent = active || center ? mix(accent, GOLD_2, center ? 0.18f : 0.08f) : mix(accent, SURFACE_2, isLightTheme() ? 0.72f : 0.58f);
-        TextView bubble = text(icon, (center ? 23.0f : 16.4f) * dockScale, active || center ? onColorFor(bubbleAccent) : alpha(TEXT, 225), Typeface.BOLD);
+        int bubbleAccent = active ? mix(accent, GOLD_2, 0.08f) : mix(accent, SURFACE_2, isLightTheme() ? 0.72f : 0.58f);
+        TextView bubble = text(icon, 16.4f * dockScale, active ? onColorFor(bubbleAccent) : alpha(TEXT, 225), Typeface.BOLD);
         bubble.setGravity(Gravity.CENTER);
         bubble.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, isLightTheme() ? 88 : 160));
         GradientDrawable circle = gradient(new int[]{
-                active || center ? mix(bubbleAccent, Color.WHITE, isLightTheme() ? 0.24f : 0.14f) : mix(SURFACE_2, bubbleAccent, isLightTheme() ? 0.08f : 0.16f),
-                active || center ? bubbleAccent : mix(SURFACE, bubbleAccent, isLightTheme() ? 0.04f : 0.10f)
-        }, GradientDrawable.Orientation.TL_BR, center ? 999 : 20);
-        circle.setStroke(dp(active ? 3 : 1), active || center ? alpha(mix(bubbleAccent, Color.WHITE, 0.34f), 200) : alpha(mix(bubbleAccent, Color.WHITE, 0.18f), 76));
+                active ? mix(bubbleAccent, Color.WHITE, isLightTheme() ? 0.24f : 0.14f) : mix(SURFACE_2, bubbleAccent, isLightTheme() ? 0.08f : 0.16f),
+                active ? bubbleAccent : mix(SURFACE, bubbleAccent, isLightTheme() ? 0.04f : 0.10f)
+        }, GradientDrawable.Orientation.TL_BR, 20);
+        circle.setStroke(dp(active ? 3 : 1), active ? alpha(mix(bubbleAccent, Color.WHITE, 0.34f), 200) : alpha(mix(bubbleAccent, Color.WHITE, 0.18f), 76));
         bubble.setBackground(circle);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) bubble.setElevation(dp(active || center ? 12 : 4));
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) bubble.setElevation(dp(active ? 10 : 4));
         iconWrap.addView(bubble, new FrameLayout.LayoutParams(bubbleSize, bubbleSize, Gravity.CENTER));
         if ("cart".equals(key) && cartHasItems()) {
             TextView badge = text(cartCountText(), 9.4f, Color.rgb(24, 14, 3), Typeface.BOLD);
@@ -2184,15 +2189,15 @@ public class MainActivity extends Activity {
             iconWrap.addView(badge, bp);
         }
         item.addView(iconWrap, new LinearLayout.LayoutParams(wrapW, wrapH));
-        String dockLabel = "cart".equals(key) && cartHasItems() ? "سبد " + cartCountText() : label;
-        TextView title = text(dockLabel, (active ? 10.8f : 9.7f) * dockScale, active ? mix(accent, GOLD_2, 0.18f) : alpha(TEXT, 205), Typeface.BOLD);
+        String dockLabel = label;
+        TextView title = text(dockLabel, (active ? 9.3f : 8.8f) * dockScale, active ? mix(accent, GOLD_2, 0.18f) : alpha(TEXT, 205), Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         title.setSingleLine(true);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
-        tp.setMargins(0, dp((center ? 0 : 2) * dockScale), 0, 0);
+        tp.setMargins(0, dp(2 * dockScale), 0, 0);
         item.addView(title, tp);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, itemH, center ? 1.12f : 1f);
-        lp.setMargins(dp(1.5f * dockScale), center ? 0 : dp(3 * dockScale), dp(1.5f * dockScale), 0);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, itemH, 1f);
+        lp.setMargins(dp(1.2f * dockScale), dp(3 * dockScale), dp(1.2f * dockScale), 0);
         parent.addView(item, lp);
     }
 
@@ -2804,21 +2809,21 @@ public class MainActivity extends Activity {
         LinearLayout c = card();
         c.setGravity(Gravity.CENTER);
         c.setPadding(dp(18), dp(18), dp(18), dp(18));
-        c.setBackground(gradient(new int[]{alpha(GOLD, 34), alpha(INFO, 22), alpha(SURFACE, 246)}, GradientDrawable.Orientation.TL_BR, 28));
+        c.setBackground(gradient(new int[]{alpha(GOLD_2, 44), alpha(INFO, 28), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 30));
 
         FrameLayout orb = new FrameLayout(this);
         View halo = new View(this);
         GradientDrawable haloBg = new GradientDrawable();
         haloBg.setShape(GradientDrawable.OVAL);
-        haloBg.setColor(alpha(GOLD_2, 35));
+        haloBg.setColor(alpha(GOLD_2, 42));
         halo.setBackground(haloBg);
         orb.addView(halo, new FrameLayout.LayoutParams(dp(86), dp(86), Gravity.CENTER));
 
-        TextView core = text("M\n◆", 17, ON_PRIMARY, Typeface.BOLD);
+        TextView core = text(VISITOR_EDITION ? "✦" : "M\n◆", VISITOR_EDITION ? 27 : 17, ON_PRIMARY, Typeface.BOLD);
         core.setGravity(Gravity.CENTER);
         core.setLineSpacing(0, 0.9f);
-        core.setShadowLayer(dp(5), 0, dp(2), alpha(Color.BLACK, 135));
-        core.setBackground(gradient(new int[]{GOLD_2, GOLD, mix(INFO, GOLD, 0.35f)}, GradientDrawable.Orientation.TL_BR, 999));
+        core.setShadowLayer(dp(5), 0, dp(2), alpha(Color.BLACK, 118));
+        core.setBackground(gradient(new int[]{mix(GOLD_2, Color.WHITE, .18f), GOLD, INFO}, GradientDrawable.Orientation.TL_BR, 999));
         orb.addView(core, new FrameLayout.LayoutParams(dp(66), dp(66), Gravity.CENTER));
 
         ProgressBar p = new ProgressBar(this);
@@ -2835,7 +2840,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2);
         tp.setMargins(0, dp(10), 0, 0);
         c.addView(t, tp);
-        TextView sub = text("داده‌ها با اتصال امن Meelano آماده می‌شوند؛ لطفاً چند لحظه صبر کنید…", 10.8f, MUTED, Typeface.NORMAL);
+        TextView sub = text(VISITOR_EDITION ? "اطلاعات ویزیت، کالا، مشتری و سبد در تجربه آبی Meelano آماده می‌شود…" : "داده‌ها با اتصال امن Meelano آماده می‌شوند؛ لطفاً چند لحظه صبر کنید…", 10.8f, MUTED, Typeface.NORMAL);
         sub.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2);
         sp.setMargins(0, dp(3), 0, dp(12));
@@ -2844,10 +2849,17 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER);
-        addLoadingChip(row, "فروش", "↗", GOLD, 0);
-        addLoadingChip(row, "بانک", "◉", INFO, 120);
-        addLoadingChip(row, "چک", "✓", WARNING, 240);
-        addLoadingChip(row, "مشتری", "م", SUCCESS, 360);
+        if (VISITOR_EDITION) {
+            addLoadingChip(row, "خانه", "⌂", GOLD, 0);
+            addLoadingChip(row, "ویزیت", "✦", INFO, 120);
+            addLoadingChip(row, "کالا", "◈", navAccent("showcase"), 240);
+            addLoadingChip(row, "سبد", "⊕", navAccent("cart"), 360);
+        } else {
+            addLoadingChip(row, "فروش", "↗", GOLD, 0);
+            addLoadingChip(row, "بانک", "◉", INFO, 120);
+            addLoadingChip(row, "چک", "✓", WARNING, 240);
+            addLoadingChip(row, "مشتری", "م", SUCCESS, 360);
+        }
         c.addView(row, new LinearLayout.LayoutParams(-1, -2));
         addSkeletonBars(c);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
@@ -7351,29 +7363,30 @@ public class MainActivity extends Activity {
 
     private void loadCustomers(String query, String filter, boolean force) {
         String q = query == null ? "" : query;
-        String f = filter == null || filter.trim().isEmpty() ? "all" : filter;
+        String rawFilter = filter == null || filter.trim().isEmpty() ? "all" : filter;
+        String f = VISITOR_EDITION && !("all".equals(rawFilter) || "route_today".equals(rawFilter)) ? "all" : rawFilter;
         String previousFilter = customersCacheFilter == null ? "all" : customersCacheFilter;
         if (customersSortOrder == null || customersSortOrder.trim().isEmpty() || !f.equals(previousFilter)) customersSortOrder = defaultCustomerSort(f);
-        if (!force && customersCacheJson != null && !customersCacheJson.trim().isEmpty() && q.equals(customersCacheQuery)) {
+        if (!force && customersCacheJson != null && !customersCacheJson.trim().isEmpty() && (VISITOR_EDITION || q.equals(customersCacheQuery))) {
             try {
                 JSONArray cached = new JSONArray(customersCacheJson);
-                if (customersCacheAllRows || f.equals(customersCacheFilter)) { customersCacheFilter = f; renderCustomersFromJson(cached, q, f); return; }
+                if (VISITOR_EDITION || customersCacheAllRows || f.equals(customersCacheFilter)) { customersCacheFilter = f; renderCustomersFromJson(cached, q, f); return; }
             } catch (Exception ignored) { }
         }
         content.removeAllViews();
         if (!VISITOR_EDITION) addHero("مشتریان", "اطلاعات مشتریان ثابت می‌ماند؛ برای داده جدید از تازه‌سازی دستی استفاده کنید." + (isLatifiCustomer08Account() ? " • محدوده latifi: فقط نام‌های دارای 08" : ""));
         addManualRefreshPanel("customers", "بروزرسانی دستی مشتریان", "بازگشت از گردش حساب دیگر لیست را دوباره فراخوانی نمی‌کند", () -> loadCustomers(q, f, true));
-        addSearchBox("جستجوی مشتری…", q, qq -> loadCustomers(qq, f, true));
+        addSearchBox("جستجوی مشتری…", q, qq -> loadCustomers(qq, f, false));
         addCustomerFilterChips(q, f, new JSONArray());
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
         content.addView(list, new LinearLayout.LayoutParams(-1, -2));
         addLoading(list, "در حال دریافت مشتریان…");
-        runDb(() -> queryCustomers(q, "all"), new DbCallback() {
+        runDb(() -> queryCustomers(VISITOR_EDITION ? "" : q, "all"), new DbCallback() {
             @Override public void ok(String body) {
                 try {
                     customersCacheJson = body;
-                    customersCacheQuery = q;
+                    customersCacheQuery = VISITOR_EDITION ? "" : q;
                     customersCacheFilter = f;
                     customersCacheAllRows = true;
                     markRefresh("customers");
@@ -7386,19 +7399,24 @@ public class MainActivity extends Activity {
 
     private void renderCustomersFromJson(JSONArray rows, String query, String filter) {
         content.removeAllViews();
+        String activeFilter = filter == null || filter.trim().isEmpty() ? "all" : filter;
+        if (VISITOR_EDITION && !("all".equals(activeFilter) || "route_today".equals(activeFilter))) activeFilter = "all";
         if (!VISITOR_EDITION) addHero("مشتریان", "فیلتر هوشمند بدهکاران، بستانکاران، بدون خرید و پرخریدها" + (isLatifiCustomer08Account() ? " • فقط مشتریان دارای 08 در نام" : ""));
-        addManualRefreshPanel("customers", "بروزرسانی دستی مشتریان", "آخرین لیست ثابت نگه داشته شده است", () -> loadCustomers(query, filter, true));
-        addSearchBox("جستجوی مشتری…", query, q -> loadCustomers(q, filter, true));
-        JSONArray allRows = rows == null ? new JSONArray() : rows;
-        addCustomerFilterChips(query, filter, allRows);
+        final String ff = activeFilter;
+        addManualRefreshPanel("customers", "بروزرسانی دستی مشتریان", "آخرین لیست ثابت نگه داشته شده است", () -> loadCustomers(query, ff, true));
+        addSearchBox("جستجوی مشتری…", query, q -> loadCustomers(q, ff, false));
+        JSONArray allRows = customerSearchFilteredRows(rows == null ? new JSONArray() : rows, query);
+        addCustomerFilterChips(query, ff, allRows);
         if (allRows.length() == 0) { LinearLayout empty = new LinearLayout(this); empty.setOrientation(LinearLayout.VERTICAL); content.addView(empty, new LinearLayout.LayoutParams(-1, -2)); addEmptyTo(empty, "مشتری مطابق جستجو پیدا نشد."); return; }
-        JSONArray visibleRows = customerFilteredRows(allRows, filter);
+        JSONArray visibleRows = customerFilteredRows(allRows, ff);
         if (visibleRows.length() == 0) { LinearLayout empty = new LinearLayout(this); empty.setOrientation(LinearLayout.VERTICAL); content.addView(empty, new LinearLayout.LayoutParams(-1, -2)); addEmptyTo(empty, "در این دسته مشتری قابل نمایش وجود ندارد."); return; }
-        if (VISITOR_EDITION) addVisitorCustomerMissionPanel(query, filter, visibleRows);
-        else addCustomerSortPanel(query, filter, visibleRows);
+        if (VISITOR_EDITION) addVisitorCustomerMissionPanel(query, ff, visibleRows);
+        else addCustomerSortPanel(query, ff, visibleRows);
         LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list, new LinearLayout.LayoutParams(-1, -2));
-        JSONArray sorted = sortedCustomers(visibleRows, filter, customersSortOrder);
-        for (int i = 0; i < sorted.length(); i++) addCustomerCard(list, sorted.optJSONObject(i));
+        JSONArray sorted = sortedCustomers(visibleRows, ff, customersSortOrder);
+        int displayLimit = VISITOR_EDITION ? Math.min(5, sorted.length()) : sorted.length();
+        for (int i = 0; i < displayLimit; i++) addCustomerCard(list, sorted.optJSONObject(i));
+        if (VISITOR_EDITION && sorted.length() > displayLimit) addEmptyTo(list, "برای خلوت ماندن صفحه فقط ۵ مشتری نمایش داده شد؛ برای مشتری دیگر نام یا کد را جستجو کنید.");
     }
 
     private void addVisitorCustomerMissionPanel(String query, String filter, JSONArray rows) {
@@ -7668,6 +7686,26 @@ public class MainActivity extends Activity {
         return out;
     }
 
+    private JSONArray customerSearchFilteredRows(JSONArray rows, String query) {
+        JSONArray out = new JSONArray();
+        if (rows == null) return out;
+        String q = query == null ? "" : query.trim();
+        if (q.isEmpty()) return rows;
+        List<String> variants = searchVariants(q);
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject r = rows.optJSONObject(i);
+            if (r == null) continue;
+            String hay = normalizeDigits((r.optString("نام", "") + " " + r.optString("کد", "") + " " + r.optString("همراه", "") + " " + r.optString("تلفن", "") + " " + r.optString("تلفن۲", "") + " " + r.optString("نشانی", "")).toLowerCase(Locale.US));
+            boolean match = false;
+            for (String v : variants) {
+                String needle = normalizeDigits(v == null ? "" : v).toLowerCase(Locale.US).trim();
+                if (!needle.isEmpty() && hay.contains(needle)) { match = true; break; }
+            }
+            if (match) out.put(r);
+        }
+        return out;
+    }
+
     private int customerFilterCount(JSONArray rows, String filter) {
         int count = 0;
         if (rows != null) for (int i = 0; i < rows.length(); i++) if (customerMatchesFilter(rows.optJSONObject(i), filter)) count++;
@@ -7702,8 +7740,8 @@ public class MainActivity extends Activity {
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.setPadding(dp(10), 0, dp(10), 0);
-        copy.addView(text("فیلترهای هوشمند مشتری", 13.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        copy.addView(text("مشتری‌ها بر اساس مانده و وضعیت خرید، همین‌جا و بدون بارگذاری دوباره دسته‌بندی می‌شوند.", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(VISITOR_EDITION ? "جستجوی سریع مشتری" : "فیلترهای هوشمند مشتری", 13.5f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text(VISITOR_EDITION ? "ابتدا فقط ۵ مشتری نمایش داده می‌شود؛ نام مشتری را بزنید تا از لیست ذخیره‌شده سریع پیدا شود." : "مشتری‌ها بر اساس مانده و وضعیت خرید، همین‌جا و بدون بارگذاری دوباره دسته‌بندی می‌شوند.", 10.2f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         titleRow.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         panel.addView(titleRow, new LinearLayout.LayoutParams(-1, -2));
 
@@ -7713,7 +7751,7 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER_VERTICAL);
         final JSONArray rowsForFilter = allRows == null ? new JSONArray() : allRows;
-        String[][] filters = {{"all","همه"},{"debt","بدهکار"},{"top","پرخرید"},{"inactive","کم‌تحرک"},{"route_today","مسیر امروز"},{"no_buy","بدون خرید"},{"credit","بستانکار"},{"settled","بدون حساب"}};
+        String[][] filters = VISITOR_EDITION ? new String[][]{{"all","همه"},{"route_today","مسیر امروز"}} : new String[][]{{"all","همه"},{"debt","بدهکار"},{"top","پرخرید"},{"inactive","کم‌تحرک"},{"route_today","مسیر امروز"},{"no_buy","بدون خرید"},{"credit","بستانکار"},{"settled","بدون حساب"}};
         for (String[] f : filters) {
             final String nextFilter = f[0];
             String label = f[1] + " " + formatNumber(customerFilterCount(rowsForFilter, nextFilter));
@@ -7791,8 +7829,8 @@ public class MainActivity extends Activity {
             String saleShmo = resolveFlexible(saleCols, "shmo", "SHMO", "CustomerCode", "customer");
             String saleAmountCol = resolveFlexible(saleCols, "all", "all_fel", "amount", "total", "Total", "mablagh", "مبلغ");
             String saleNumberCol = resolveFlexible(saleCols, "shfacfo", "shfac", "factor_no", "invoice_no", "number", "serial", "شماره");
-            boolean canSales = saleShmo != null && saleAmountCol != null;
-            boolean canChecks = hasCol(checkCols, "shmo") && hasCol(checkCols, "getchkmab");
+            boolean canSales = !VISITOR_EDITION && saleShmo != null && saleAmountCol != null;
+            boolean canChecks = !VISITOR_EDITION && hasCol(checkCols, "shmo") && hasCol(checkCols, "getchkmab");
             String saleDate = resolveFlexible(saleCols, "date", "t_date", "Date", "tarikh", "تاریخ");
             String saleInner = canSales ? "WHERE TRY_CONVERT(nvarchar(100),x.[" + saleShmo + "])=TRY_CONVERT(nvarchar(100),c.[" + shmo + "])" + activeAnd(saleCols, "x") : "";
             String saleSoft = softDeleteCondition(saleCols, "x"); if (!saleSoft.isEmpty()) saleInner += " AND " + saleSoft;
@@ -7805,7 +7843,8 @@ public class MainActivity extends Activity {
             if ("settled".equals(filter)) where.add("ABS(ISNULL(" + balanceExpr + ",0))<=0.0001");
             if ("no_buy".equals(filter) && canSales) where.add("ISNULL(sf.sales_count,0)=0");
             String order = "top".equals(filter) ? " ORDER BY جمع_فروش DESC, نام" : ("debt".equals(filter) ? " ORDER BY مانده DESC, نام" : " ORDER BY نام, کد");
-            String sql = "SELECT TOP (350) " + join(select, ",") + " FROM dbo.[CUSTOMERS] c " + saleApply + checkApply +
+            String topClause = VISITOR_EDITION ? "" : "TOP (350) ";
+            String sql = "SELECT " + topClause + join(select, ",") + " FROM dbo.[CUSTOMERS] c " + saleApply + checkApply +
                     (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + order;
             try (PreparedStatement ps = c.prepareStatement(sql)) {
                 setParams(ps, params);
@@ -8425,19 +8464,24 @@ public class MainActivity extends Activity {
     }
 
 
-    private void loadVisitorDashboard() {
+    private void loadVisitorDashboard() { loadVisitorDashboard(false); }
+
+    private void loadVisitorDashboard(boolean force) {
+        if (VISITOR_EDITION && !force && visitorDashboardCacheJson != null && !visitorDashboardCacheJson.trim().isEmpty()) {
+            try { renderVisitorDashboard(new JSONObject(visitorDashboardCacheJson)); return; } catch (Exception ignored) { }
+        }
         content.removeAllViews();
         if (!VISITOR_EDITION) {
             addHero("داشبورد ویزیتور", "فروش روزانه، اهداف، وضعیت مشتریان و مسیر اقدام سریع برای ویزیتور");
-            addManualRefreshPanel("visitor_dashboard", "بروزرسانی داشبورد ویزیتور", "اطلاعات اختصاصی کاربر فعلی", () -> loadVisitorDashboard());
+            addManualRefreshPanel("visitor_dashboard", "بروزرسانی داشبورد ویزیتور", "اطلاعات اختصاصی کاربر فعلی", () -> loadVisitorDashboard(true));
         }
-        addLoading(content, "در حال ساخت داشبورد ویزیتور…");
+        addLoading(content, "در حال آماده‌سازی خانه ویزیتور…");
         runDb(this::queryVisitorDashboardSql, new DbCallback() {
             @Override public void ok(String body) {
-                try { renderVisitorDashboard(new JSONObject(body)); markRefresh("visitor_dashboard"); }
-                catch (Exception e) { showPageError("داشبورد ویزیتور", e, () -> loadVisitorDashboard()); }
+                try { if (VISITOR_EDITION) visitorDashboardCacheJson = body; renderVisitorDashboard(new JSONObject(body)); markRefresh("visitor_dashboard"); }
+                catch (Exception e) { showPageError("داشبورد ویزیتور", e, () -> loadVisitorDashboard(true)); }
             }
-            @Override public void fail(Exception e) { showPageError("داشبورد ویزیتور", e, () -> loadVisitorDashboard()); }
+            @Override public void fail(Exception e) { showPageError("داشبورد ویزیتور", e, () -> loadVisitorDashboard(true)); }
         });
     }
 
@@ -8684,7 +8728,7 @@ public class MainActivity extends Activity {
 
         LinearLayout quick = new LinearLayout(this); quick.setOrientation(LinearLayout.HORIZONTAL);
         Button cart = themedActionButton("سبد " + cartCountText(), navAccent("cart"), false); cart.setTextSize(9.4f); cart.setOnClickListener(v -> showApp("cart"));
-        Button refresh = themedActionButton("بروزرسانی دستی", navAccent("visitor_dashboard"), false); refresh.setTextSize(9.4f); refresh.setOnClickListener(v -> loadVisitorDashboard());
+        Button refresh = themedActionButton("بروزرسانی دستی", navAccent("visitor_dashboard"), false); refresh.setTextSize(9.4f); refresh.setOnClickListener(v -> loadVisitorDashboard(true));
         quick.addView(cart, weightedButtonLp()); quick.addView(refresh, weightedButtonLp());
         LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(-1, -2); qp.setMargins(0, dp(9), 0, 0); hero.addView(quick, qp);
 
@@ -9461,7 +9505,7 @@ public class MainActivity extends Activity {
         if (!canUsePermission("showcase")) { showApp("dashboard"); return; }
         String q = query == null ? "" : query;
         String f = filter == null || filter.trim().isEmpty() ? "all" : filter;
-        if (!force && showcaseCacheJson != null && !showcaseCacheJson.trim().isEmpty() && q.equals(showcaseCacheQuery) && f.equals(showcaseCacheFilter)) {
+        if (!force && showcaseCacheJson != null && !showcaseCacheJson.trim().isEmpty() && (VISITOR_EDITION || (q.equals(showcaseCacheQuery) && f.equals(showcaseCacheFilter)))) {
             try { renderShowcaseProducts(new JSONArray(showcaseCacheJson), q, f, Math.max(VISITOR_EDITION ? visitorShowcasePageSize() : (compactUi() ? 18 : 24), showcaseShownLimit)); return; } catch (Exception ignored) { }
         }
         content.removeAllViews();
@@ -9474,12 +9518,12 @@ public class MainActivity extends Activity {
         }
         LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL); content.addView(list, new LinearLayout.LayoutParams(-1, -2));
         if (VISITOR_EDITION) addVisitorShowcaseSkeleton(list); else addLoading(list, "در حال آماده‌سازی کالاها…");
-        runDb(() -> queryProducts(q, f), new DbCallback() {
+        runDb(() -> queryProducts(VISITOR_EDITION ? "" : q, VISITOR_EDITION ? "all" : f), new DbCallback() {
             @Override public void ok(String body) {
                 try {
                     showcaseCacheJson = body;
-                    showcaseCacheQuery = q;
-                    showcaseCacheFilter = f;
+                    showcaseCacheQuery = VISITOR_EDITION ? "" : q;
+                    showcaseCacheFilter = VISITOR_EDITION ? "all" : f;
                     markRefresh("showcase");
                     renderShowcaseProducts(new JSONArray(body), q, f);
                 }
@@ -9497,7 +9541,7 @@ public class MainActivity extends Activity {
     private void rerenderShowcaseFast(String query, String filter) {
         String q = query == null ? "" : query;
         String f = filter == null || filter.trim().isEmpty() ? "all" : filter;
-        if (showcaseCacheJson != null && !showcaseCacheJson.trim().isEmpty() && q.equals(showcaseCacheQuery) && f.equals(showcaseCacheFilter)) {
+        if (showcaseCacheJson != null && !showcaseCacheJson.trim().isEmpty() && (VISITOR_EDITION || (q.equals(showcaseCacheQuery) && f.equals(showcaseCacheFilter)))) {
             try { renderShowcaseProducts(new JSONArray(showcaseCacheJson), q, f, Math.max(VISITOR_EDITION ? visitorShowcasePageSize() : (compactUi() ? 18 : 24), showcaseShownLimit)); return; } catch (Exception ignored) { }
         }
         loadShowcase(q, f);
@@ -9713,6 +9757,43 @@ public class MainActivity extends Activity {
         return out;
     }
 
+    private JSONArray visitorProductSearchFilteredRows(JSONArray rows, String query, String filter) {
+        JSONArray out = new JSONArray();
+        String q = query == null ? "" : query.trim();
+        String f = filter == null || filter.trim().isEmpty() ? "all" : filter;
+        List<String> variants = searchVariants(q);
+        for (int i = 0; rows != null && i < rows.length(); i++) {
+            JSONObject r = rows.optJSONObject(i);
+            if (r == null) continue;
+            if (!q.isEmpty()) {
+                String hay = normalizeDigits((r.optString("نام", "") + " " + r.optString("کد", "") + " " + r.optString("بارکد", "") + " " + r.optString("گروه", "") + " " + r.optString("واحد", "")).toLowerCase(Locale.US));
+                boolean match = false;
+                for (String v : variants) {
+                    String needle = normalizeDigits(v == null ? "" : v).toLowerCase(Locale.US).trim();
+                    if (!needle.isEmpty() && hay.contains(needle)) { match = true; break; }
+                }
+                if (!match) continue;
+            }
+            double stock = jsonDouble(r, "موجودی", 0);
+            double p1 = jsonDouble(r, "قیمت_فروش", 0);
+            double p2 = jsonDouble(r, "قیمت_فروش۲", 0);
+            double sold = jsonDouble(r, "تعداد_فروش", 0) + jsonDouble(r, "مبلغ_فروش", 0);
+            double bought = jsonDouble(r, "تعداد_خرید", 0) + jsonDouble(r, "مبلغ_خرید", 0);
+            double pack = jsonDouble(r, "تعداد_در_بسته", 1);
+            String img = r.optString("تصویر", "");
+            if ("stock".equals(f) && stock <= 0) continue;
+            if ("low".equals(f) && stock > 0) continue;
+            if ("idle".equals(f) && (sold > 0 || bought > 0)) continue;
+            if ("priced".equals(f) && !(p1 > 0 || p2 > 0)) continue;
+            if ("price2".equals(f) && !(p2 > 0)) continue;
+            if ("image".equals(f) && (img == null || img.trim().length() <= 20)) continue;
+            if ("package".equals(f) && !(pack > 1)) continue;
+            if ("top".equals(f) && !(sold > 0)) continue;
+            out.put(r);
+        }
+        return out;
+    }
+
     private void showVisitorAddProductDialog(String query, String filter) {
         int accent = navAccent("showcase");
         LinearLayout box = new LinearLayout(this); box.setOrientation(LinearLayout.VERTICAL); box.setPadding(dp(12), dp(10), dp(12), dp(8));
@@ -9788,8 +9869,11 @@ public class MainActivity extends Activity {
     }
 
     private void renderShowcaseProducts(JSONArray rows, String query, String filter, int requestedLimit) {
-        if (VISITOR_EDITION) rows = mergeVisitorLocalProducts(rows, query, filter);
-        if (VISITOR_EDITION) normalizeVisitorExactPrices(rows);
+        if (VISITOR_EDITION) {
+            rows = mergeVisitorLocalProducts(rows, "", "all");
+            rows = visitorProductSearchFilteredRows(rows, query, filter);
+            normalizeVisitorExactPrices(rows);
+        }
         content.removeAllViews();
         if (VISITOR_EDITION) {
             addVisitorShowcaseSmartControls(rows, query, filter, false);
@@ -10212,7 +10296,7 @@ public class MainActivity extends Activity {
         if (r == null) return;
         if (VISITOR_EDITION) { addVisitorShowcaseProductCard(parent, r, index, query, filter); return; }
         ProductVisualProfile vp = productVisualProfile(r);
-        int accent = vp.accent;
+        int accent = navAccent("showcase");
         boolean selected = cartFindIndex(safeDisplayText(r.opt("کد"), "")) >= 0;
         boolean price1Ok = hasPositiveNumber(r, "قیمت_فروش");
         boolean price2Ok = hasPositiveNumber(r, "قیمت_فروش۲");
@@ -10396,7 +10480,7 @@ public class MainActivity extends Activity {
     private void showProductDetailDialog(JSONObject r, String query, String filter) {
         if (r == null) return;
         ProductVisualProfile vp = productVisualProfile(r);
-        int accent = vp.accent;
+        int accent = navAccent("showcase");
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setPadding(dp(12), dp(10), dp(12), dp(8));
@@ -10412,14 +10496,14 @@ public class MainActivity extends Activity {
 
         boolean price2Ok = hasPositiveNumber(r, "قیمت_فروش۲");
         LinearLayout prices = new LinearLayout(this); prices.setOrientation(LinearLayout.HORIZONTAL);
-        prices.addView(showcaseMetric("قیمت فروش ۱", moneyOrDash(r, "قیمت_فروش"), GOLD, true), showcaseCellLp(1f, 66));
-        prices.addView(showcaseMetric("قیمت فروش ۲ ✦", price2Ok ? moneyOrDash(r, "قیمت_فروش۲") : "—", WARNING, true), showcaseCellLp(1.1f, 66));
+        prices.addView(showcaseMetric("قیمت فروش ۱", moneyOrDash(r, "قیمت_فروش"), accent, true), showcaseCellLp(1f, 66));
+        prices.addView(showcaseMetric("قیمت فروش ۲ ✦", price2Ok ? moneyOrDash(r, "قیمت_فروش۲") : "—", GOLD_2, true), showcaseCellLp(1.1f, 66));
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-1, -2); pp.setMargins(0, dp(12), 0, 0); box.addView(prices, pp);
         String p2quality = price2QualityText(r);
-        TextView p2Status = text(price2Ok ? (p2quality.isEmpty() ? "این کالا با قیمت فروش ۲ آماده افزودن به سبد است." : p2quality) : "برای این کالا قیمت فروش ۲ ثبت نشده یا مقدار آن صفر است.", 10.0f, price2Ok ? WARNING : MUTED, Typeface.BOLD);
+        TextView p2Status = text(price2Ok ? (p2quality.isEmpty() ? "این کالا با قیمت فروش ۲ آماده افزودن به سبد است." : p2quality) : "برای این کالا قیمت فروش ۲ ثبت نشده یا مقدار آن صفر است.", 10.0f, price2Ok ? GOLD_2 : MUTED, Typeface.BOLD);
         p2Status.setGravity(Gravity.CENTER);
         p2Status.setPadding(dp(8), dp(6), dp(8), dp(6));
-        p2Status.setBackground(roundedStroke(alpha(price2Ok ? WARNING : MUTED, isLightTheme() ? 16 : 28), 15, alpha(price2Ok ? WARNING : MUTED, 66)));
+        p2Status.setBackground(roundedStroke(alpha(price2Ok ? GOLD_2 : MUTED, isLightTheme() ? 16 : 28), 15, alpha(price2Ok ? GOLD_2 : MUTED, 66)));
         LinearLayout.LayoutParams p2sp = new LinearLayout.LayoutParams(-1, -2); p2sp.setMargins(0, dp(7), 0, 0); box.addView(p2Status, p2sp);
 
         LinearLayout info1 = new LinearLayout(this); info1.setOrientation(LinearLayout.HORIZONTAL);
@@ -10448,7 +10532,7 @@ public class MainActivity extends Activity {
 
             LinearLayout actions = new LinearLayout(this); actions.setOrientation(LinearLayout.HORIZONTAL);
             Button add1 = themedActionButton("افزودن قیمت ۱", navAccent("cart"), true); add1Ref[0] = add1;
-            Button add2 = themedActionButton(price2Ok ? "افزودن قیمت ۲ ✦" : "قیمت ۲ ندارد", WARNING, price2Ok); add2Ref[0] = add2;
+            Button add2 = themedActionButton(price2Ok ? "افزودن قیمت ۲ ✦" : "قیمت ۲ ندارد", GOLD_2, price2Ok); add2Ref[0] = add2;
             boolean p1 = hasPositiveNumber(r, "قیمت_فروش");
             add1.setEnabled(p1); add1.setAlpha(p1 ? 1f : 0.52f); add2.setEnabled(price2Ok); add2.setAlpha(price2Ok ? 1f : 0.52f);
             actions.addView(add1, showcaseButtonLp(1f)); actions.addView(add2, showcaseButtonLp(1f));
@@ -10497,7 +10581,7 @@ public class MainActivity extends Activity {
                 })
                 .setNegativeButton("بستن", null)
                 .create();
-        dlg.setOnShowListener(d -> styleMeelanoDialog(dlg, productVisualProfile(product).accent));
+        dlg.setOnShowListener(d -> styleMeelanoDialog(dlg, navAccent("showcase")));
         dlg.show();
     }
 
@@ -11317,9 +11401,16 @@ public class MainActivity extends Activity {
         dlg.show();
     }
 
-    private void showCartCustomerPicker(String search) {
-        runDb(() -> queryCartCustomers(search), new DbCallback() {
-            @Override public void ok(String body) { try { renderCartCustomerPicker(search, new JSONArray(body)); } catch (Exception e) { showPageError("انتخاب مشتری", e, () -> renderCartPage()); } }
+    private void showCartCustomerPicker(String search) { showCartCustomerPicker(search, false); }
+
+    private void showCartCustomerPicker(String search, boolean force) {
+        String q = search == null ? "" : search.trim();
+        String key = normalizeDigits(q).toLowerCase(Locale.US);
+        if (!force && cartCustomerPickerCache.containsKey(key)) {
+            try { renderCartCustomerPicker(q, new JSONArray(cartCustomerPickerCache.get(key))); return; } catch (Exception ignored) { }
+        }
+        runDb(() -> queryCartCustomers(q), new DbCallback() {
+            @Override public void ok(String body) { try { cartCustomerPickerCache.put(key, body); renderCartCustomerPicker(q, new JSONArray(body)); } catch (Exception e) { showPageError("انتخاب مشتری", e, () -> renderCartPage()); } }
             @Override public void fail(Exception e) { showPageError("انتخاب مشتری", e, () -> renderCartPage()); }
         });
     }
@@ -11360,7 +11451,7 @@ public class MainActivity extends Activity {
         head.addView(cart3dIcon("♙", accent, 18f), new LinearLayout.LayoutParams(dp(48), dp(48)));
         LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(10), 0, dp(8), 0);
         copy.addView(text("انتخاب مشتری سبد", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        copy.addView(text("هماهنگ با تم فعال؛ فقط مشتریان مجاز ویزیتور نمایش داده می‌شوند.", 9.7f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        copy.addView(text("۵ مشتری اول نمایش داده می‌شود؛ برای مشتری دیگر نام، کد یا موبایل را جستجو کنید.", 9.7f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         box.addView(head, new LinearLayout.LayoutParams(-1, -2));
 
@@ -11368,13 +11459,17 @@ public class MainActivity extends Activity {
         q.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
         LinearLayout.LayoutParams qp = new LinearLayout.LayoutParams(-1, dp(50)); qp.setMargins(0, dp(10), 0, 0); box.addView(q, qp);
         AlertDialog[] dlg = new AlertDialog[1];
+        LinearLayout searchActions = new LinearLayout(this); searchActions.setOrientation(LinearLayout.HORIZONTAL);
         Button searchBtn = themedActionButton("جستجوی مشتری", accent, true);
         searchBtn.setOnClickListener(v -> { if (dlg[0] != null) dlg[0].dismiss(); showCartCustomerPicker(q.getText().toString().trim()); });
+        Button refreshBtn = themedActionButton("بروزرسانی", accent, false);
+        refreshBtn.setOnClickListener(v -> { if (dlg[0] != null) dlg[0].dismiss(); showCartCustomerPicker(q.getText().toString().trim(), true); });
         q.setOnEditorActionListener((v, actionId, event) -> { if (actionId == EditorInfo.IME_ACTION_SEARCH) { if (dlg[0] != null) dlg[0].dismiss(); showCartCustomerPicker(q.getText().toString().trim()); return true; } return false; });
-        LinearLayout.LayoutParams sbp = new LinearLayout.LayoutParams(-1, dp(44)); sbp.setMargins(0, dp(7), 0, 0); box.addView(searchBtn, sbp);
+        searchActions.addView(searchBtn, weightedButtonLp()); searchActions.addView(refreshBtn, weightedButtonLp());
+        LinearLayout.LayoutParams sbp = new LinearLayout.LayoutParams(-1, -2); sbp.setMargins(0, dp(7), 0, 0); box.addView(searchActions, sbp);
 
         final JSONArray pickerRows = rows == null ? new JSONArray() : rows;
-        TextView fastHint = text("نمای سریع مشتریان: حداکثر ۳۰ ردیف سبک نمایش داده می‌شود؛ برای جلوگیری از هنگ، گزارش فروش مشتری در این پنجره خوانده نمی‌شود.", 9.4f, MUTED, Typeface.BOLD);
+        TextView fastHint = text("نمای سریع مشتریان: فقط ۵ ردیف سبک نمایش داده می‌شود؛ برای دسترسی به مشتری دیگر جستجو کنید.", 9.4f, MUTED, Typeface.BOLD);
         fastHint.setPadding(dp(8), dp(7), dp(8), dp(7));
         fastHint.setBackground(roundedStroke(alpha(accent, isLightTheme() ? 14 : 22), 16, alpha(accent, 58)));
         LinearLayout.LayoutParams fhp = new LinearLayout.LayoutParams(-1, -2); fhp.setMargins(0, dp(8), 0, 0); box.addView(fastHint, fhp);
@@ -11383,7 +11478,7 @@ public class MainActivity extends Activity {
         LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL);
         JSONArray displayRows = pickerRows;
         if (displayRows.length() == 0) addEmptyTo(list, "مشتری مطابق این جستجو پیدا نشد.");
-        int maxRows = Math.min(displayRows.length(), 30);
+        int maxRows = Math.min(displayRows.length(), 5);
         for (int i = 0; i < maxRows; i++) {
             JSONObject r = displayRows.optJSONObject(i); if (r == null) continue;
             boolean risky = r.optDouble("balance", 0) > 0 || r.optBoolean("blocked", false);
@@ -11443,7 +11538,7 @@ public class MainActivity extends Activity {
                 for (String sv : searchVariants(search.trim())) for (String col : new String[]{shmo, name, phone}) if (col != null) { parts.add("TRY_CONVERT(nvarchar(400),c.[" + col + "]) LIKE N'%' + ? + N'%'"); params.add(sv); }
                 if (!parts.isEmpty()) where.add("(" + join(parts, " OR ") + ")");
             }
-            String sql = "SELECT TOP (30) TRY_CONVERT(nvarchar(100),c.[" + shmo + "]), " + label + ", " +
+            String sql = "SELECT TOP (5) TRY_CONVERT(nvarchar(100),c.[" + shmo + "]), " + label + ", " +
                     (balance == null ? "CAST(0 AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),c.[" + balance + "])") + ", " +
                     (phone == null ? "CAST(NULL AS nvarchar(100))" : "TRY_CONVERT(nvarchar(100),c.[" + phone + "])") + ", " +
                     (credit == null ? "CAST(0 AS decimal(19,2))" : "TRY_CONVERT(decimal(19,2),c.[" + credit + "])") + ", " +
@@ -13055,14 +13150,15 @@ public class MainActivity extends Activity {
             if ("image".equals(filter) && imageCol != null) where.add(imageBinary ? "DATALENGTH(i.[" + imageCol + "])>20" : "LEN(LTRIM(RTRIM(TRY_CONVERT(nvarchar(max),i.[" + imageCol + "]))))>20");
             if ("package".equals(filter) && packCount != null) where.add("ISNULL(" + sqlNumberExpr("i", packCount, "decimal(19,3)") + ",0)>1");
             String order = "top".equals(filter) ? " ORDER BY مبلغ_فروش DESC, نام" : ("low".equals(filter) ? " ORDER BY موجودی ASC, نام" : ("price2".equals(filter) ? " ORDER BY قیمت_فروش۲ DESC, نام" : " ORDER BY نام, کد"));
-            String sql = "SELECT TOP (160) " + join(select, ",") + " FROM dbo.[inventory] i " + unitJoin + groupJoin + saleApply + buyApply + priceApply + stockApply +
+            int productTopLimit = VISITOR_EDITION ? 320 : 160;
+            String sql = "SELECT TOP (" + productTopLimit + ") " + join(select, ",") + " FROM dbo.[inventory] i " + unitJoin + groupJoin + saleApply + buyApply + priceApply + stockApply +
                     (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + order;
             try {
                 return executeRowsJson(c, sql, params);
             } catch (Exception stockEx) {
                 if (relStockTable == null) throw stockEx;
                 String fallbackStockApply = relatedStockApply(null, null, null, null, null, null, null, null, "i", shka, "stx");
-                String fallbackSql = "SELECT TOP (160) " + join(select, ",") + " FROM dbo.[inventory] i " + unitJoin + groupJoin + saleApply + buyApply + priceApply + fallbackStockApply +
+                String fallbackSql = "SELECT TOP (" + productTopLimit + ") " + join(select, ",") + " FROM dbo.[inventory] i " + unitJoin + groupJoin + saleApply + buyApply + priceApply + fallbackStockApply +
                         (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + order;
                 return executeRowsJson(c, fallbackSql, params);
             }

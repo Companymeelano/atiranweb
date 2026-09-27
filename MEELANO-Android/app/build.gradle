@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.visitor'
         minSdk 24
         targetSdk 35
-        versionCode 82
-        versionName '4.4.18-blue-visitor-product-cart-icon'
+        versionCode 83
+        versionName '4.4.19-bright-blue-visitor-cache-icon'
     }
 
     compileOptions {
