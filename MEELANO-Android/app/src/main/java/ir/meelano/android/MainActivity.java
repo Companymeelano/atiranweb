@@ -1003,9 +1003,7 @@ public class MainActivity extends Activity {
             identity.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
             identity.setTextDirection(View.TEXT_DIRECTION_RTL);
         }
-        GradientDrawable bg = gradient(new int[]{alpha(Color.rgb(8, 7, 5), 248), alpha(mix(GOLD, Color.rgb(26, 18, 7), 0.34f), 238), alpha(Color.rgb(3, 3, 3), 246)}, GradientDrawable.Orientation.RIGHT_LEFT, 26);
-        bg.setStroke(dp(1), alpha(GOLD_2, 152));
-        identity.setBackground(bg);
+        identity.setBackground(unifiedCardBg(GOLD, 26, false));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) identity.setElevation(dp(10));
 
         FrameLayout mark = new FrameLayout(this);
@@ -1317,6 +1315,26 @@ public class MainActivity extends Activity {
                 alpha(mix(NAVY, hero, isLightTheme() ? 0.025f : 0.13f), 252)
         }, GradientDrawable.Orientation.TL_BR, radius);
         d.setStroke(dp(1), alpha(mix(hero, Color.WHITE, isLightTheme() ? 0.40f : 0.26f), isLightTheme() ? 128 : 96));
+        return d;
+    }
+
+    private GradientDrawable unifiedCardBg(int accent, float radius, boolean selected) {
+        int hero = mix(accent, GOLD_2, isLightTheme() ? 0.08f : 0.13f);
+        int top = mix(SURFACE, hero, isLightTheme() ? 0.035f : 0.095f);
+        int mid = mix(SURFACE_2, hero, isLightTheme() ? 0.07f : 0.155f);
+        int bottom = mix(NAVY, hero, isLightTheme() ? 0.018f : 0.105f);
+        GradientDrawable d = gradient(new int[]{alpha(top, 252), alpha(mid, 248), alpha(bottom, 252)}, GradientDrawable.Orientation.TL_BR, radius);
+        d.setStroke(dp(selected ? 2 : 1), alpha(mix(hero, Color.WHITE, isLightTheme() ? 0.38f : 0.24f), selected ? 170 : (isLightTheme() ? 112 : 92)));
+        return d;
+    }
+
+    private GradientDrawable unifiedInnerBg(int accent, float radius) {
+        int hero = mix(accent, GOLD_2, isLightTheme() ? 0.08f : 0.12f);
+        GradientDrawable d = gradient(new int[]{
+                alpha(mix(SURFACE, hero, isLightTheme() ? 0.025f : 0.085f), 242),
+                alpha(mix(SURFACE_2, hero, isLightTheme() ? 0.06f : 0.13f), 238)
+        }, GradientDrawable.Orientation.TL_BR, radius);
+        d.setStroke(dp(1), alpha(mix(hero, Color.WHITE, 0.24f), isLightTheme() ? 86 : 72));
         return d;
     }
 
@@ -2243,7 +2261,7 @@ public class MainActivity extends Activity {
         btn.setGravity(Gravity.CENTER);
         btn.setPadding(dp(6), 0, dp(6), 0);
         btn.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, 120));
-        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, 0.22f), accent, mix(accent, Color.BLACK, 0.24f)}, GradientDrawable.Orientation.TL_BR, 999);
+        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, 0.22f), accent, mix(accent, NAVY, 0.24f)}, GradientDrawable.Orientation.TL_BR, 999);
         bg.setStroke(dp(1), alpha(Color.WHITE, 120));
         btn.setBackground(bg);
         btn.setClickable(true);
@@ -2299,8 +2317,8 @@ public class MainActivity extends Activity {
 
     private void addCashForecastCard(JSONObject today) {
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{Color.rgb(21, 91, 181), Color.rgb(0, 184, 217), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 28));
-        c.addView(text("پیش‌بینی نقدینگی ۷ روزه", 17, Color.WHITE, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
+        c.setBackground(unifiedCardBg(INFO, 28, false));
+        c.addView(text("پیش‌بینی نقدینگی ۷ روزه", 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         JSONObject sales = today == null ? null : today.optJSONObject("sales");
         JSONObject get = today == null ? null : today.optJSONObject("getChecks");
         JSONObject put = today == null ? null : today.optJSONObject("putChecks");
@@ -2319,7 +2337,7 @@ public class MainActivity extends Activity {
 
     private void addManagementCalendarCard(JSONObject today) {
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(Color.rgb(126, 87, 255), 46), alpha(GOLD, 22), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 26));
+        c.setBackground(unifiedCardBg(mix(INFO, GOLD_2, 0.30f), 26, false));
         c.addView(text("تقویم مدیریتی امروز", 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         JSONObject overdue = firstObject(today == null ? null : today.optJSONArray("overdueInvoices"));
         JSONObject inactive = firstObject(today == null ? null : today.optJSONArray("inactiveCustomers"));
@@ -2333,7 +2351,7 @@ public class MainActivity extends Activity {
 
     private void addProductRadarCard(JSONObject today) {
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(WARNING, 34), alpha(Color.rgb(236, 72, 153), 22), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 26));
+        c.setBackground(unifiedCardBg(WARNING, 26, false));
         c.addView(text("رادار کالاهای خطرناک و طلایی", 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         JSONArray items = today == null ? null : today.optJSONArray("todayItems");
         if (items == null || items.length() == 0) {
@@ -2350,7 +2368,7 @@ public class MainActivity extends Activity {
 
     private void addSmartComparisonCard(JSONObject today) {
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(SUCCESS, 28), alpha(INFO, 24), alpha(SURFACE, 250)}, GradientDrawable.Orientation.TL_BR, 26));
+        c.setBackground(unifiedCardBg(mix(SUCCESS, INFO, 0.25f), 26, false));
         c.addView(text("مقایسه امروز با روزهای اخیر", 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         JSONObject sales = today == null ? null : today.optJSONObject("sales");
         JSONObject buy = today == null ? null : today.optJSONObject("purchases");
@@ -2376,7 +2394,7 @@ public class MainActivity extends Activity {
 
     private void addCommandShortcutCard(JSONObject today) {
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(Color.rgb(255, 137, 66), 34), alpha(SURFACE, 250)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.setBackground(unifiedCardBg(GOLD, 24, false));
         c.addView(text("میانبرهای مدیریتی", 17, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row1 = new LinearLayout(this); row1.setOrientation(LinearLayout.HORIZONTAL);
         Button voice = primaryButton("میلو گزارش را بخوان"); voice.setTextSize(10.2f); voice.setOnClickListener(v -> speakAssistantText(buildDailyVoiceSummary(today)));
@@ -3446,7 +3464,7 @@ public class MainActivity extends Activity {
         b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setTextColor(Color.WHITE);
         b.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, 150));
-        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, 0.25f), accent, mix(accent, Color.BLACK, 0.26f)}, GradientDrawable.Orientation.TL_BR, 999);
+        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, 0.25f), accent, mix(accent, NAVY, 0.26f)}, GradientDrawable.Orientation.TL_BR, 999);
         bg.setStroke(dp(1), alpha(Color.WHITE, 130));
         b.setBackground(bg);
         b.setClickable(true);
@@ -3931,7 +3949,7 @@ public class MainActivity extends Activity {
             line.setBackground(roundedStroke(alpha(SURFACE_2, 132), 14, alpha(accent, 54)));
             TextView idx = text(formatNumber(i + 1), 10, Color.WHITE, Typeface.BOLD);
             idx.setGravity(Gravity.CENTER);
-            idx.setBackground(gradient(new int[]{accent, mix(accent, Color.BLACK, 0.25f)}, GradientDrawable.Orientation.TL_BR, 999));
+            idx.setBackground(gradient(new int[]{accent, mix(accent, NAVY, 0.25f)}, GradientDrawable.Orientation.TL_BR, 999));
             line.addView(idx, new LinearLayout.LayoutParams(dp(28), dp(28)));
             LinearLayout copy = new LinearLayout(this);
             copy.setOrientation(LinearLayout.VERTICAL);
@@ -7722,7 +7740,7 @@ public class MainActivity extends Activity {
         c.setPadding(dp(12), dp(11), dp(12), dp(11));
         c.setClickable(true); c.setFocusable(true); applyTouchFeedback(c);
         c.setOnClickListener(v -> { if (ensurePermission("customer_detail", "جزئیات مشتری")) showCustomerDetail(r, "all"); });
-        c.setBackground(roundedStroke(alpha(Color.rgb(9, 8, 6), 246), 28, alpha(accent, 126)));
+        c.setBackground(unifiedCardBg(accent, 28, false));
         LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
         TextView avatar = text(initials(r.optString("نام", "م")), 18, onColorFor(accent), Typeface.BOLD); avatar.setGravity(Gravity.CENTER); avatar.setBackground(luxuryButtonBg(accent, true, 999));
         head.addView(avatar, new LinearLayout.LayoutParams(dp(54), dp(54)));
@@ -7766,7 +7784,7 @@ public class MainActivity extends Activity {
         applyTouchFeedback(c);
 
         View rail = new View(this);
-        rail.setBackground(gradient(new int[]{mix(accent, Color.WHITE, 0.35f), accent, mix(accent, Color.BLACK, isLightTheme() ? 0.10f : 0.28f)}, GradientDrawable.Orientation.TOP_BOTTOM, 999));
+        rail.setBackground(gradient(new int[]{mix(accent, Color.WHITE, 0.35f), accent, mix(accent, NAVY, isLightTheme() ? 0.10f : 0.28f)}, GradientDrawable.Orientation.TOP_BOTTOM, 999));
         LinearLayout.LayoutParams railLp = new LinearLayout.LayoutParams(dp(6), -1);
         railLp.setMargins(0, dp(10), dp(8), dp(10));
         c.addView(rail, railLp);
@@ -8048,7 +8066,7 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
         box.setPadding(dp(5), dp(7), dp(5), dp(7));
-        box.setBackground(roundedStroke(alpha(accent, isLightTheme() ? 16 : 28), 14, alpha(accent, 72)));
+        box.setBackground(unifiedInnerBg(accent, 14));
         TextView l = text(label, 9.2f, MUTED, Typeface.BOLD); l.setGravity(Gravity.CENTER);
         TextView v = text(value, 10.3f, TEXT, Typeface.BOLD); v.setGravity(Gravity.CENTER); v.setSingleLine(false); v.setMaxLines(2);
         box.addView(l, new LinearLayout.LayoutParams(-1, -2));
@@ -8447,7 +8465,7 @@ public class MainActivity extends Activity {
         double target = visitorGoalTarget(data);
         LinearLayout hero = card();
         hero.setPadding(dp(12), dp(12), dp(12), dp(14));
-        hero.setBackground(gradient(new int[]{alpha(Color.rgb(24, 20, 12), 246), alpha(Color.rgb(10, 10, 7), 250)}, GradientDrawable.Orientation.TOP_BOTTOM, 32));
+        hero.setBackground(unifiedCardBg(GOLD, 32, false));
         LinearLayout top = new LinearLayout(this); top.setOrientation(LinearLayout.HORIZONTAL); top.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout palette = new LinearLayout(this); palette.setOrientation(LinearLayout.HORIZONTAL); palette.setGravity(Gravity.CENTER_VERTICAL); palette.setPadding(dp(9), dp(6), dp(9), dp(6));
         palette.setBackground(roundedStroke(alpha(Color.WHITE, 24), 999, alpha(Color.WHITE, 48)));
@@ -8468,7 +8486,7 @@ public class MainActivity extends Activity {
         TextView sub = text("ATIRAN • INTELLIGENT SALES EXPERIENCE", 12.5f, GOLD, Typeface.BOLD); sub.setGravity(Gravity.CENTER); sub.setLetterSpacing(0.08f);
         hero.addView(sub, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout kpi = new LinearLayout(this); kpi.setOrientation(LinearLayout.HORIZONTAL); kpi.setPadding(dp(5), dp(8), dp(5), dp(8));
-        kpi.setBackground(roundedStroke(alpha(Color.BLACK, 120), 23, alpha(GOLD, 82)));
+        kpi.setBackground(unifiedInnerBg(GOLD_2, 23));
         kpi.addView(visitorMetricBox("فروش امروز", money(today), GOLD_2), weightedMiniLp());
         kpi.addView(visitorMetricBox("هدف روز", money(target), GOLD_2), weightedMiniLp());
         kpi.addView(visitorMetricBox("ارسال‌شده", formatNumber(sales == null ? 0 : sales.opt("count")), SUCCESS), weightedMiniLp());
@@ -8499,7 +8517,7 @@ public class MainActivity extends Activity {
         int sent = sales == null ? 0 : sales.optInt("count", 0);
         int debtors = data == null || data.optJSONArray("topDebtors") == null ? 0 : data.optJSONArray("topDebtors").length();
         LinearLayout c = card();
-        c.setBackground(roundedStroke(alpha(Color.rgb(12, 11, 8), 244), 30, alpha(GOLD_2, 145)));
+        c.setBackground(unifiedCardBg(navAccent("visitor_dashboard"), 30, false));
         c.addView(visitorSectionTitle("نبض امروز", "◆", GOLD_2), new LinearLayout.LayoutParams(-1, -2));
         double ratio = target <= 0 ? 0 : today / target;
         LinearLayout ringRow = new LinearLayout(this); ringRow.setOrientation(LinearLayout.HORIZONTAL); ringRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -8543,7 +8561,7 @@ public class MainActivity extends Activity {
         int scorePct = Math.max(0, Math.min(100, (int)Math.round(Math.min(1d, progress) * 55d + Math.min(1d, visits / 8d) * 18d + Math.min(1d, (prefactors + drafts) / 4d) * 20d + Math.min(1d, p2 / 6d) * 7d)));
         int accent = scorePct >= 80 ? SUCCESS : (scorePct >= 45 ? GOLD : WARNING);
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(accent, isLightTheme() ? 36 : 54), alpha(navAccent("cart"), isLightTheme() ? 18 : 30), alpha(Color.rgb(10,9,6), isLightTheme() ? 32 : 238)}, GradientDrawable.Orientation.TL_BR, 30));
+        c.setBackground(unifiedCardBg(accent, 30, false));
         c.addView(visitorSectionTitle("امتیاز روزانه ویزیتور", "★", accent), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
         head.addView(new VisitorGoalRingView(this, scorePct / 100d, formatNumber(scorePct) + "٪", "امتیاز"), new LinearLayout.LayoutParams(dp(110), dp(110)));
@@ -8690,7 +8708,7 @@ public class MainActivity extends Activity {
     private void addVisitorActivityTile(LinearLayout row, String title, String sub, String glyph, int accent, final Runnable action) {
         LinearLayout tile = new LinearLayout(this); tile.setOrientation(LinearLayout.VERTICAL); tile.setGravity(Gravity.CENTER); tile.setPadding(dp(10), dp(12), dp(10), dp(10));
         tile.setClickable(true); tile.setFocusable(true); tile.setOnClickListener(v -> { if (action != null) action.run(); }); applyTouchFeedback(tile);
-        tile.setBackground(gradient(new int[]{alpha(isLightTheme() ? Color.WHITE : Color.rgb(40, 35, 22), isLightTheme() ? 245 : 225), alpha(isLightTheme() ? SURFACE_2 : Color.BLACK, isLightTheme() ? 235 : 238)}, GradientDrawable.Orientation.TOP_BOTTOM, 24));
+        tile.setBackground(unifiedCardBg(accent, 24, false));
         TextView icon = text(glyph, 21, onColorFor(accent), Typeface.BOLD); icon.setGravity(Gravity.CENTER); icon.setBackground(luxuryButtonBg(accent, true, 14));
         tile.addView(icon, new LinearLayout.LayoutParams(dp(54), dp(54)));
         TextView t = text(title, 13.8f, TEXT, Typeface.BOLD); t.setGravity(Gravity.CENTER); t.setSingleLine(false); LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.setMargins(0, dp(8), 0, 0); tile.addView(t, tp);
@@ -9094,7 +9112,7 @@ public class MainActivity extends Activity {
         for (int i = 0; i < 3; i++) {
             LinearLayout c = card();
             c.setPadding(dp(12), dp(12), dp(12), dp(12));
-            c.setBackground(roundedStroke(alpha(isLightTheme() ? SURFACE : Color.rgb(10, 9, 6), isLightTheme() ? 248 : 232), 28, alpha(GOLD_2, isLightTheme() ? 95 : 70)));
+            c.setBackground(unifiedCardBg(navAccent("showcase"), 28, false));
             LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
             TextView img = text("🏷", 22, alpha(GOLD_2, 210), Typeface.BOLD); img.setGravity(Gravity.CENTER); img.setBackground(roundedStroke(alpha(GOLD, 20), 22, alpha(GOLD, 60))); row.addView(img, new LinearLayout.LayoutParams(dp(88), dp(88)));
             LinearLayout bars = new LinearLayout(this); bars.setOrientation(LinearLayout.VERTICAL); bars.setPadding(dp(12), 0, 0, 0);
@@ -9475,7 +9493,7 @@ public class MainActivity extends Activity {
         int accent = price2Ok ? GOLD_2 : vp.accent;
         LinearLayout c = card();
         c.setPadding(dp(8), dp(7), dp(8), dp(7));
-        c.setBackground(roundedStroke(alpha(isLightTheme() ? SURFACE : Color.rgb(8, 7, 5), isLightTheme() ? 252 : 244), 22, alpha(selected ? SUCCESS : accent, selected ? 145 : (isLightTheme() ? 94 : 72))));
+        c.setBackground(unifiedCardBg(selected ? SUCCESS : accent, 22, selected));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) c.setElevation(dp(selected ? 3 : 1));
         c.setClickable(true);
         c.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
@@ -9543,9 +9561,7 @@ public class MainActivity extends Activity {
         int accent = price2Ok ? GOLD_2 : vp.accent;
         LinearLayout c = card();
         c.setPadding(dp(10), dp(10), dp(10), dp(10));
-        GradientDrawable bg = gradient(new int[]{alpha(Color.rgb(7, 6, 4), 248), alpha(mix(accent, Color.rgb(18, 13, 6), 0.32f), 236), alpha(Color.rgb(2, 2, 2), 246)}, GradientDrawable.Orientation.TL_BR, 30);
-        bg.setStroke(dp(1), alpha(selected ? SUCCESS : GOLD_2, selected ? 170 : 105));
-        c.setBackground(bg);
+        c.setBackground(unifiedCardBg(selected ? SUCCESS : accent, 30, selected));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) c.setElevation(dp(selected ? 6 : 3));
 
         LinearLayout top = new LinearLayout(this);
@@ -9638,7 +9654,7 @@ public class MainActivity extends Activity {
         int imageDp = 150;
         LinearLayout c = card();
         c.setPadding(dp(11), dp(11), dp(11), dp(11));
-        c.setBackground(roundedStroke(alpha(isLightTheme() ? SURFACE : Color.rgb(10, 9, 6), isLightTheme() ? 252 : 246), 30, alpha(price2Ok ? GOLD_2 : GOLD, selected ? 190 : (isLightTheme() ? 150 : 130))));
+        c.setBackground(unifiedCardBg(selected ? SUCCESS : (price2Ok ? GOLD_2 : navAccent("showcase")), 30, selected));
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) c.setElevation(dp(selected ? 12 : 7));
         LinearLayout top = new LinearLayout(this); top.setOrientation(LinearLayout.HORIZONTAL); top.setGravity(Gravity.CENTER_VERTICAL);
         ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setPadding(dp(3), dp(3), dp(3), dp(3));
@@ -9657,7 +9673,7 @@ public class MainActivity extends Activity {
         c.addView(top, new LinearLayout.LayoutParams(-1, -2));
 
         LinearLayout pricePanel = new LinearLayout(this); pricePanel.setOrientation(LinearLayout.VERTICAL); pricePanel.setPadding(dp(11), dp(10), dp(11), dp(10));
-        pricePanel.setBackground(roundedStroke(alpha(Color.WHITE, 16), 22, alpha(GOLD, 74)));
+        pricePanel.setBackground(unifiedInnerBg(price2Ok ? GOLD_2 : navAccent("showcase"), 22));
         pricePanel.addView(text("🏷  قیمت‌های کالا (ریال)", 14.0f, GOLD_2, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         LinearLayout priceRow = new LinearLayout(this); priceRow.setOrientation(LinearLayout.HORIZONTAL);
         priceRow.addView(showcaseMetric("فروش ۲", price2Ok ? moneyOrDash(r, "قیمت_فروش۲") : "—", GOLD, true), showcaseCellLp(1f, 74));
@@ -9812,7 +9828,7 @@ public class MainActivity extends Activity {
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER);
         box.setPadding(dp(5), dp(5), dp(5), dp(5));
-        box.setBackground(gradient(new int[]{alpha(accent, isLightTheme() ? 18 : 34), alpha(SURFACE_2, 240)}, GradientDrawable.Orientation.TOP_BOTTOM, 16));
+        box.setBackground(unifiedInnerBg(accent, 16));
         TextView l = text(label, important ? 9.8f : 9.1f, alpha(MUTED, 235), Typeface.BOLD);
         l.setGravity(Gravity.CENTER);
         String vText = stringOr(value, "—");
@@ -9833,7 +9849,7 @@ public class MainActivity extends Activity {
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setPadding(dp(8), dp(7), dp(8), dp(7));
         int mainAccent = accents != null && accents.length > 0 ? accents[0] : currentPageAccent();
-        shell.setBackground(roundedStroke(alpha(mainAccent, isLightTheme() ? 14 : 24), 18, alpha(mainAccent, 52)));
+        shell.setBackground(unifiedInnerBg(mainAccent, 18));
         TextView t = text(title == null ? "شاخص تصویری" : title, 9.8f, alpha(TEXT, 225), Typeface.BOLD);
         t.setGravity(Gravity.CENTER);
         shell.addView(t, new LinearLayout.LayoutParams(-1, -2));
@@ -10326,7 +10342,7 @@ public class MainActivity extends Activity {
         icon.setGravity(Gravity.CENTER);
         icon.setSingleLine(true);
         icon.setShadowLayer(dp(3), 0, dp(1), alpha(Color.BLACK, 160));
-        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, isLightTheme() ? 0.32f : 0.20f), accent, mix(accent, Color.BLACK, 0.32f)}, GradientDrawable.Orientation.TL_BR, 999);
+        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, isLightTheme() ? 0.32f : 0.20f), accent, mix(accent, NAVY, isLightTheme() ? 0.12f : 0.30f)}, GradientDrawable.Orientation.TL_BR, 999);
         bg.setStroke(dp(1), alpha(mix(accent, GOLD_2, 0.45f), 185));
         icon.setBackground(bg);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) icon.setElevation(dp(7));
@@ -10400,7 +10416,7 @@ public class MainActivity extends Activity {
     private void addCartWizardStepper() {
         LinearLayout c = card();
         c.setPadding(dp(10), dp(10), dp(10), dp(10));
-        c.setBackground(gradient(new int[]{alpha(navAccent("cart"), 36), alpha(GOLD_2, 20), alpha(SURFACE, 248)}, GradientDrawable.Orientation.LEFT_RIGHT, 24));
+        c.setBackground(themedSectionBg("cart", 24));
         TextView title = text("خلاصه سریع پیش‌فاکتور", 14.0f, TEXT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         c.addView(title, new LinearLayout.LayoutParams(-1, -2));
@@ -10463,7 +10479,7 @@ public class MainActivity extends Activity {
     private void addCartCustomerCard() {
         int cartAccent = navAccent("cart"), customerAccent = navAccent("customers");
         LinearLayout c = card();
-        c.setBackground(gradient(new int[]{alpha(customerAccent, isLightTheme() ? 34 : 48), alpha(cartAccent, isLightTheme() ? 22 : 38), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 28));
+        c.setBackground(unifiedCardBg(mix(customerAccent, cartAccent, 0.38f), 28, false));
         LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
         head.addView(cart3dIcon("♙", customerAccent, 18f), new LinearLayout.LayoutParams(dp(48), dp(48)));
         LinearLayout hcopy = new LinearLayout(this); hcopy.setOrientation(LinearLayout.VERTICAL); hcopy.setPadding(dp(10), 0, dp(8), 0);
@@ -10474,11 +10490,11 @@ public class MainActivity extends Activity {
         if (visitorCartCustomer == null) {
             TextView empty = text("هنوز مشتری انتخاب نشده است. برای ویزیتور فقط مشتریان مرتبط با خودش نمایش داده می‌شود.", 10.5f, MUTED, Typeface.NORMAL);
             empty.setPadding(dp(9), dp(8), dp(9), dp(8));
-            empty.setBackground(roundedStroke(alpha(customerAccent, 16), 16, alpha(customerAccent, 58)));
+            empty.setBackground(unifiedInnerBg(customerAccent, 16));
             LinearLayout.LayoutParams ep = new LinearLayout.LayoutParams(-1, -2); ep.setMargins(0, dp(8), 0, 0); c.addView(empty, ep);
         }
         else {
-            LinearLayout selected = new LinearLayout(this); selected.setOrientation(LinearLayout.HORIZONTAL); selected.setGravity(Gravity.CENTER_VERTICAL); selected.setPadding(dp(9), dp(8), dp(9), dp(8)); selected.setBackground(roundedStroke(alpha(SUCCESS, 16), 18, alpha(SUCCESS, 74)));
+            LinearLayout selected = new LinearLayout(this); selected.setOrientation(LinearLayout.HORIZONTAL); selected.setGravity(Gravity.CENTER_VERTICAL); selected.setPadding(dp(9), dp(8), dp(9), dp(8)); selected.setBackground(unifiedInnerBg(SUCCESS, 18));
             selected.addView(cart3dIcon("✓", SUCCESS, 14f), new LinearLayout.LayoutParams(dp(38), dp(38)));
             TextView st = text(visitorCartCustomer.optString("name", "مشتری") + " • کد " + visitorCartCustomer.optString("code", "—"), 12.8f, TEXT, Typeface.BOLD); st.setSingleLine(true); st.setEllipsize(TextUtils.TruncateAt.END); st.setPadding(dp(8), 0, dp(8), 0); selected.addView(st, new LinearLayout.LayoutParams(0, -2, 1f));
             LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, -2); sp.setMargins(0, dp(8), 0, 0); c.addView(selected, sp);
@@ -10531,7 +10547,7 @@ public class MainActivity extends Activity {
             JSONObject item = visitorCartItems.optJSONObject(i); if (item == null) continue;
             addCartItemRow(c, item, i);
         }
-        LinearLayout total = new LinearLayout(this); total.setOrientation(LinearLayout.HORIZONTAL); total.setGravity(Gravity.CENTER_VERTICAL); total.setPadding(dp(10), dp(9), dp(10), dp(9)); total.setBackground(roundedStroke(alpha(SUCCESS, 18), 16, alpha(SUCCESS, 72)));
+        LinearLayout total = new LinearLayout(this); total.setOrientation(LinearLayout.HORIZONTAL); total.setGravity(Gravity.CENTER_VERTICAL); total.setPadding(dp(10), dp(9), dp(10), dp(9)); total.setBackground(unifiedInnerBg(SUCCESS, 16));
         total.addView(text("جمع خام: " + money(cartSubtotal()) + " • تخفیف: " + money(cartLineDiscounts() + visitorCartGlobalDiscount), 10.7f, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(0, -2, 1f));
         total.addView(text(money(cartTotal()), 13, SUCCESS, Typeface.BOLD), new LinearLayout.LayoutParams(-2, -2));
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.setMargins(0, dp(10), 0, 0); c.addView(total, tp);
@@ -10540,7 +10556,7 @@ public class MainActivity extends Activity {
 
     private void addCartItemRow(LinearLayout parent, JSONObject item, int index) {
         int accent = index % 2 == 0 ? navAccent("cart") : INFO;
-        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setPadding(dp(8), dp(8), dp(8), dp(8)); row.setBackground(roundedStroke(alpha(accent, 14), 16, alpha(accent, 58)));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.VERTICAL); row.setPadding(dp(8), dp(8), dp(8), dp(8)); row.setBackground(unifiedInnerBg(accent, 16));
         LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
         TextView idx = cart3dIcon(formatNumber(index + 1), accent, 10.4f); head.addView(idx, new LinearLayout.LayoutParams(dp(36), dp(36)));
         LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(8), 0, dp(8), 0);
@@ -10601,7 +10617,7 @@ public class MainActivity extends Activity {
         if (suggestion == null || suggestion.trim().isEmpty()) suggestion = "برای کامل‌تر شدن سفارش، یک کالای مکمل از همان گروه یا کالاهای قیمت ۲ پیشنهاد بده.";
         LinearLayout c = card();
         c.setPadding(dp(11), dp(10), dp(11), dp(10));
-        c.setBackground(roundedStroke(alpha(GOLD, 20), 24, alpha(GOLD_2, 100)));
+        c.setBackground(unifiedCardBg(navAccent("cart"), 24, false));
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
         TextView icon = text("✨", 20, GOLD_2, Typeface.BOLD); icon.setGravity(Gravity.CENTER); icon.setBackground(luxuryButtonBg(GOLD, false, 999)); row.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
         TextView copy = text("پیشنهاد مکمل سبد: " + suggestion, 10.8f, TEXT, Typeface.BOLD); copy.setMaxLines(3); copy.setPadding(dp(10), 0, dp(10), 0); row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
@@ -11461,7 +11477,7 @@ public class MainActivity extends Activity {
     private void addPrefactorListCard(LinearLayout parent, JSONObject r) {
         if (r == null) return;
         String st=r.optString("status",""); int accent=prefactorStatusAccent(st);
-        LinearLayout c=card(); c.setPadding(dp(10),dp(10),dp(10),dp(10)); c.setBackground(gradient(new int[]{alpha(accent,isLightTheme()?20:36),alpha(Color.rgb(9,8,6),isLightTheme()?18:238)},GradientDrawable.Orientation.RIGHT_LEFT,24));
+        LinearLayout c=card(); c.setPadding(dp(10),dp(10),dp(10),dp(10)); c.setBackground(unifiedCardBg(accent,24,false));
         LinearLayout head = new LinearLayout(this); head.setOrientation(LinearLayout.HORIZONTAL); head.setGravity(Gravity.CENTER_VERTICAL);
         TextView time = text(prefactorTimeKey(r), 11.5f, onColorFor(accent), Typeface.BOLD); time.setGravity(Gravity.CENTER); time.setBackground(luxuryButtonBg(accent,true,999));
         head.addView(time,new LinearLayout.LayoutParams(dp(54),dp(42)));
@@ -13244,7 +13260,7 @@ public class MainActivity extends Activity {
         badge.setGravity(Gravity.CENTER);
         badge.setSingleLine(true);
         badge.setShadowLayer(dp(2), 0, dp(1), alpha(Color.BLACK, 120));
-        badge.setBackground(gradient(new int[]{mix(accent, Color.WHITE, 0.18f), accent, mix(accent, Color.BLACK, 0.24f)}, GradientDrawable.Orientation.LEFT_RIGHT, 999));
+        badge.setBackground(gradient(new int[]{mix(accent, Color.WHITE, 0.18f), accent, mix(accent, NAVY, 0.24f)}, GradientDrawable.Orientation.LEFT_RIGHT, 999));
         item.addView(badge, new LinearLayout.LayoutParams(dp(78), dp(34)));
         TextView b = text(body, 10.9f, TEXT, Typeface.BOLD);
         b.setLineSpacing(dp(2), 1.05f);
@@ -13538,7 +13554,7 @@ public class MainActivity extends Activity {
         icon.setGravity(Gravity.CENTER);
         icon.setSingleLine(true);
         icon.setShadowLayer(dp(4), 0, dp(2), alpha(Color.BLACK, isLightTheme() ? 105 : 175));
-        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, isLightTheme() ? 0.38f : 0.22f), accent, mix(accent, GOLD_2, 0.20f), mix(accent, Color.BLACK, isLightTheme() ? 0.10f : 0.34f)}, GradientDrawable.Orientation.TL_BR, 18);
+        GradientDrawable bg = gradient(new int[]{mix(accent, Color.WHITE, isLightTheme() ? 0.38f : 0.22f), accent, mix(accent, GOLD_2, 0.20f), mix(accent, NAVY, isLightTheme() ? 0.10f : 0.34f)}, GradientDrawable.Orientation.TL_BR, 18);
         bg.setStroke(dp(1), alpha(mix(accent, Color.WHITE, 0.58f), 132));
         icon.setBackground(bg);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) icon.setElevation(dp(5));
@@ -15307,7 +15323,7 @@ public class MainActivity extends Activity {
     private void addLocalSecurityCard() {
         LinearLayout c = card();
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, dp(12), 0, 0);
-        c.setBackground(gradient(new int[]{alpha(Color.rgb(126, 87, 255), 28), alpha(SUCCESS, 18), alpha(SURFACE, 248)}, GradientDrawable.Orientation.RIGHT_LEFT, 24));
+        c.setBackground(unifiedCardBg(mix(INFO, SUCCESS, 0.25f), 24, false));
         c.addView(text("امنیت محلی پیشرفته", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
         c.addView(text("PIN ورود سریع و کلیدهای AI از این نسخه با Android Keystore رمزنگاری می‌شوند؛ داده‌های قدیمی هنگام ذخیره بعدی خودکار به قالب امن‌تر مهاجرت می‌کنند.", 10.8f, MUTED, Typeface.NORMAL), new LinearLayout.LayoutParams(-1, -2));
         TextView badge = text(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? "✓ Keystore فعال روی این دستگاه" : "حالت سازگار قدیمی", 11, Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? SUCCESS : WARNING, Typeface.BOLD);
