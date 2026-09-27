@@ -11011,6 +11011,21 @@ public class MainActivity extends Activity {
         return "ثبت شده؛ آماده‌سازی تبدیل پس از ارسال نهایی";
     }
 
+    private double[] queryCartStockPriceRow(Connection c, String primarySql, String fallbackSql, String code) throws Exception {
+        try { return queryCartStockPriceRowOnce(c, primarySql, code); }
+        catch (Exception ex) { if (fallbackSql != null && !fallbackSql.trim().isEmpty()) return queryCartStockPriceRowOnce(c, fallbackSql, code); throw ex; }
+    }
+
+    private double[] queryCartStockPriceRowOnce(Connection c, String sql, String code) throws Exception {
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, code == null ? "" : code);
+            try (ResultSet r = ps.executeQuery()) {
+                if (!r.next()) return null;
+                return new double[]{r.getDouble(1), r.getDouble(2), r.getDouble(3)};
+            }
+        }
+    }
+
     private JSONObject checkCartSnapshotAgainstInventory(Connection c, JSONArray items, boolean strict) throws Exception {
         JSONObject out = new JSONObject(); JSONArray warnings = new JSONArray(); boolean blocked = false;
         Set<String> cols = columns(c, "inventory");
@@ -11031,11 +11046,11 @@ public class MainActivity extends Activity {
             Set<String> pc = columns(c, t); String pk = resolveRelatedProductKeyColumn(pc); String p1c = resolveSalePrice1Column(pc); String p2c = resolveSalePrice2Column(pc);
             if (pk != null && (p1c != null || p2c != null)) { relPriceTable = t; relPriceKey = pk; relPrice1 = p1c; relPrice2 = p2c; relPriceCols = pc; break; }
         }
-        String relStockTable = null, relStockKey = null, relStockQty = null; Set<String> relStockCols = null;
-        for (String t : candidateDboTables(c, new String[]{"KalaStock", "KalaMojoodi", "MojoodiKala", "MojoodiAnbar", "AnbarMojoodi", "WarehouseStock", "ProductStock", "InventoryStock", "stock", "stocks", "tblStock"}, "stock", "mojood", "mojoodi", "mojudi", "mande", "remain", "balance", "anbar", "warehouse", "موجودی", "موجودي", "مانده", "انبار")) {
+        String relStockTable = null, relStockKey = null, relStockBalance = null, relStockIn = null, relStockOut = null, relStockQty = null, relStockDir = null; Set<String> relStockCols = null;
+        for (String t : candidateDboTables(c, new String[]{"KalaMojoodi", "MojoodiKala", "MojoodiAnbar", "AnbarMojoodi", "KalaStock", "ProductStock", "InventoryStock", "WarehouseStock", "StockBalance", "InventoryBalance", "AnbarKala", "KalaAnbar", "KalaWarehouse", "vKalaMojoodi", "vwKalaMojoodi", "ViewMojoodiKala", "stock", "stocks", "tblStock", "kardex", "KalaKardex", "AnbarKardex", "subanbar", "SubAnbar", "subAnbFact", "WarehouseMovement"}, "stock", "mojood", "mojoodi", "mojudi", "mande", "remain", "balance", "anbar", "warehouse", "kardex", "gardesh", "movement", "موجودی", "موجودي", "مانده", "انبار", "گردش")) {
             if (t == null || t.equalsIgnoreCase("inventory") || t.equalsIgnoreCase("subsailfact") || t.equalsIgnoreCase("subbuyfact")) continue;
-            Set<String> sc = columns(c, t); String sk = resolveRelatedProductKeyColumn(sc); String sq = resolveStockQuantityColumn(sc);
-            if (sk != null && sq != null) { relStockTable = t; relStockKey = sk; relStockQty = sq; relStockCols = sc; break; }
+            Set<String> sc = columns(c, t); String sk = resolveRelatedProductKeyColumn(sc); String sb = resolveStockBalanceColumn(sc); String sin = resolveStockMovementInColumn(sc); String sout = resolveStockMovementOutColumn(sc); String sq = resolveStockMovementQtyColumn(sc); String sd = resolveStockDirectionColumn(sc);
+            if (sk != null && (sb != null || (sin != null && sout != null) || (sq != null && sd != null) || (sq != null && tableNameLooksStockSummary(t)))) { relStockTable = t; relStockKey = sk; relStockBalance = sb; relStockIn = sin; relStockOut = sout; relStockQty = sq; relStockDir = sd; relStockCols = sc; break; }
         }
         String saleSoft = softDeleteCondition(saleCols, "s");
         String buySoft = softDeleteCondition(buyCols, "b");
@@ -11043,8 +11058,7 @@ public class MainActivity extends Activity {
         String buyApply = buyKey != null ? "OUTER APPLY (SELECT " + (buyQty == null ? "CAST(0 AS decimal(19,3))" : "ISNULL(SUM(" + sqlNumberExpr("b", buyQty, "decimal(19,3)") + "),0)") + " buy_qty FROM dbo.subbuyfact b WHERE TRY_CONVERT(nvarchar(100),b.[" + buyKey + "])=TRY_CONVERT(nvarchar(100),i.[" + shka + "])" + activeAnd(buyCols, "b") + (buySoft.isEmpty()?"":" AND "+buySoft) + ") ba " : "OUTER APPLY (SELECT CAST(0 AS decimal(19,3)) buy_qty) ba ";
         String relPriceSoft = softDeleteCondition(relPriceCols == null ? new HashSet<String>() : relPriceCols, "pr");
         String priceApply = relPriceTable != null && relPriceKey != null ? "OUTER APPLY (SELECT TOP (1) " + sqlNumberExpr("pr", relPrice1, "decimal(19,2)") + " price1, " + sqlNumberExpr("pr", relPrice2, "decimal(19,2)") + " price2 FROM dbo.[" + relPriceTable + "] pr WHERE TRY_CONVERT(nvarchar(100),pr.[" + relPriceKey + "])=TRY_CONVERT(nvarchar(100),i.[" + shka + "])" + activeAnd(relPriceCols, "pr") + (relPriceSoft.isEmpty()?"":" AND "+relPriceSoft) + relatedTopOrder(relPriceCols, "pr") + ") prx " : "OUTER APPLY (SELECT CAST(NULL AS decimal(19,2)) price1, CAST(NULL AS decimal(19,2)) price2) prx ";
-        String relStockSoft = softDeleteCondition(relStockCols == null ? new HashSet<String>() : relStockCols, "st");
-        String stockApply = relStockTable != null && relStockKey != null && relStockQty != null ? "OUTER APPLY (SELECT COUNT_BIG(1) stock_rows, ISNULL(SUM(" + sqlNumberExpr("st", relStockQty, "decimal(19,3)") + "),0) stock_qty FROM dbo.[" + relStockTable + "] st WHERE TRY_CONVERT(nvarchar(100),st.[" + relStockKey + "])=TRY_CONVERT(nvarchar(100),i.[" + shka + "])" + activeAnd(relStockCols, "st") + (relStockSoft.isEmpty()?"":" AND "+relStockSoft) + ") stx " : "OUTER APPLY (SELECT CAST(0 AS bigint) stock_rows, CAST(NULL AS decimal(19,3)) stock_qty) stx ";
+        String stockApply = relatedStockApply(relStockTable, relStockCols, relStockKey, relStockBalance, relStockIn, relStockOut, relStockQty, relStockDir, "i", shka, "stx");
         String invP1 = sqlNumberExpr("i", price1, "decimal(19,2)");
         String invP2 = sqlNumberExpr("i", price2, "decimal(19,2)");
         String p1Expr = "COALESCE(NULLIF(prx.price1,0)," + invP1 + ",0)";
@@ -11055,9 +11069,15 @@ public class MainActivity extends Activity {
         String stockExpr = "CASE WHEN ISNULL(stx.stock_rows,0)>0 THEN ISNULL(stx.stock_qty,0) ELSE COALESCE(" + invStock + "," + movement + ",0) END";
         boolean hasReliableStockSource = relStockTable != null || stock != null || (saleKey != null && saleQty != null && buyKey != null && buyQty != null);
         String sql = "SELECT " + stockExpr + " AS st," + p1Expr + " AS p1," + p2FinalExpr + " AS p2 FROM dbo.inventory i " + saleApply + buyApply + priceApply + stockApply + " WHERE TRY_CONVERT(nvarchar(100),i.[" + shka + "])=?";
+        String fallbackSql = relStockTable == null ? null : "SELECT " + stockExpr + " AS st," + p1Expr + " AS p1," + p2FinalExpr + " AS p2 FROM dbo.inventory i " + saleApply + buyApply + priceApply + relatedStockApply(null, null, null, null, null, null, null, null, "i", shka, "stx") + " WHERE TRY_CONVERT(nvarchar(100),i.[" + shka + "])=?";
         for (int i=0; items!=null && i<items.length(); i++) {
             JSONObject it=items.optJSONObject(i); if (it==null) continue;
-            try (PreparedStatement ps=c.prepareStatement(sql)) { ps.setString(1,it.optString("code","")); try(ResultSet r=ps.executeQuery()) { if(!r.next()){ warnings.put("کالا پیدا نشد: "+it.optString("name","")); blocked=true; continue; } double st=r.getDouble(1); double p1=r.getDouble(2); double p2=r.getDouble(3); if(hasReliableStockSource && st<it.optDouble("qty",0)){ warnings.put("موجودی کافی نیست: "+it.optString("name","")+" / موجودی "+formatNumber(st)); blocked=true; } double dbPrice="2".equals(it.optString("priceTier","1"))?p2:p1; if(dbPrice>0 && Math.abs(dbPrice-it.optDouble("price",0))>1){ warnings.put("قیمت کالا تغییر کرده: "+it.optString("name","")); if(strict) blocked=true; } } }
+            double[] row = queryCartStockPriceRow(c, sql, fallbackSql, it.optString("code", ""));
+            if(row == null){ warnings.put("کالا پیدا نشد: "+it.optString("name","")); blocked=true; continue; }
+            double st=row[0]; double p1=row[1]; double p2=row[2];
+            if(hasReliableStockSource && st<it.optDouble("qty",0)){ warnings.put("موجودی کافی نیست: "+it.optString("name","")+" / موجودی "+formatNumber(st)); blocked=true; }
+            double dbPrice="2".equals(it.optString("priceTier","1"))?p2:p1;
+            if(dbPrice>0 && Math.abs(dbPrice-it.optDouble("price",0))>1){ warnings.put("قیمت کالا تغییر کرده: "+it.optString("name","")); if(strict) blocked=true; }
         }
         out.put("warnings", warnings); out.put("blocked", blocked); out.put("ok", !blocked);
         if (strict && blocked) throw new DbException(warnings.length()>0 ? warnings.optString(0) : "کنترل موجودی/قیمت تایید نشد.");
@@ -11505,7 +11525,96 @@ public class MainActivity extends Activity {
     }
 
     private String resolveStockQuantityColumn(Set<String> cols) {
-        return resolveFlexible(cols, "Mojoodi", "mojoodi", "mojudi", "mojody", "mojood", "mojvah", "MojVah", "mojkol", "MojKol", "MojoodiKol", "tedad_mojood", "TedadMojood", "Stock", "StockQty", "StockCount", "QtyOnHand", "OnHandQty", "Qty", "quantity", "inventorycount", "inventory_count", "Remain", "Remaining", "remain_qty", "mande", "Mandeh", "موجودی", "مانده_کالا", "tedad_mande", "TedadMande", "tedad_kol", "TedadKol", "balance_qty", "onhand", "OnHand", "موجودي");
+        String balance = resolveStockBalanceColumn(cols);
+        if (balance != null) return balance;
+        return resolveFlexible(cols, "QtyOnHand", "OnHandQty", "Qty", "quantity", "inventorycount", "inventory_count", "tedad", "Tedad", "TEDVAH", "meghdar", "Meghdar", "count", "Count", "تعداد", "مقدار");
+    }
+
+    private String resolveStockBalanceColumn(Set<String> cols) {
+        String exact = resolveFlexible(cols,
+                "Mojoodi", "mojoodi", "mojudi", "mojody", "mojood", "mojvah", "MojVah", "mojkol", "MojKol", "MojoodiKol", "mojoodi_kol", "Mojoodi_Kol",
+                "tedad_mojood", "TedadMojood", "Stock", "StockQty", "Stock_Qty", "StockCount", "Stock_Count", "QtyOnHand", "OnHandQty", "onhand", "OnHand", "On_Hand",
+                "Remain", "Remaining", "remain_qty", "RemainQty", "Remain_Qty", "mande", "Mandeh", "Mande", "MandehQty", "balance", "Balance", "BalanceQty", "balance_qty", "Available", "AvailableQty", "available_qty",
+                "موجودی", "موجودي", "مانده", "مانده_کالا", "مانده کالا", "تعداد_مانده", "tedad_mande", "TedadMande", "tedad_kol", "TedadKol", "موجودی_کل", "موجودي_كل");
+        if (exact != null) return exact;
+        if (cols == null) return null;
+        for (String col : cols) {
+            if (col == null) continue;
+            String n = normalizeDigits(normalizeColumnName(col));
+            if (n.isEmpty()) continue;
+            if (containsAny(n, "price", "fee", "fi", "mab", "amount", "sum", "total", "gheymat", "ghimat", "قیمت", "مبلغ", "بها", "في")) continue;
+            if (containsAny(n, "mojood", "mojoodi", "mojudi", "stock", "onhand", "remain", "remaining", "mande", "balance", "available", "موجود", "موجودی", "مانده")) return col;
+        }
+        return null;
+    }
+
+    private String resolveStockMovementInColumn(Set<String> cols) {
+        return resolveFlexible(cols, "in_qty", "InQty", "qty_in", "QtyIn", "input_qty", "InputQty", "receipt_qty", "ReceiptQty", "received_qty", "ReceivedQty", "buy_qty", "BuyQty", "import_qty", "ImportQty", "vorood", "Vorood", "tedad_vorood", "TedadVorood", "tedad_vared", "TedadVared", "vared", "Vared", "daryaft", "Daryaft", "رسید", "ورودی", "ورود", "دریافت", "تعداد_ورود", "تعداد_ورودی");
+    }
+
+    private String resolveStockMovementOutColumn(Set<String> cols) {
+        return resolveFlexible(cols, "out_qty", "OutQty", "qty_out", "QtyOut", "output_qty", "OutputQty", "issue_qty", "IssueQty", "issued_qty", "IssuedQty", "sale_qty", "SaleQty", "export_qty", "ExportQty", "khorooj", "Khorooj", "tedad_khorooj", "TedadKhorooj", "tedad_kharej", "TedadKharej", "kharej", "Kharej", "haval", "Haval", "مصرف", "خروجی", "خروج", "حواله", "فروش", "تعداد_خروج", "تعداد_خروجی");
+    }
+
+    private String resolveStockMovementQtyColumn(Set<String> cols) {
+        return resolveFlexible(cols, "qty", "Qty", "quantity", "Quantity", "tedad", "Tedad", "TEDVAH", "meghdar", "Meghdar", "amount_qty", "AmountQty", "count", "Count", "تعداد", "مقدار");
+    }
+
+    private String resolveStockDirectionColumn(Set<String> cols) {
+        return resolveFlexible(cols, "direction", "Direction", "in_out", "InOut", "io", "IO", "flow", "Flow", "movement_type", "MovementType", "type", "Type", "kind", "Kind", "operation", "Operation", "op", "OP", "noe", "Noe", "vaziat", "Vaziat", "sharh", "Sharh", "desc", "Description", "شرح", "نوع", "جهت", "وضعیت", "عمليات", "عملیات");
+    }
+
+    private String resolveWarehouseColumn(Set<String> cols) {
+        return resolveFlexible(cols, "warehouse_id", "WarehouseID", "warehouse", "Warehouse", "warehouse_code", "WarehouseCode", "store_id", "StoreID", "store", "Store", "anbar", "Anbar", "anbar_id", "AnbarID", "anbar_code", "AnbarCode", "shanbar", "ShAnbar", "sh_anbar", "codanb", "CodAnb", "کد_انبار", "انبار", "شناسه_انبار");
+    }
+
+    private boolean tableNameLooksStockSummary(String table) {
+        if (table == null) return false;
+        String n = normalizeDigits(normalizeColumnName(table));
+        if (containsAny(n, "kardex", "movement", "gardesh", "transaction", "trans", "sanad", "factor", "fact", "sub", "detail", "log", "riz", "گردش", "سند", "ریز", "حواله", "رسید")) return false;
+        return containsAny(n, "stock", "mojood", "mojoodi", "mojudi", "balance", "remain", "mande", "available", "anbarkala", "kalaanbar", "warehouseinventory", "موجود", "موجودی", "مانده", "انبارکالا");
+    }
+
+    private String relatedStockDirectionExpr(String alias, String qtyCol, String directionCol) {
+        String p = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
+        String qty = "ISNULL(" + sqlNumberExpr(alias, qtyCol, "decimal(19,3)") + ",0)";
+        if (directionCol == null) return qty;
+        String dir = "UPPER(LTRIM(RTRIM(TRY_CONVERT(nvarchar(120)," + p + "[" + directionCol + "]))))";
+        return "CASE WHEN " + dir + " LIKE N'%OUT%' OR " + dir + " LIKE N'%ISSUE%' OR " + dir + " LIKE N'%EXIT%' OR " + dir + " LIKE N'%SALE%' OR " + dir + " LIKE N'%SELL%' OR " + dir + " LIKE N'%خروج%' OR " + dir + " LIKE N'%حواله%' OR " + dir + " LIKE N'%فروش%' OR " + dir + " LIKE N'%مصرف%' THEN -" + qty + " WHEN " + dir + " LIKE N'%IN%' OR " + dir + " LIKE N'%RECEIPT%' OR " + dir + " LIKE N'%BUY%' OR " + dir + " LIKE N'%PURCHASE%' OR " + dir + " LIKE N'%ورود%' OR " + dir + " LIKE N'%رسید%' OR " + dir + " LIKE N'%خرید%' OR " + dir + " LIKE N'%دریافت%' THEN " + qty + " ELSE " + qty + " END";
+    }
+
+    private String relatedStockApply(String table, Set<String> cols, String keyCol, String balanceCol, String inCol, String outCol, String qtyCol, String directionCol, String invAlias, String invKeyCol, String outAlias) {
+        String a = outAlias == null || outAlias.trim().isEmpty() ? "stx" : outAlias.trim();
+        if (table == null || keyCol == null) return "OUTER APPLY (SELECT CAST(0 AS bigint) stock_rows, CAST(NULL AS decimal(19,3)) stock_qty) " + a + " ";
+        Set<String> safeCols = cols == null ? new HashSet<String>() : cols;
+        String relation = "TRY_CONVERT(nvarchar(100),st.[" + keyCol + "])=TRY_CONVERT(nvarchar(100)," + invAlias + ".[" + invKeyCol + "])";
+        String soft = softDeleteCondition(safeCols, "st");
+        String where = " WHERE " + relation + activeAnd(safeCols, "st") + (soft.isEmpty() ? "" : " AND " + soft);
+        if (balanceCol != null) {
+            String bal = "ISNULL(" + sqlNumberExpr("st", balanceCol, "decimal(19,3)") + ",0)";
+            String orderList = relatedTopOrderList(safeCols, "st");
+            boolean hasOrder = !"(SELECT 0)".equals(orderList);
+            String wh = resolveWarehouseColumn(safeCols);
+            if (hasOrder) {
+                String partition = wh == null ? "N'__all__'" : "TRY_CONVERT(nvarchar(100),st.[" + wh + "])";
+                return "OUTER APPLY (SELECT COUNT_BIG(1) stock_rows, ISNULL(SUM(q.stock_qty),0) stock_qty FROM (SELECT " + bal + " stock_qty, ROW_NUMBER() OVER(PARTITION BY " + partition + " ORDER BY " + orderList + ") rn FROM dbo.[" + table + "] st" + where + ") q WHERE q.rn=1) " + a + " ";
+            }
+            return "OUTER APPLY (SELECT COUNT_BIG(1) stock_rows, ISNULL(SUM(" + bal + "),0) stock_qty FROM dbo.[" + table + "] st" + where + ") " + a + " ";
+        }
+        if (inCol != null && outCol != null) {
+            String inExpr = "ISNULL(" + sqlNumberExpr("st", inCol, "decimal(19,3)") + ",0)";
+            String outExpr = "ISNULL(" + sqlNumberExpr("st", outCol, "decimal(19,3)") + ",0)";
+            return "OUTER APPLY (SELECT COUNT_BIG(1) stock_rows, ISNULL(SUM(" + inExpr + "-" + outExpr + "),0) stock_qty FROM dbo.[" + table + "] st" + where + ") " + a + " ";
+        }
+        if (qtyCol != null && directionCol != null) {
+            String signed = relatedStockDirectionExpr("st", qtyCol, directionCol);
+            return "OUTER APPLY (SELECT COUNT_BIG(1) stock_rows, ISNULL(SUM(" + signed + "),0) stock_qty FROM dbo.[" + table + "] st" + where + ") " + a + " ";
+        }
+        if (qtyCol != null && tableNameLooksStockSummary(table)) {
+            String qty = "ISNULL(" + sqlNumberExpr("st", qtyCol, "decimal(19,3)") + ",0)";
+            return "OUTER APPLY (SELECT COUNT_BIG(1) stock_rows, ISNULL(SUM(" + qty + "),0) stock_qty FROM dbo.[" + table + "] st" + where + ") " + a + " ";
+        }
+        return "OUTER APPLY (SELECT CAST(0 AS bigint) stock_rows, CAST(NULL AS decimal(19,3)) stock_qty) " + a + " ";
     }
 
     private List<String> candidateDboTables(Connection c, String[] exactFirst, String... nameHints) throws Exception {
@@ -11517,7 +11626,7 @@ public class MainActivity extends Activity {
             }
         }
         if (nameHints != null && nameHints.length > 0) {
-            try (PreparedStatement ps = c.prepareStatement("SELECT t.name FROM sys.tables t JOIN sys.schemas s ON s.schema_id=t.schema_id WHERE s.name=N'dbo' ORDER BY t.name")) {
+            try (PreparedStatement ps = c.prepareStatement("SELECT o.name FROM sys.objects o JOIN sys.schemas s ON s.schema_id=o.schema_id WHERE s.name=N'dbo' AND o.type IN (N'U',N'V') ORDER BY o.name")) {
                 try (ResultSet r = ps.executeQuery()) {
                     while (r.next()) {
                         String t = r.getString(1);
@@ -11530,15 +11639,20 @@ public class MainActivity extends Activity {
         return new ArrayList<>(out);
     }
 
-    private String relatedTopOrder(Set<String> cols, String alias) {
-        if (cols == null) return "";
+    private String relatedTopOrderList(Set<String> cols, String alias) {
+        if (cols == null) return "(SELECT 0)";
         String p = alias == null || alias.trim().isEmpty() ? "" : alias + ".";
         List<String> order = new ArrayList<>();
         String activeFrom = resolveFlexible(cols, "valid_from", "ValidFrom", "from_date", "FromDate", "effective_from", "EffectiveFrom", "start_date", "StartDate", "tarikh", "Tarikh", "date", "Date", "created_at", "updated_at", "UpdateDate", "LastUpdate", "زمان", "تاریخ", "تاريخ");
-        if (activeFrom != null) order.add("TRY_CONVERT(nvarchar(50)," + p + "[" + activeFrom + "]) DESC");
+        if (activeFrom != null) order.add("TRY_CONVERT(datetime2," + p + "[" + activeFrom + "]) DESC");
         String id = resolveFlexible(cols, "id", "ID", "rdf", "RDF", "row_id", "RowID", "serial", "Serial", "radif", "Radif", "شماره", "ردیف");
         if (id != null) order.add("TRY_CONVERT(bigint," + p + "[" + id + "]) DESC");
-        return order.isEmpty() ? "" : " ORDER BY " + join(order, ", ");
+        return order.isEmpty() ? "(SELECT 0)" : join(order, ", ");
+    }
+
+    private String relatedTopOrder(Set<String> cols, String alias) {
+        String list = relatedTopOrderList(cols, alias);
+        return "(SELECT 0)".equals(list) ? "" : " ORDER BY " + list;
     }
 
     private String resolveSalePrice2Column(Set<String> cols) {
@@ -11640,6 +11754,13 @@ public class MainActivity extends Activity {
         return stock + ("—".equals(unit) ? "" : " " + unit);
     }
 
+    private String executeRowsJson(Connection c, String sql, List<Object> params) throws Exception {
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            setParams(ps, params);
+            try (ResultSet r = ps.executeQuery()) { return rowsToJson(r).toString(); }
+        }
+    }
+
     private String queryProducts(String search, String filter) throws Exception {
         try (Connection c = openConnection()) {
             Set<String> cols = columns(c, "inventory");
@@ -11681,11 +11802,11 @@ public class MainActivity extends Activity {
                 Set<String> pc = columns(c, t); String pk = resolveRelatedProductKeyColumn(pc); String p1c = resolveSalePrice1Column(pc); String p2c = resolveSalePrice2Column(pc);
                 if (pk != null && (p1c != null || p2c != null)) { relPriceTable = t; relPriceKey = pk; relPrice1 = p1c; relPrice2 = p2c; relPriceCols = pc; break; }
             }
-            String relStockTable = null, relStockKey = null, relStockQty = null; Set<String> relStockCols = null;
-            for (String t : candidateDboTables(c, new String[]{"KalaStock", "KalaMojoodi", "MojoodiKala", "MojoodiAnbar", "AnbarMojoodi", "WarehouseStock", "ProductStock", "InventoryStock", "stock", "stocks", "tblStock"}, "stock", "mojood", "mojoodi", "mojudi", "mande", "remain", "balance", "anbar", "warehouse", "موجودی", "موجودي", "مانده", "انبار")) {
+            String relStockTable = null, relStockKey = null, relStockBalance = null, relStockIn = null, relStockOut = null, relStockQty = null, relStockDir = null; Set<String> relStockCols = null;
+            for (String t : candidateDboTables(c, new String[]{"KalaMojoodi", "MojoodiKala", "MojoodiAnbar", "AnbarMojoodi", "KalaStock", "ProductStock", "InventoryStock", "WarehouseStock", "StockBalance", "InventoryBalance", "AnbarKala", "KalaAnbar", "KalaWarehouse", "vKalaMojoodi", "vwKalaMojoodi", "ViewMojoodiKala", "stock", "stocks", "tblStock", "kardex", "KalaKardex", "AnbarKardex", "subanbar", "SubAnbar", "subAnbFact", "WarehouseMovement"}, "stock", "mojood", "mojoodi", "mojudi", "mande", "remain", "balance", "anbar", "warehouse", "kardex", "gardesh", "movement", "موجودی", "موجودي", "مانده", "انبار", "گردش")) {
                 if (t == null || t.equalsIgnoreCase("inventory") || t.equalsIgnoreCase("subsailfact") || t.equalsIgnoreCase("subbuyfact")) continue;
-                Set<String> sc = columns(c, t); String sk = resolveRelatedProductKeyColumn(sc); String sq = resolveStockQuantityColumn(sc);
-                if (sk != null && sq != null) { relStockTable = t; relStockKey = sk; relStockQty = sq; relStockCols = sc; break; }
+                Set<String> sc = columns(c, t); String sk = resolveRelatedProductKeyColumn(sc); String sb = resolveStockBalanceColumn(sc); String sin = resolveStockMovementInColumn(sc); String sout = resolveStockMovementOutColumn(sc); String sq = resolveStockMovementQtyColumn(sc); String sd = resolveStockDirectionColumn(sc);
+                if (sk != null && (sb != null || (sin != null && sout != null) || (sq != null && sd != null) || (sq != null && tableNameLooksStockSummary(t)))) { relStockTable = t; relStockKey = sk; relStockBalance = sb; relStockIn = sin; relStockOut = sout; relStockQty = sq; relStockDir = sd; relStockCols = sc; break; }
             }
 
             List<String> select = new ArrayList<>();
@@ -11729,8 +11850,7 @@ public class MainActivity extends Activity {
             String relPriceSoft = softDeleteCondition(relPriceCols == null ? new HashSet<String>() : relPriceCols, "pr");
             String priceApply = relPriceTable != null && relPriceKey != null ? "OUTER APPLY (SELECT TOP (1) " +
                     sqlNumberExpr("pr", relPrice1, "decimal(19,2)") + " price1, " + sqlNumberExpr("pr", relPrice2, "decimal(19,2)") + " price2 FROM dbo.[" + relPriceTable + "] pr WHERE TRY_CONVERT(nvarchar(100),pr.[" + relPriceKey + "])=TRY_CONVERT(nvarchar(100),i.[" + shka + "])" + activeAnd(relPriceCols, "pr") + (relPriceSoft.isEmpty()?"":" AND "+relPriceSoft) + relatedTopOrder(relPriceCols, "pr") + ") prx " : "OUTER APPLY (SELECT CAST(NULL AS decimal(19,2)) price1, CAST(NULL AS decimal(19,2)) price2) prx ";
-            String relStockSoft = softDeleteCondition(relStockCols == null ? new HashSet<String>() : relStockCols, "st");
-            String stockApply = relStockTable != null && relStockKey != null && relStockQty != null ? "OUTER APPLY (SELECT COUNT_BIG(1) stock_rows, ISNULL(SUM(" + sqlNumberExpr("st", relStockQty, "decimal(19,3)") + "),0) stock_qty FROM dbo.[" + relStockTable + "] st WHERE TRY_CONVERT(nvarchar(100),st.[" + relStockKey + "])=TRY_CONVERT(nvarchar(100),i.[" + shka + "])" + activeAnd(relStockCols, "st") + (relStockSoft.isEmpty()?"":" AND "+relStockSoft) + ") stx " : "OUTER APPLY (SELECT CAST(0 AS bigint) stock_rows, CAST(NULL AS decimal(19,3)) stock_qty) stx ";
+            String stockApply = relatedStockApply(relStockTable, relStockCols, relStockKey, relStockBalance, relStockIn, relStockOut, relStockQty, relStockDir, "i", shka, "stx");
             String unitJoin = unitTable != null && unitRef != null && unitKey != null && unitName != null ? "LEFT JOIN dbo.[" + unitTable + "] u ON TRY_CONVERT(nvarchar(100),u.[" + unitKey + "])=TRY_CONVERT(nvarchar(100),i.[" + unitRef + "]) " : "";
             String groupJoin = groupName != null && groupKey != null && groupId != null ? "LEFT JOIN dbo.kagroup g ON TRY_CONVERT(nvarchar(100),g.[" + groupKey + "])=TRY_CONVERT(nvarchar(100),i.[" + groupId + "]) " : "";
 
@@ -11754,9 +11874,14 @@ public class MainActivity extends Activity {
             String order = "top".equals(filter) ? " ORDER BY مبلغ_فروش DESC, نام" : ("low".equals(filter) ? " ORDER BY موجودی ASC, نام" : ("price2".equals(filter) ? " ORDER BY قیمت_فروش۲ DESC, نام" : " ORDER BY نام, کد"));
             String sql = "SELECT TOP (160) " + join(select, ",") + " FROM dbo.[inventory] i " + unitJoin + groupJoin + saleApply + buyApply + priceApply + stockApply +
                     (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + order;
-            try (PreparedStatement ps = c.prepareStatement(sql)) {
-                setParams(ps, params);
-                try (ResultSet r = ps.executeQuery()) { return rowsToJson(r).toString(); }
+            try {
+                return executeRowsJson(c, sql, params);
+            } catch (Exception stockEx) {
+                if (relStockTable == null) throw stockEx;
+                String fallbackStockApply = relatedStockApply(null, null, null, null, null, null, null, null, "i", shka, "stx");
+                String fallbackSql = "SELECT TOP (160) " + join(select, ",") + " FROM dbo.[inventory] i " + unitJoin + groupJoin + saleApply + buyApply + priceApply + fallbackStockApply +
+                        (where.isEmpty() ? "" : " WHERE " + join(where, " AND ")) + order;
+                return executeRowsJson(c, fallbackSql, params);
             }
         }
     }
@@ -15520,7 +15645,7 @@ public class MainActivity extends Activity {
 
     private String resolveTableName(Connection c, String... candidates) throws Exception {
         if (candidates == null) return null;
-        try (PreparedStatement ps = c.prepareStatement("SELECT TOP 1 t.name FROM sys.tables t JOIN sys.schemas s ON s.schema_id=t.schema_id WHERE s.name=N'dbo' AND LOWER(t.name)=LOWER(?)")) {
+        try (PreparedStatement ps = c.prepareStatement("SELECT TOP 1 o.name FROM sys.objects o JOIN sys.schemas s ON s.schema_id=o.schema_id WHERE s.name=N'dbo' AND o.type IN (N'U',N'V') AND LOWER(o.name)=LOWER(?)")) {
             for (String candidate : candidates) {
                 if (candidate == null || candidate.trim().isEmpty()) continue;
                 ps.setString(1, candidate.trim());
@@ -15534,7 +15659,7 @@ public class MainActivity extends Activity {
 
     private Set<String> columns(Connection c, String table) throws Exception {
         Set<String> set = new HashSet<>();
-        try (PreparedStatement ps = c.prepareStatement("SELECT c.name FROM sys.columns c JOIN sys.tables t ON t.object_id=c.object_id JOIN sys.schemas s ON s.schema_id=t.schema_id WHERE s.name=N'dbo' AND t.name=? ORDER BY c.column_id")) {
+        try (PreparedStatement ps = c.prepareStatement("SELECT c.name FROM sys.columns c JOIN sys.objects o ON o.object_id=c.object_id JOIN sys.schemas s ON s.schema_id=o.schema_id WHERE s.name=N'dbo' AND o.type IN (N'U',N'V') AND o.name=? ORDER BY c.column_id")) {
             ps.setString(1, table);
             try (ResultSet r = ps.executeQuery()) { while (r.next()) set.add(r.getString(1)); }
         }
@@ -15543,7 +15668,7 @@ public class MainActivity extends Activity {
 
     private Map<String, String> columnTypes(Connection c, String table) throws Exception {
         Map<String, String> map = new HashMap<>();
-        try (PreparedStatement ps = c.prepareStatement("SELECT c.name, ty.name FROM sys.columns c JOIN sys.tables t ON t.object_id=c.object_id JOIN sys.schemas s ON s.schema_id=t.schema_id JOIN sys.types ty ON ty.user_type_id=c.user_type_id WHERE s.name=N'dbo' AND t.name=?")) {
+        try (PreparedStatement ps = c.prepareStatement("SELECT c.name, ty.name FROM sys.columns c JOIN sys.objects o ON o.object_id=c.object_id JOIN sys.schemas s ON s.schema_id=o.schema_id JOIN sys.types ty ON ty.user_type_id=c.user_type_id WHERE s.name=N'dbo' AND o.type IN (N'U',N'V') AND o.name=?")) {
             ps.setString(1, table);
             try (ResultSet r = ps.executeQuery()) { while (r.next()) map.put(r.getString(1).toLowerCase(Locale.US), r.getString(2).toLowerCase(Locale.US)); }
         }
