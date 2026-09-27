@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.visitor'
         minSdk 24
         targetSdk 35
-        versionCode 74
-        versionName '4.4.10-stock-showcase-icon'
+        versionCode 75
+        versionName '4.4.11-cart-prefactor-native-icon-restore'
     }
 
     compileOptions {
