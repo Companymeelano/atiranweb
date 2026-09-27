@@ -8,8 +8,8 @@ android {
         applicationId 'ir.meelano.visitor'
         minSdk 24
         targetSdk 35
-        versionCode 67
-        versionName '4.4.3-product-images-portrait'
+        versionCode 68
+        versionName '4.4.4-catalog-ux-upgrade'
     }
 
     compileOptions {

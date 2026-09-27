@@ -8681,6 +8681,28 @@ public class MainActivity extends Activity {
         loadShowcase(q, f);
     }
 
+    private String visitorShowcaseMode() {
+        String mode = prefs == null ? "catalog" : prefs.getString("visitor_showcase_mode", "catalog");
+        if (!"compact".equals(mode) && !"gallery".equals(mode)) mode = "catalog";
+        return mode;
+    }
+
+    private void setVisitorShowcaseMode(String mode, String query, String filter) {
+        String m = "compact".equals(mode) || "gallery".equals(mode) ? mode : "catalog";
+        if (prefs != null) prefs.edit().putString("visitor_showcase_mode", m).apply();
+        rerenderShowcaseFast(query, filter);
+    }
+
+    private void addVisitorShowcaseModeChip(LinearLayout parent, String query, String filter, String key, String label) {
+        boolean selected = key.equals(visitorShowcaseMode());
+        Button b = themedActionButton(label, selected ? navAccent("showcase") : INFO, selected);
+        b.setTextSize(8.4f);
+        b.setOnClickListener(v -> setVisitorShowcaseMode(key, query, filter));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(selected ? 92 : 82), dp(36));
+        lp.setMargins(dp(3), 0, dp(3), 0);
+        parent.addView(b, lp);
+    }
+
     private void addVisitorShowcaseSmartControls(JSONArray rows, String query, String active, boolean loading) {
         String q = query == null ? "" : query;
         String f = active == null || active.trim().isEmpty() ? "all" : active;
@@ -8719,6 +8741,13 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(86), dp(38)); rp.setMargins(dp(3), 0, dp(3), 0); chips.addView(refresh, rp);
         hs.addView(chips, new FrameLayout.LayoutParams(-2, -2));
         LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2); hp.setMargins(0, dp(9), 0, 0); c.addView(hs, hp);
+
+        LinearLayout modes = new LinearLayout(this); modes.setOrientation(LinearLayout.HORIZONTAL); modes.setGravity(Gravity.CENTER_VERTICAL);
+        TextView mt = text("حالت نمایش", 9.2f, MUTED, Typeface.BOLD); mt.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT); modes.addView(mt, new LinearLayout.LayoutParams(0, dp(36), 1f));
+        addVisitorShowcaseModeChip(modes, q, f, "gallery", "تصویری ویژه");
+        addVisitorShowcaseModeChip(modes, q, f, "catalog", "کاتالوگ");
+        addVisitorShowcaseModeChip(modes, q, f, "compact", "سریع");
+        LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.setMargins(0, dp(8), 0, 0); c.addView(modes, mp);
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-1, -2); cp.setMargins(0, 0, 0, dp(10)); content.addView(c, cp);
     }
 
@@ -8983,6 +9012,8 @@ public class MainActivity extends Activity {
         boolean price1Ok = hasPositiveNumber(r, "قیمت_فروش");
         boolean price2Ok = hasPositiveNumber(r, "قیمت_فروش۲");
         boolean inStock = jsonDouble(r, "موجودی", 0) > 0;
+        String mode = visitorShowcaseMode();
+        int imageDp = "gallery".equals(mode) ? 158 : ("compact".equals(mode) ? 96 : 132);
         LinearLayout c = card();
         c.setPadding(dp(11), dp(11), dp(11), dp(11));
         c.setBackground(roundedStroke(alpha(Color.rgb(10, 9, 6), 246), 30, alpha(price2Ok ? GOLD_2 : GOLD, selected ? 190 : 130)));
@@ -8991,7 +9022,7 @@ public class MainActivity extends Activity {
         ImageView img = new ImageView(this); img.setScaleType(ImageView.ScaleType.CENTER_CROP); img.setPadding(dp(3), dp(3), dp(3), dp(3));
         img.setBackground(roundedStroke(alpha(GOLD, 34), 26, alpha(GOLD_2, 175))); applyProductImage(img, r, false);
         img.setOnClickListener(v -> showShowcaseProductDialog(r, query, filter));
-        top.addView(img, new LinearLayout.LayoutParams(dp(132), dp(132)));
+        top.addView(img, new LinearLayout.LayoutParams(dp(imageDp), dp(imageDp)));
         LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL); copy.setPadding(dp(12), 0, dp(6), 0);
         TextView name = text(safeDisplayText(r.opt("نام"), "محصول"), 18.0f, TEXT, Typeface.BOLD); name.setMaxLines(2); copy.addView(name, new LinearLayout.LayoutParams(-1, -2));
         copy.addView(text("کد: " + safeDisplayText(r.opt("کد"), "—") + "  |  " + safeDisplayText(r.opt("گروه"), vp.title), 10.5f, MUTED, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
@@ -9354,6 +9385,29 @@ public class MainActivity extends Activity {
         visitorCartItems = out;
     }
 
+    private void changeCartItemQty(int index, double delta) {
+        JSONObject item = visitorCartItems.optJSONObject(index);
+        if (item == null) return;
+        try {
+            double current = item.optDouble("qty", 1);
+            double step = Math.max(1d, Math.min(12d, item.optDouble("pack", 1d)));
+            double next = current + (delta > 0 ? step : -step);
+            if (next <= 0) next = 1d;
+            item.put("qty", next);
+            item.put("amount", cartItemNet(item));
+            visitorCartItems.put(index, item);
+        } catch (Exception ignored) { }
+        renderCartPage();
+    }
+
+    private String cartStockWarning(JSONObject item) {
+        if (item == null) return "";
+        double stock = item.optDouble("stock", 0), qty = item.optDouble("qty", 0);
+        if (stock <= 0) return "موجودی این کالا صفر یا نامشخص است؛ قبل از ارسال بررسی کنید.";
+        if (qty > stock) return "تعداد انتخابی از موجودی ثبت‌شده بیشتر است.";
+        return "";
+    }
+
     private double parseNumber(String text, double fallback) {
         try {
             String n = normalizeDigits(text == null ? "" : text).replace(',', '.').replace(" ", "").trim();
@@ -9417,6 +9471,7 @@ public class MainActivity extends Activity {
         addCartWorkflowButtons();
         addCartCustomerCard();
         addCartItemsCard();
+        if (VISITOR_EDITION) addCartComplementarySuggestionCard();
         addCartTermsCard();
         addCartNotesAndActions();
         addCartDraftsAndOfflineCard();
@@ -9579,6 +9634,22 @@ public class MainActivity extends Activity {
         metrics.addView(customerMiniMetric("فی", money(item.optDouble("price", 0)), GOLD), weightedMiniLp());
         metrics.addView(customerMiniMetric("خالص", money(cartItemNet(item)), accent), weightedMiniLp());
         LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(-1, -2); mp.setMargins(0, dp(7), 0, 0); row.addView(metrics, mp);
+        String warn = cartStockWarning(item);
+        if (!warn.isEmpty()) {
+            TextView warning = text("⚠ " + warn, 9.4f, DANGER, Typeface.BOLD);
+            warning.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+            warning.setPadding(dp(8), dp(5), dp(8), dp(5));
+            warning.setBackground(roundedStroke(alpha(DANGER, 15), 14, alpha(DANGER, 58)));
+            LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(-1, -2); wp.setMargins(0, dp(7), 0, 0); row.addView(warning, wp);
+        }
+        LinearLayout quickQty = new LinearLayout(this); quickQty.setOrientation(LinearLayout.HORIZONTAL); quickQty.setGravity(Gravity.CENTER_VERTICAL);
+        Button minus = themedActionButton("−", DANGER, false); minus.setTextSize(17); minus.setOnClickListener(v -> changeCartItemQty(index, -1));
+        Button plus = themedActionButton("+", SUCCESS, true); plus.setTextSize(17); plus.setOnClickListener(v -> changeCartItemQty(index, 1));
+        TextView qtyLabel = text("تعداد سریع: " + formatNumber(item.optDouble("qty", 0)) + " " + item.optString("unit", ""), 10.3f, TEXT, Typeface.BOLD); qtyLabel.setGravity(Gravity.CENTER); qtyLabel.setBackground(roundedStroke(alpha(GOLD, 14), 16, alpha(GOLD, 48)));
+        quickQty.addView(minus, new LinearLayout.LayoutParams(dp(54), dp(38)));
+        LinearLayout.LayoutParams qlp = new LinearLayout.LayoutParams(0, dp(38), 1f); qlp.setMargins(dp(6), 0, dp(6), 0); quickQty.addView(qtyLabel, qlp);
+        quickQty.addView(plus, new LinearLayout.LayoutParams(dp(54), dp(38)));
+        LinearLayout.LayoutParams qqp = new LinearLayout.LayoutParams(-1, -2); qqp.setMargins(0, dp(7), 0, 0); row.addView(quickQty, qqp);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, dp(8), 0, 0); parent.addView(row, lp);
     }
 
@@ -9599,6 +9670,21 @@ public class MainActivity extends Activity {
         AlertDialog dlg = new AlertDialog.Builder(this).setView(box).setNegativeButton("بستن", null).setPositiveButton("ذخیره", null).create();
         dlg.setOnShowListener(d -> { styleMeelanoDialog(dlg, navAccent("cart")); Button ok = dlg.getButton(AlertDialog.BUTTON_POSITIVE); if (ok != null) ok.setOnClickListener(v -> { try { item.put("qty", Math.max(0.001, parseNumber(qty.getText().toString(), item.optDouble("qty", 1)))); item.put("price", Math.max(0, parseNumber(price.getText().toString(), item.optDouble("price", 0)))); item.put("lineDiscount", Math.max(0, parseNumber(discount.getText().toString(), 0))); item.put("note", note.getText().toString().trim()); item.put("amount", cartItemNet(item)); visitorCartItems.put(index, item); } catch (Exception ignored) { } dlg.dismiss(); renderCartPage(); }); });
         dlg.show();
+    }
+
+    private void addCartComplementarySuggestionCard() {
+        if (visitorCartItems == null || visitorCartItems.length() == 0) return;
+        String suggestion = smartCartSuggestionText();
+        if (suggestion == null || suggestion.trim().isEmpty()) suggestion = "برای کامل‌تر شدن سفارش، یک کالای مکمل از همان گروه یا کالاهای قیمت ۲ پیشنهاد بده.";
+        LinearLayout c = card();
+        c.setPadding(dp(11), dp(10), dp(11), dp(10));
+        c.setBackground(roundedStroke(alpha(GOLD, 20), 24, alpha(GOLD_2, 100)));
+        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView icon = text("✨", 20, GOLD_2, Typeface.BOLD); icon.setGravity(Gravity.CENTER); icon.setBackground(luxuryButtonBg(GOLD, false, 999)); row.addView(icon, new LinearLayout.LayoutParams(dp(44), dp(44)));
+        TextView copy = text("پیشنهاد مکمل سبد: " + suggestion, 10.8f, TEXT, Typeface.BOLD); copy.setMaxLines(3); copy.setPadding(dp(10), 0, dp(10), 0); row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        Button go = themedActionButton("ویترین", navAccent("showcase"), true); go.setTextSize(9.0f); go.setOnClickListener(v -> showApp("showcase")); row.addView(go, new LinearLayout.LayoutParams(dp(86), dp(42)));
+        c.addView(row, new LinearLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2); lp.setMargins(0, 0, 0, dp(12)); content.addView(c, lp);
     }
 
     private void addCartTermsCard() {
@@ -10492,7 +10578,6 @@ public class MainActivity extends Activity {
         if (img == null) return;
         Bitmap smart = smartProductBitmap(r);
         if (smart != null) img.setImageBitmap(smart); else img.setImageResource(ir.meelano.android.R.drawable.icon_products);
-        if (VISITOR_EDITION) return;
         if (!decodeRealImage || !hasProductImage(r)) return;
         String raw = r.optString("تصویر", "").trim();
         int comma = raw.indexOf(',');
@@ -14053,7 +14138,7 @@ public class MainActivity extends Activity {
         LinearLayout about = card();
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2); ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Visit v4.4.3\nچرخش خودکار صفحه حذف شد و تصاویر هوشمند کالاها با اندازه مناسب‌تر، نورپردازی و طراحی زیباتر ساخته می‌شوند.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Visit v4.4.4\nموتور کاتالوگ کالا، حالت‌های نمایش ویترین، کنترل سریع تعداد، هشدار موجودی و پیشنهاد مکمل سبد ارتقا یافت.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f); about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
     }
@@ -14107,7 +14192,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, -2);
         ap.setMargins(0, dp(12), 0, 0);
         about.addView(text("درباره نسخه", 16, TEXT, Typeface.BOLD), new LinearLayout.LayoutParams(-1, -2));
-        TextView desc = text("Meelano Visit v4.4.3\nنسخه ویزیتور با حالت عمودی ثابت، تصویرهای جذاب‌تر بر اساس نام کالا، محدودسازی latifi و چیدمان خلوت‌تر.", 12, MUTED, Typeface.NORMAL);
+        TextView desc = text("Meelano Visit v4.4.4\nنسخه ویزیتور با تصویرسازی کاتالوگی‌تر، سه حالت نمایش کالا، سبد هوشمندتر، حالت عمودی ثابت و محدودسازی latifi.", 12, MUTED, Typeface.NORMAL);
         desc.setLineSpacing(dp(3), 1.05f);
         about.addView(desc, new LinearLayout.LayoutParams(-1, -2));
         content.addView(about, ap);
